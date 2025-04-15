@@ -1,0 +1,217 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { PageService } from '../../../core/page/services/page.service';
+import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import SpaceAbilityFactory from '../../../core/casl/abilities/space-ability.factory';
+import {
+  SpaceCaslAction,
+  SpaceCaslSubject,
+} from '../../../core/casl/interfaces/space-ability.type';
+import {
+  createInvalidParamsError,
+  createInternalError,
+  createPermissionDeniedError,
+  createResourceNotFoundError,
+} from '../utils/error.utils';
+import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
+import { User } from '@docmost/db/types/entity.types';
+import { CreatePageDto } from '../../../core/page/dto/create-page.dto';
+
+/**
+ * Handler for page-related MCP operations
+ */
+@Injectable()
+export class PageHandler {
+  private readonly logger = new Logger(PageHandler.name);
+
+  constructor(
+    private readonly pageService: PageService,
+    private readonly pageRepo: PageRepo,
+    private readonly spaceAbility: SpaceAbilityFactory,
+  ) {}
+
+  /**
+   * Handles page.get operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns The page data
+   */
+  async getPage(params: any, userId: string): Promise<any> {
+    this.logger.debug(`Processing page.get operation for user ${userId}`);
+
+    if (!params.pageId) {
+      throw createInvalidParamsError('pageId is required');
+    }
+
+    try {
+      const page = await this.pageRepo.findById(params.pageId, {
+        includeContent: true,
+        includeSpace: true,
+        includeCreator: true,
+        includeLastUpdatedBy: true,
+      });
+
+      if (!page) {
+        throw createResourceNotFoundError('Page', params.pageId);
+      }
+
+      // Create a mock user with just the ID for permission checking
+      const user = { id: userId } as User;
+
+      // Check permissions
+      const ability = await this.spaceAbility.createForUser(user, page.spaceId);
+      if (ability.cannot(SpaceCaslAction.Read, SpaceCaslSubject.Page)) {
+        throw createPermissionDeniedError(
+          'You do not have permission to read this page',
+        );
+      }
+
+      return page;
+    } catch (error: any) {
+      this.logger.error(
+        `Error getting page: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles page.list operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns List of pages in the space
+   */
+  async listPages(params: any, userId: string): Promise<any> {
+    this.logger.debug(`Processing page.list operation for user ${userId}`);
+
+    if (!params.spaceId) {
+      throw createInvalidParamsError('spaceId is required');
+    }
+
+    try {
+      // Create a mock user with just the ID for permission checking
+      const user = { id: userId } as User;
+
+      // Check permissions
+      const ability = await this.spaceAbility.createForUser(
+        user,
+        params.spaceId,
+      );
+      if (ability.cannot(SpaceCaslAction.Read, SpaceCaslSubject.Page)) {
+        throw createPermissionDeniedError(
+          'You do not have permission to list pages in this space',
+        );
+      }
+
+      // Get optional parameters with defaults
+      const limit = params.limit || 50;
+      const page = params.page || 1;
+
+      // Create pagination options
+      const paginationOptions = new PaginationOptions();
+      paginationOptions.limit = limit;
+      paginationOptions.page = page;
+      paginationOptions.query = params.query || '';
+
+      // Get pages in the space using page service methods
+      const pagesResult = await this.pageService.getRecentSpacePages(
+        params.spaceId,
+        paginationOptions,
+      );
+
+      return {
+        pages: pagesResult.items,
+        pagination: {
+          limit,
+          page,
+          hasNextPage: pagesResult.meta?.hasNextPage,
+          hasPrevPage: pagesResult.meta?.hasPrevPage,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `Error listing pages: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles page.create operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns The created page data
+   */
+  async createPage(params: any, userId: string): Promise<any> {
+    this.logger.debug(`Processing page.create operation for user ${userId}`);
+
+    if (!params.spaceId) {
+      throw createInvalidParamsError('spaceId is required');
+    }
+
+    try {
+      // Create a mock user with just the ID for permission checking
+      const user = { id: userId } as User;
+
+      // Check permissions
+      const ability = await this.spaceAbility.createForUser(
+        user,
+        params.spaceId,
+      );
+      if (ability.cannot(SpaceCaslAction.Create, SpaceCaslSubject.Page)) {
+        throw createPermissionDeniedError(
+          'You do not have permission to create pages in this space',
+        );
+      }
+
+      // Create DTO for the page service
+      const createPageDto = new CreatePageDto();
+      createPageDto.spaceId = params.spaceId;
+      createPageDto.title = params.title || 'Untitled';
+      createPageDto.icon = params.icon || '';
+      createPageDto.parentPageId = params.parentPageId || undefined;
+
+      // We need to get the workspace ID from the space
+      const workspace = await this.pageRepo.findFirstWorkspaceBySpaceId(
+        params.spaceId,
+      );
+      if (!workspace) {
+        throw createResourceNotFoundError('Workspace', 'for this space');
+      }
+
+      // Create the page
+      const createdPage = await this.pageService.create(
+        userId,
+        workspace.id,
+        createPageDto,
+      );
+
+      // Return the created page with additional details
+      return await this.pageRepo.findById(createdPage.id, {
+        includeContent: true,
+        includeSpace: true,
+        includeCreator: true,
+        includeLastUpdatedBy: true,
+      });
+    } catch (error: any) {
+      this.logger.error(
+        `Error creating page: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+}

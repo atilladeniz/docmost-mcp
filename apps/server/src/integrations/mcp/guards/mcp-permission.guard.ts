@@ -1,0 +1,96 @@
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+  Logger,
+} from '@nestjs/common';
+import { MCPRequest } from '../interfaces/mcp.interface';
+import { User } from '@docmost/db/types/entity.types';
+
+/**
+ * Permission levels for MCP operations
+ */
+export enum MCPPermissionLevel {
+  READ = 'read',
+  WRITE = 'write',
+  ADMIN = 'admin',
+}
+
+/**
+ * Guard for MCP operation-level permissions
+ *
+ * This guard checks if the user has the required permission level
+ * to perform a specific MCP operation.
+ */
+@Injectable()
+export class MCPPermissionGuard implements CanActivate {
+  private readonly logger = new Logger(MCPPermissionGuard.name);
+
+  // Permission requirements for each resource.operation
+  private readonly permissionMap = {
+    // Page operations
+    'page.get': MCPPermissionLevel.READ,
+    'page.list': MCPPermissionLevel.READ,
+    'page.create': MCPPermissionLevel.WRITE,
+    'page.update': MCPPermissionLevel.WRITE,
+    'page.delete': MCPPermissionLevel.WRITE,
+
+    // Workspace operations
+    'workspace.get': MCPPermissionLevel.READ,
+    'workspace.update': MCPPermissionLevel.ADMIN,
+    'workspace.addMember': MCPPermissionLevel.ADMIN,
+    'workspace.removeMember': MCPPermissionLevel.ADMIN,
+
+    // Default to admin for any operation not explicitly defined
+    default: MCPPermissionLevel.ADMIN,
+  };
+
+  constructor() {}
+
+  /**
+   * Check if the user can activate the route
+   *
+   * @param context The execution context
+   * @returns true if the user has permission, false otherwise
+   */
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest();
+    const user: User = request.user;
+    const mcpRequest: MCPRequest = request.body;
+
+    if (!user) {
+      this.logger.warn('User not found in request');
+      throw new UnauthorizedException('User not authenticated');
+    }
+
+    if (!mcpRequest || !mcpRequest.method) {
+      // Not an MCP request, or method validation will be handled elsewhere
+      return true;
+    }
+
+    return this.hasPermission(mcpRequest.method, user);
+  }
+
+  /**
+   * Check if a user has permission to perform an operation
+   *
+   * @param method The MCP method
+   * @param user The user
+   * @returns true if the user has permission, false otherwise
+   */
+  private hasPermission(method: string, user: User): boolean {
+    // Get the required permission level for the method
+    const requiredLevel =
+      this.permissionMap[method] || this.permissionMap.default;
+
+    // TODO: Implement more sophisticated permission checking based on user roles
+    // For now, we'll just allow all operations, but log for debugging
+    this.logger.debug(
+      `Checking permission for method ${method}, required level: ${requiredLevel}`,
+    );
+
+    // In a real implementation, check the user's role/permissions against the required level
+    return true;
+  }
+}
