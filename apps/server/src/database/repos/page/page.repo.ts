@@ -247,4 +247,28 @@ export class PageRepo {
       .selectAll()
       .execute();
   }
+
+  /**
+   * Find the workspace associated with a space
+   *
+   * @param spaceId The ID of the space
+   * @returns The workspace associated with the space
+   */
+  async findFirstWorkspaceBySpaceId(spaceId: string) {
+    const space = await this.db
+      .selectFrom('spaces')
+      .select(['workspaceId'])
+      .where('id', '=', spaceId)
+      .executeTakeFirst();
+
+    if (!space) {
+      return null;
+    }
+
+    return await this.db
+      .selectFrom('workspaces')
+      .selectAll()
+      .where('id', '=', space.workspaceId)
+      .executeTakeFirst();
+  }
 }

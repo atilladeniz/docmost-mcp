@@ -214,4 +214,302 @@ export class PageHandler {
       throw createInternalError(error?.message || String(error));
     }
   }
+
+  /**
+   * Handles page.update operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns The updated page data
+   */
+  async updatePage(params: any, userId: string): Promise<any> {
+    this.logger.debug(`Processing page.update operation for user ${userId}`);
+
+    if (!params.pageId) {
+      throw createInvalidParamsError('pageId is required');
+    }
+
+    try {
+      // Find the page to get its spaceId
+      const page = await this.pageRepo.findById(params.pageId, {
+        includeSpace: true,
+      });
+
+      if (!page) {
+        throw createResourceNotFoundError('Page', params.pageId);
+      }
+
+      // Create a mock user with just the ID for permission checking
+      const user = { id: userId } as User;
+
+      // Check permissions
+      const ability = await this.spaceAbility.createForUser(user, page.spaceId);
+      if (ability.cannot(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) {
+        throw createPermissionDeniedError(
+          'You do not have permission to update this page',
+        );
+      }
+
+      // Prepare update data
+      const updateData: any = {};
+
+      if (params.title !== undefined) {
+        updateData.title = params.title;
+      }
+
+      if (params.icon !== undefined) {
+        updateData.icon = params.icon;
+      }
+
+      if (params.content !== undefined) {
+        updateData.content = params.content;
+        updateData.lastUpdatedById = userId;
+      }
+
+      if (params.parentPageId !== undefined) {
+        updateData.parentPageId = params.parentPageId;
+      }
+
+      // Update the page
+      await this.pageRepo.updatePage(updateData, params.pageId);
+
+      // Return the updated page with additional details
+      return await this.pageRepo.findById(params.pageId, {
+        includeContent: true,
+        includeSpace: true,
+        includeCreator: true,
+        includeLastUpdatedBy: true,
+      });
+    } catch (error: any) {
+      this.logger.error(
+        `Error updating page: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles page.delete operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns Success indication
+   */
+  async deletePage(params: any, userId: string): Promise<any> {
+    this.logger.debug(`Processing page.delete operation for user ${userId}`);
+
+    if (!params.pageId) {
+      throw createInvalidParamsError('pageId is required');
+    }
+
+    try {
+      // Find the page to get its spaceId
+      const page = await this.pageRepo.findById(params.pageId, {
+        includeSpace: true,
+      });
+
+      if (!page) {
+        throw createResourceNotFoundError('Page', params.pageId);
+      }
+
+      // Create a mock user with just the ID for permission checking
+      const user = { id: userId } as User;
+
+      // Check permissions
+      const ability = await this.spaceAbility.createForUser(user, page.spaceId);
+      if (ability.cannot(SpaceCaslAction.Delete, SpaceCaslSubject.Page)) {
+        throw createPermissionDeniedError(
+          'You do not have permission to delete this page',
+        );
+      }
+
+      // Delete the page
+      await this.pageRepo.deletePage(params.pageId);
+
+      return { success: true, message: 'Page deleted successfully' };
+    } catch (error: any) {
+      this.logger.error(
+        `Error deleting page: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles page.move operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns The moved page data
+   */
+  async movePage(params: any, userId: string): Promise<any> {
+    this.logger.debug(`Processing page.move operation for user ${userId}`);
+
+    if (!params.pageId) {
+      throw createInvalidParamsError('pageId is required');
+    }
+
+    if (!params.targetSpaceId) {
+      throw createInvalidParamsError('targetSpaceId is required');
+    }
+
+    try {
+      // Find the page
+      const page = await this.pageRepo.findById(params.pageId, {
+        includeSpace: true,
+      });
+
+      if (!page) {
+        throw createResourceNotFoundError('Page', params.pageId);
+      }
+
+      // Create a mock user with just the ID for permission checking
+      const user = { id: userId } as User;
+
+      // Check permissions for source space
+      let ability = await this.spaceAbility.createForUser(user, page.spaceId);
+      if (ability.cannot(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) {
+        throw createPermissionDeniedError(
+          'You do not have permission to move this page',
+        );
+      }
+
+      // Check permissions for target space
+      ability = await this.spaceAbility.createForUser(
+        user,
+        params.targetSpaceId,
+      );
+      if (ability.cannot(SpaceCaslAction.Create, SpaceCaslSubject.Page)) {
+        throw createPermissionDeniedError(
+          'You do not have permission to create pages in the target space',
+        );
+      }
+
+      // Get workspace ID for the target space
+      const workspace = await this.pageRepo.findFirstWorkspaceBySpaceId(
+        params.targetSpaceId,
+      );
+      if (!workspace) {
+        throw createResourceNotFoundError('Workspace', 'for the target space');
+      }
+
+      // Update the page with new space ID and optionally parent page ID
+      const updateData: any = {
+        spaceId: params.targetSpaceId,
+        workspaceId: workspace.id,
+        lastUpdatedById: userId,
+      };
+
+      if (params.parentPageId !== undefined) {
+        updateData.parentPageId = params.parentPageId;
+      }
+
+      // Move the page
+      await this.pageRepo.updatePage(updateData, params.pageId);
+
+      // Return the updated page with additional details
+      return await this.pageRepo.findById(params.pageId, {
+        includeContent: true,
+        includeSpace: true,
+        includeCreator: true,
+        includeLastUpdatedBy: true,
+      });
+    } catch (error: any) {
+      this.logger.error(
+        `Error moving page: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles page.search operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns List of pages matching the search criteria
+   */
+  async searchPages(params: any, userId: string): Promise<any> {
+    this.logger.debug(`Processing page.search operation for user ${userId}`);
+
+    if (!params.query) {
+      throw createInvalidParamsError('query is required');
+    }
+
+    try {
+      // Create pagination options
+      const paginationOptions = new PaginationOptions();
+      paginationOptions.limit = params.limit || 50;
+      paginationOptions.page = params.page || 1;
+      paginationOptions.query = params.query;
+
+      // If a specific spaceId is provided, search within that space only
+      if (params.spaceId) {
+        // Check if user has access to the space
+        const user = { id: userId } as User;
+        const ability = await this.spaceAbility.createForUser(
+          user,
+          params.spaceId,
+        );
+        if (ability.cannot(SpaceCaslAction.Read, SpaceCaslSubject.Page)) {
+          throw createPermissionDeniedError(
+            'You do not have permission to search pages in this space',
+          );
+        }
+
+        // Search pages in the specific space
+        const pagesResult = await this.pageService.getRecentSpacePages(
+          params.spaceId,
+          paginationOptions,
+        );
+
+        return {
+          pages: pagesResult.items,
+          pagination: {
+            limit: paginationOptions.limit,
+            page: paginationOptions.page,
+            hasNextPage: pagesResult.meta?.hasNextPage,
+            hasPrevPage: pagesResult.meta?.hasPrevPage,
+          },
+        };
+      } else {
+        // Search across all spaces the user has access to
+        const pagesResult = await this.pageService.getRecentPages(
+          userId,
+          paginationOptions,
+        );
+
+        return {
+          pages: pagesResult.items,
+          pagination: {
+            limit: paginationOptions.limit,
+            page: paginationOptions.page,
+            hasNextPage: pagesResult.meta?.hasNextPage,
+            hasPrevPage: pagesResult.meta?.hasPrevPage,
+          },
+        };
+      }
+    } catch (error: any) {
+      this.logger.error(
+        `Error searching pages: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
 }

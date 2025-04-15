@@ -36,6 +36,27 @@ export class MCPPermissionGuard implements CanActivate {
     'page.update': MCPPermissionLevel.WRITE,
     'page.delete': MCPPermissionLevel.WRITE,
 
+    // Space operations
+    'space.get': MCPPermissionLevel.READ,
+    'space.list': MCPPermissionLevel.READ,
+    'space.create': MCPPermissionLevel.WRITE,
+    'space.update': MCPPermissionLevel.ADMIN,
+    'space.delete': MCPPermissionLevel.ADMIN,
+
+    // User operations
+    'user.get': MCPPermissionLevel.READ,
+    'user.list': MCPPermissionLevel.READ,
+    'user.update': MCPPermissionLevel.ADMIN,
+
+    // Group operations
+    'group.get': MCPPermissionLevel.READ,
+    'group.list': MCPPermissionLevel.READ,
+    'group.create': MCPPermissionLevel.ADMIN,
+    'group.update': MCPPermissionLevel.ADMIN,
+    'group.delete': MCPPermissionLevel.ADMIN,
+    'group.addMember': MCPPermissionLevel.ADMIN,
+    'group.removeMember': MCPPermissionLevel.ADMIN,
+
     // Workspace operations
     'workspace.get': MCPPermissionLevel.READ,
     'workspace.update': MCPPermissionLevel.ADMIN,

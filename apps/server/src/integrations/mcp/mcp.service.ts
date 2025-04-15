@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MCPRequest, MCPResponse, MCPError } from './interfaces/mcp.interface';
 import { PageHandler } from './handlers/page.handler';
+import { SpaceHandler } from './handlers/space.handler';
+import { UserHandler } from './handlers/user.handler';
+import { GroupHandler } from './handlers/group.handler';
 import { User } from '@docmost/db/types/entity.types';
 import {
   createInternalError,
@@ -20,7 +23,12 @@ import {
 export class MCPService {
   private readonly logger = new Logger(MCPService.name);
 
-  constructor(private readonly pageHandler: PageHandler) {}
+  constructor(
+    private readonly pageHandler: PageHandler,
+    private readonly spaceHandler: SpaceHandler,
+    private readonly userHandler: UserHandler,
+    private readonly groupHandler: GroupHandler,
+  ) {}
 
   /**
    * Process an MCP request and generate a response
@@ -42,6 +50,27 @@ export class MCPService {
       switch (resource) {
         case 'page':
           result = await this.handlePageRequest(
+            operation,
+            request.params,
+            user.id,
+          );
+          break;
+        case 'space':
+          result = await this.handleSpaceRequest(
+            operation,
+            request.params,
+            user.id,
+          );
+          break;
+        case 'user':
+          result = await this.handleUserRequest(
+            operation,
+            request.params,
+            user.id,
+          );
+          break;
+        case 'group':
+          result = await this.handleGroupRequest(
             operation,
             request.params,
             user.id,
@@ -79,8 +108,95 @@ export class MCPService {
         return this.pageHandler.getPage(params, userId);
       case 'list':
         return this.pageHandler.listPages(params, userId);
+      case 'create':
+        return this.pageHandler.createPage(params, userId);
+      case 'update':
+        return this.pageHandler.updatePage(params, userId);
+      case 'delete':
+        return this.pageHandler.deletePage(params, userId);
+      case 'move':
+        return this.pageHandler.movePage(params, userId);
+      case 'search':
+        return this.pageHandler.searchPages(params, userId);
       default:
         throw createMethodNotFoundError(`page.${operation}`);
+    }
+  }
+
+  /**
+   * Handle space-related requests
+   *
+   * @param operation The operation to perform
+   * @param params The operation parameters
+   * @param userId The ID of the authenticated user
+   * @returns The operation result
+   */
+  private async handleSpaceRequest(
+    operation: string,
+    params: any,
+    userId: string,
+  ): Promise<any> {
+    switch (operation) {
+      case 'get':
+        return this.spaceHandler.getSpace(params, userId);
+      case 'list':
+        return this.spaceHandler.listSpaces(params, userId);
+      case 'create':
+        return this.spaceHandler.createSpace(params, userId);
+      case 'update':
+        return this.spaceHandler.updateSpace(params, userId);
+      case 'delete':
+        return this.spaceHandler.deleteSpace(params, userId);
+      case 'updatePermissions':
+        return this.spaceHandler.updatePermissions(params, userId);
+      default:
+        throw createMethodNotFoundError(`space.${operation}`);
+    }
+  }
+
+  /**
+   * Handle user-related requests
+   *
+   * @param operation The operation to perform
+   * @param params The operation parameters
+   * @param userId The ID of the authenticated user
+   * @returns The operation result
+   */
+  private async handleUserRequest(
+    operation: string,
+    params: any,
+    userId: string,
+  ): Promise<any> {
+    switch (operation) {
+      case 'get':
+        return this.userHandler.getUser(params, userId);
+      case 'list':
+        return this.userHandler.listUsers(params, userId);
+      default:
+        throw createMethodNotFoundError(`user.${operation}`);
+    }
+  }
+
+  /**
+   * Handle group-related requests
+   *
+   * @param operation The operation to perform
+   * @param params The operation parameters
+   * @param userId The ID of the authenticated user
+   * @returns The operation result
+   */
+  private async handleGroupRequest(
+    operation: string,
+    params: any,
+    userId: string,
+  ): Promise<any> {
+    switch (operation) {
+      case 'get':
+        return this.groupHandler.getGroup(params, userId);
+      case 'list':
+        return this.groupHandler.listGroups(params, userId);
+      default:
+        throw createMethodNotFoundError(`group.${operation}`);
     }
   }
 

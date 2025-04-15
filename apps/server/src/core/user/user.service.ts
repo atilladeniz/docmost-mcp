@@ -5,6 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
+import { PaginationResult } from '@docmost/db/pagination/pagination';
+import { User } from '@docmost/db/types/entity.types';
 
 @Injectable()
 export class UserService {
@@ -12,6 +15,13 @@ export class UserService {
 
   async findById(userId: string, workspaceId: string) {
     return this.userRepo.findById(userId, workspaceId);
+  }
+
+  async getWorkspaceUsers(
+    workspaceId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginationResult<User>> {
+    return this.userRepo.getUsersPaginated(workspaceId, pagination);
   }
 
   async update(
