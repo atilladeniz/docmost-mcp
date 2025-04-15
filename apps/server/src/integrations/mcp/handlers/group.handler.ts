@@ -14,6 +14,8 @@ import {
   WorkspaceCaslAction,
   WorkspaceCaslSubject,
 } from '../../../core/casl/interfaces/workspace-ability.type';
+import { UserService } from '../../../core/user/user.service';
+import { GroupUserService } from '../../../core/group/services/group-user.service';
 
 /**
  * Handler for group-related MCP operations
@@ -26,6 +28,8 @@ export class GroupHandler {
     private readonly groupService: GroupService,
     private readonly workspaceService: WorkspaceService,
     private readonly workspaceAbility: WorkspaceAbilityFactory,
+    private readonly userService: UserService,
+    private readonly groupUserService: GroupUserService,
   ) {}
 
   /**
@@ -153,6 +157,399 @@ export class GroupHandler {
     } catch (error: any) {
       this.logger.error(
         `Error getting group: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles group.create operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns The created group details
+   */
+  async createGroup(params: any, userId: string): Promise<any> {
+    this.logger.debug(`Processing group.create operation for user ${userId}`);
+
+    if (!params.workspaceId) {
+      throw createInvalidParamsError('workspaceId is required');
+    }
+
+    if (!params.name) {
+      throw createInvalidParamsError('name is required');
+    }
+
+    try {
+      // Get the workspace
+      const workspace = await this.workspaceService.findById(
+        params.workspaceId,
+      );
+
+      if (!workspace) {
+        throw createResourceNotFoundError('Workspace', params.workspaceId);
+      }
+
+      // Get the requesting user
+      const authUser = await this.userService.findById(
+        userId,
+        params.workspaceId,
+      );
+
+      if (!authUser) {
+        throw createPermissionDeniedError(
+          'User not found in the specified workspace',
+        );
+      }
+
+      // Check if user has permission to create groups
+      const ability = this.workspaceAbility.createForUser(authUser, workspace);
+      if (
+        ability.cannot(WorkspaceCaslAction.Create, WorkspaceCaslSubject.Group)
+      ) {
+        throw createPermissionDeniedError(
+          'You do not have permission to create groups in this workspace',
+        );
+      }
+
+      // Prepare the create group DTO
+      const createGroupDto = {
+        name: params.name,
+        description: params.description,
+        userIds: params.userIds || [],
+      };
+
+      // Create the group
+      const createdGroup = await this.groupService.createGroup(
+        authUser,
+        params.workspaceId,
+        createGroupDto,
+      );
+
+      return createdGroup;
+    } catch (error: any) {
+      this.logger.error(
+        `Error creating group: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles group.update operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns The updated group details
+   */
+  async updateGroup(params: any, userId: string): Promise<any> {
+    this.logger.debug(`Processing group.update operation for user ${userId}`);
+
+    if (!params.workspaceId) {
+      throw createInvalidParamsError('workspaceId is required');
+    }
+
+    if (!params.groupId) {
+      throw createInvalidParamsError('groupId is required');
+    }
+
+    if (!params.name && !params.description) {
+      throw createInvalidParamsError(
+        'At least one field to update is required',
+      );
+    }
+
+    try {
+      // Get the workspace
+      const workspace = await this.workspaceService.findById(
+        params.workspaceId,
+      );
+
+      if (!workspace) {
+        throw createResourceNotFoundError('Workspace', params.workspaceId);
+      }
+
+      // Get the requesting user
+      const authUser = await this.userService.findById(
+        userId,
+        params.workspaceId,
+      );
+
+      if (!authUser) {
+        throw createPermissionDeniedError(
+          'User not found in the specified workspace',
+        );
+      }
+
+      // Check if user has permission to update groups
+      const ability = this.workspaceAbility.createForUser(authUser, workspace);
+      if (
+        ability.cannot(WorkspaceCaslAction.Edit, WorkspaceCaslSubject.Group)
+      ) {
+        throw createPermissionDeniedError(
+          'You do not have permission to update groups in this workspace',
+        );
+      }
+
+      // Prepare the update group DTO
+      const updateGroupDto = {
+        groupId: params.groupId,
+        name: params.name,
+        description: params.description,
+      };
+
+      // Update the group
+      const updatedGroup = await this.groupService.updateGroup(
+        params.workspaceId,
+        updateGroupDto,
+      );
+
+      return updatedGroup;
+    } catch (error: any) {
+      this.logger.error(
+        `Error updating group: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles group.delete operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns Success message
+   */
+  async deleteGroup(params: any, userId: string): Promise<any> {
+    this.logger.debug(`Processing group.delete operation for user ${userId}`);
+
+    if (!params.workspaceId) {
+      throw createInvalidParamsError('workspaceId is required');
+    }
+
+    if (!params.groupId) {
+      throw createInvalidParamsError('groupId is required');
+    }
+
+    try {
+      // Get the workspace
+      const workspace = await this.workspaceService.findById(
+        params.workspaceId,
+      );
+
+      if (!workspace) {
+        throw createResourceNotFoundError('Workspace', params.workspaceId);
+      }
+
+      // Get the requesting user
+      const authUser = await this.userService.findById(
+        userId,
+        params.workspaceId,
+      );
+
+      if (!authUser) {
+        throw createPermissionDeniedError(
+          'User not found in the specified workspace',
+        );
+      }
+
+      // Check if user has permission to delete groups
+      const ability = this.workspaceAbility.createForUser(authUser, workspace);
+      if (
+        ability.cannot(WorkspaceCaslAction.Delete, WorkspaceCaslSubject.Group)
+      ) {
+        throw createPermissionDeniedError(
+          'You do not have permission to delete groups in this workspace',
+        );
+      }
+
+      // Delete the group
+      await this.groupService.deleteGroup(params.groupId, params.workspaceId);
+
+      return {
+        success: true,
+        message: 'Group deleted successfully',
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `Error deleting group: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles group.addMember operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns Success message
+   */
+  async addGroupMember(params: any, userId: string): Promise<any> {
+    this.logger.debug(
+      `Processing group.addMember operation for user ${userId}`,
+    );
+
+    if (!params.workspaceId) {
+      throw createInvalidParamsError('workspaceId is required');
+    }
+
+    if (!params.groupId) {
+      throw createInvalidParamsError('groupId is required');
+    }
+
+    if (
+      !params.userIds ||
+      !Array.isArray(params.userIds) ||
+      params.userIds.length === 0
+    ) {
+      throw createInvalidParamsError(
+        'userIds is required and must be a non-empty array',
+      );
+    }
+
+    try {
+      // Get the workspace
+      const workspace = await this.workspaceService.findById(
+        params.workspaceId,
+      );
+
+      if (!workspace) {
+        throw createResourceNotFoundError('Workspace', params.workspaceId);
+      }
+
+      // Get the requesting user
+      const authUser = await this.userService.findById(
+        userId,
+        params.workspaceId,
+      );
+
+      if (!authUser) {
+        throw createPermissionDeniedError(
+          'User not found in the specified workspace',
+        );
+      }
+
+      // Check if user has permission to manage group members
+      const ability = this.workspaceAbility.createForUser(authUser, workspace);
+      if (
+        ability.cannot(WorkspaceCaslAction.Edit, WorkspaceCaslSubject.Group)
+      ) {
+        throw createPermissionDeniedError(
+          'You do not have permission to add members to groups in this workspace',
+        );
+      }
+
+      // Add the users to the group
+      await this.groupUserService.addUsersToGroupBatch(
+        params.userIds,
+        params.groupId,
+        params.workspaceId,
+      );
+
+      return {
+        success: true,
+        message: `Successfully added ${params.userIds.length} user(s) to the group`,
+        userIds: params.userIds,
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `Error adding group members: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles group.removeMember operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns Success message
+   */
+  async removeGroupMember(params: any, userId: string): Promise<any> {
+    this.logger.debug(
+      `Processing group.removeMember operation for user ${userId}`,
+    );
+
+    if (!params.workspaceId) {
+      throw createInvalidParamsError('workspaceId is required');
+    }
+
+    if (!params.groupId) {
+      throw createInvalidParamsError('groupId is required');
+    }
+
+    if (!params.userId) {
+      throw createInvalidParamsError('userId is required');
+    }
+
+    try {
+      // Get the workspace
+      const workspace = await this.workspaceService.findById(
+        params.workspaceId,
+      );
+
+      if (!workspace) {
+        throw createResourceNotFoundError('Workspace', params.workspaceId);
+      }
+
+      // Get the requesting user
+      const authUser = await this.userService.findById(
+        userId,
+        params.workspaceId,
+      );
+
+      if (!authUser) {
+        throw createPermissionDeniedError(
+          'User not found in the specified workspace',
+        );
+      }
+
+      // Check if user has permission to manage group members
+      const ability = this.workspaceAbility.createForUser(authUser, workspace);
+      if (
+        ability.cannot(WorkspaceCaslAction.Edit, WorkspaceCaslSubject.Group)
+      ) {
+        throw createPermissionDeniedError(
+          'You do not have permission to remove members from groups in this workspace',
+        );
+      }
+
+      // Remove the user from the group
+      await this.groupUserService.removeUserFromGroup(
+        params.userId,
+        params.groupId,
+        params.workspaceId,
+      );
+
+      return {
+        success: true,
+        message: 'User removed from the group successfully',
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `Error removing group member: ${error?.message || 'Unknown error'}`,
         error?.stack,
       );
       if (error?.code && typeof error.code === 'number') {

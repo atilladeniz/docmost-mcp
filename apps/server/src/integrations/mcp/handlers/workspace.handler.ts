@@ -16,6 +16,7 @@ import {
 import { UserService } from '../../../core/user/user.service';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { WorkspaceInvitationService } from '../../../core/workspace/services/workspace-invitation.service';
 
 /**
  * Handler for workspace-related MCP operations
@@ -28,6 +29,7 @@ export class WorkspaceHandler {
     private readonly workspaceService: WorkspaceService,
     private readonly workspaceAbility: WorkspaceAbilityFactory,
     private readonly userService: UserService,
+    private readonly workspaceInvitationService: WorkspaceInvitationService,
     @InjectKysely() private readonly db: KyselyDB,
   ) {}
 
@@ -334,6 +336,160 @@ export class WorkspaceHandler {
     } catch (error: any) {
       this.logger.error(
         `Error deleting workspace: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles workspace.addMember operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns Result of the operation
+   */
+  async addMember(params: any, userId: string): Promise<any> {
+    this.logger.debug(
+      `Processing workspace.addMember operation for user ${userId}`,
+    );
+
+    if (!params.workspaceId) {
+      throw createInvalidParamsError('workspaceId is required');
+    }
+
+    if (!params.email) {
+      throw createInvalidParamsError('email is required');
+    }
+
+    try {
+      // Get the workspace
+      const workspace = await this.workspaceService.findById(
+        params.workspaceId,
+      );
+      if (!workspace) {
+        throw createResourceNotFoundError('Workspace', params.workspaceId);
+      }
+
+      // Get the user to check permissions
+      const authUser = await this.userService.findById(
+        userId,
+        params.workspaceId,
+      );
+      if (!authUser) {
+        throw createPermissionDeniedError(
+          'User not found in the specified workspace',
+        );
+      }
+
+      // Check if user has permission to manage workspace members
+      const ability = this.workspaceAbility.createForUser(authUser, workspace);
+      if (
+        ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Member)
+      ) {
+        throw createPermissionDeniedError(
+          'You do not have permission to add members to this workspace',
+        );
+      }
+
+      // Create an invitation for the user
+      const inviteUserDto = {
+        emails: Array.isArray(params.email) ? params.email : [params.email],
+        role: params.role || 'MEMBER',
+        groupIds: params.groupIds || [],
+      };
+
+      // Create the invitation
+      await this.workspaceInvitationService.createInvitation(
+        inviteUserDto,
+        workspace,
+        authUser,
+      );
+
+      return {
+        success: true,
+        message: 'Invitation sent successfully',
+        detail: `An invitation has been sent to ${Array.isArray(params.email) ? params.email.join(', ') : params.email}`,
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `Error adding member to workspace: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles workspace.removeMember operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns Result of the operation
+   */
+  async removeMember(params: any, userId: string): Promise<any> {
+    this.logger.debug(
+      `Processing workspace.removeMember operation for user ${userId}`,
+    );
+
+    if (!params.workspaceId) {
+      throw createInvalidParamsError('workspaceId is required');
+    }
+
+    if (!params.userId) {
+      throw createInvalidParamsError('userId is required');
+    }
+
+    try {
+      // Get the workspace
+      const workspace = await this.workspaceService.findById(
+        params.workspaceId,
+      );
+      if (!workspace) {
+        throw createResourceNotFoundError('Workspace', params.workspaceId);
+      }
+
+      // Get the requesting user to check permissions
+      const authUser = await this.userService.findById(
+        userId,
+        params.workspaceId,
+      );
+      if (!authUser) {
+        throw createPermissionDeniedError(
+          'User not found in the specified workspace',
+        );
+      }
+
+      // Check if user has permission to manage workspace members
+      const ability = this.workspaceAbility.createForUser(authUser, workspace);
+      if (
+        ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Member)
+      ) {
+        throw createPermissionDeniedError(
+          'You do not have permission to remove members from this workspace',
+        );
+      }
+
+      // Delete the user from the workspace
+      await this.workspaceService.deleteUser(
+        authUser,
+        params.userId,
+        params.workspaceId,
+      );
+
+      return {
+        success: true,
+        message: 'Member removed successfully',
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `Error removing member from workspace: ${error?.message || 'Unknown error'}`,
         error?.stack,
       );
       if (error?.code && typeof error.code === 'number') {

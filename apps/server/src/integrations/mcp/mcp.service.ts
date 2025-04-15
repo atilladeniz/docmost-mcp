@@ -181,6 +181,8 @@ export class MCPService {
         return this.userHandler.getUser(params, userId);
       case 'list':
         return this.userHandler.listUsers(params, userId);
+      case 'update':
+        return this.userHandler.updateUser(params, userId);
       default:
         throw createMethodNotFoundError(`user.${operation}`);
     }
@@ -204,6 +206,16 @@ export class MCPService {
         return this.groupHandler.getGroup(params, userId);
       case 'list':
         return this.groupHandler.listGroups(params, userId);
+      case 'create':
+        return this.groupHandler.createGroup(params, userId);
+      case 'update':
+        return this.groupHandler.updateGroup(params, userId);
+      case 'delete':
+        return this.groupHandler.deleteGroup(params, userId);
+      case 'addMember':
+        return this.groupHandler.addGroupMember(params, userId);
+      case 'removeMember':
+        return this.groupHandler.removeGroupMember(params, userId);
       default:
         throw createMethodNotFoundError(`group.${operation}`);
     }
@@ -233,6 +245,10 @@ export class MCPService {
         return this.workspaceHandler.createWorkspace(params, userId);
       case 'delete':
         return this.workspaceHandler.deleteWorkspace(params, userId);
+      case 'addMember':
+        return this.workspaceHandler.addMember(params, userId);
+      case 'removeMember':
+        return this.workspaceHandler.removeMember(params, userId);
       default:
         throw createMethodNotFoundError(`workspace.${operation}`);
     }

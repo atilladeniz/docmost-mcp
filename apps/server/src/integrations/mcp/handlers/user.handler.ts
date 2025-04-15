@@ -152,4 +152,119 @@ export class UserHandler {
       throw createInternalError(error?.message || String(error));
     }
   }
+
+  /**
+   * Handles user.update operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns The updated user details
+   */
+  async updateUser(params: any, userId: string): Promise<any> {
+    this.logger.debug(`Processing user.update operation for user ${userId}`);
+
+    if (!params.userId) {
+      throw createInvalidParamsError('userId is required');
+    }
+
+    if (!params.workspaceId) {
+      throw createInvalidParamsError('workspaceId is required');
+    }
+
+    try {
+      // Get the workspace to validate it exists
+      const workspace = await this.workspaceService.findById(
+        params.workspaceId,
+      );
+
+      if (!workspace) {
+        throw createResourceNotFoundError('Workspace', params.workspaceId);
+      }
+
+      // Get the user who is making the request
+      const authUser = await this.userService.findById(
+        userId,
+        params.workspaceId,
+      );
+
+      if (!authUser) {
+        throw createPermissionDeniedError(
+          'You do not have permission to perform this action',
+        );
+      }
+
+      // Check if the user has the permission to update users
+      const ability = this.workspaceAbility.createForUser(authUser, workspace);
+
+      // Users can update their own profile
+      const isUpdatingSelf = userId === params.userId;
+
+      // Admin check is only needed if we're not updating our own profile
+      if (
+        !isUpdatingSelf &&
+        ability.cannot(WorkspaceCaslAction.Edit, WorkspaceCaslSubject.Member)
+      ) {
+        throw createPermissionDeniedError(
+          'You do not have permission to update this user',
+        );
+      }
+
+      // Extract update data from params
+      const updateUserDto: any = {};
+
+      // Only allow certain fields to be updated
+      if (params.name !== undefined) {
+        updateUserDto.name = params.name;
+      }
+
+      if (params.email !== undefined && isUpdatingSelf) {
+        updateUserDto.email = params.email;
+      }
+
+      if (params.avatarUrl !== undefined) {
+        updateUserDto.avatarUrl = params.avatarUrl;
+      }
+
+      if (params.locale !== undefined) {
+        updateUserDto.locale = params.locale;
+      }
+
+      if (params.fullPageWidth !== undefined) {
+        updateUserDto.fullPageWidth = params.fullPageWidth;
+      }
+
+      // Admin users can update user roles
+      if (
+        params.role !== undefined &&
+        ability.can(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Member)
+      ) {
+        updateUserDto.role = params.role;
+      }
+
+      // Only update if there are actually fields to update
+      if (Object.keys(updateUserDto).length === 0) {
+        throw createInvalidParamsError(
+          'No valid fields to update were provided',
+        );
+      }
+
+      // Update the user
+      const updatedUser = await this.userService.update(
+        updateUserDto,
+        params.userId,
+        params.workspaceId,
+      );
+
+      return updatedUser;
+    } catch (error: any) {
+      this.logger.error(
+        `Error updating user: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
 }
