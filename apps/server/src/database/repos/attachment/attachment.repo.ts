@@ -7,6 +7,11 @@ import {
   InsertableAttachment,
   UpdatableAttachment,
 } from '@docmost/db/types/entity.types';
+import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
+import {
+  executeWithPagination,
+  PaginationResult,
+} from '@docmost/db/pagination/pagination';
 
 @Injectable()
 export class AttachmentRepo {
@@ -53,6 +58,61 @@ export class AttachmentRepo {
       .selectAll()
       .where('spaceId', '=', spaceId)
       .execute();
+  }
+
+  /**
+   * Get paginated attachments
+   *
+   * @param opts Options for filtering attachments
+   * @param pagination Pagination options
+   * @returns Paginated list of attachments
+   */
+  async getAttachmentsPaginated(
+    opts: {
+      workspaceId: string;
+      spaceId?: string;
+      pageId?: string;
+      type?: string;
+    },
+    pagination: PaginationOptions,
+  ): Promise<PaginationResult<Attachment>> {
+    const { workspaceId, spaceId, pageId, type } = opts;
+
+    let query = this.db
+      .selectFrom('attachments')
+      .selectAll()
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null);
+
+    if (spaceId) {
+      query = query.where('spaceId', '=', spaceId);
+    }
+
+    if (pageId) {
+      query = query.where('pageId', '=', pageId);
+    }
+
+    if (type) {
+      query = query.where('type', '=', type);
+    }
+
+    if (pagination.query) {
+      query = query.where((eb) =>
+        eb.or([
+          eb('fileName', 'ilike', `%${pagination.query}%`),
+          eb('fileExt', 'ilike', `%${pagination.query}%`),
+          eb('mimeType', 'ilike', `%${pagination.query}%`),
+        ]),
+      );
+    }
+
+    // Order by most recently created first
+    query = query.orderBy('createdAt', 'desc');
+
+    return executeWithPagination(query, {
+      page: pagination.page,
+      perPage: pagination.limit,
+    });
   }
 
   updateAttachmentsByPageId(

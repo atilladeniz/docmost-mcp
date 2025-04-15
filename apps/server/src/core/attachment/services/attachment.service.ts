@@ -22,6 +22,8 @@ import { executeTx } from '@docmost/db/utils';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
+import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
+import { PaginationResult } from '@docmost/db/pagination/pagination';
 
 @Injectable()
 export class AttachmentService {
@@ -34,6 +36,28 @@ export class AttachmentService {
     private readonly spaceRepo: SpaceRepo,
     @InjectKysely() private readonly db: KyselyDB,
   ) {}
+
+  /**
+   * Get paginated attachments for a workspace, optionally filtered by space or page
+   *
+   * @param opts.workspaceId The ID of the workspace
+   * @param opts.spaceId Optional space ID to filter by
+   * @param opts.pageId Optional page ID to filter by
+   * @param opts.type Optional attachment type to filter by
+   * @param pagination Pagination options
+   * @returns A paginated list of attachments
+   */
+  async getAttachments(
+    opts: {
+      workspaceId: string;
+      spaceId?: string;
+      pageId?: string;
+      type?: string;
+    },
+    pagination: PaginationOptions,
+  ) {
+    return this.attachmentRepo.getAttachmentsPaginated(opts, pagination);
+  }
 
   async uploadFile(opts: {
     filePromise: Promise<MultipartFile>;

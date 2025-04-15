@@ -64,6 +64,13 @@ export class MCPPermissionGuard implements CanActivate {
     'workspace.addMember': MCPPermissionLevel.ADMIN,
     'workspace.removeMember': MCPPermissionLevel.ADMIN,
 
+    // Attachment operations
+    'attachment.get': MCPPermissionLevel.READ,
+    'attachment.list': MCPPermissionLevel.READ,
+    'attachment.upload': MCPPermissionLevel.WRITE,
+    'attachment.download': MCPPermissionLevel.READ,
+    'attachment.delete': MCPPermissionLevel.WRITE,
+
     // Default to admin for any operation not explicitly defined
     default: MCPPermissionLevel.ADMIN,
   };

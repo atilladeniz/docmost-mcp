@@ -26,6 +26,7 @@ import { useTranslation } from "react-i18next";
 import Security from "@/ee/security/pages/security.tsx";
 import License from "@/ee/licence/pages/license.tsx";
 import { useRedirectToCloudSelect } from "@/ee/hooks/use-redirect-to-cloud-select.tsx";
+import AttachmentsPage from "@/features/attachment/pages/attachments-page.tsx";
 
 export default function App() {
   const { t } = useTranslation();
@@ -55,36 +56,28 @@ export default function App() {
 
         <Route element={<Layout />}>
           <Route path={"/home"} element={<Home />} />
-          <Route path={"/s/:spaceSlug"} element={<SpaceHome />} />
+          <Route path={"/s/:spaceSlug/home"} element={<SpaceHome />} />
+          <Route path={"/s/:spaceSlug/p/:pageSlug"} element={<Page />} />
+          <Route path={"/files"} element={<AttachmentsPage />} />
+
           <Route
-            path={"/s/:spaceSlug/p/:pageSlug"}
-            element={
-              <ErrorBoundary
-                fallback={<>{t("Failed to load page. An error occurred.")}</>}
-              >
-                <Page />
-              </ErrorBoundary>
-            }
+            path={"/settings/account/profile"}
+            element={<AccountSettings />}
           />
-
-          <Route path={"/settings"}>
-            <Route path={"account/profile"} element={<AccountSettings />} />
-            <Route
-              path={"account/preferences"}
-              element={<AccountPreferences />}
-            />
-            <Route path={"workspace"} element={<WorkspaceSettings />} />
-            <Route path={"members"} element={<WorkspaceMembers />} />
-            <Route path={"groups"} element={<Groups />} />
-            <Route path={"groups/:groupId"} element={<GroupInfo />} />
-            <Route path={"spaces"} element={<Spaces />} />
-            <Route path={"security"} element={<Security />} />
-            {!isCloud() && <Route path={"license"} element={<License />} />}
-            {isCloud() && <Route path={"billing"} element={<Billing />} />}
-          </Route>
+          <Route
+            path={"/settings/account/preferences"}
+            element={<AccountPreferences />}
+          />
+          <Route path={"/settings/workspace"} element={<WorkspaceSettings />} />
+          <Route path={"/settings/members"} element={<WorkspaceMembers />} />
+          <Route path={"/settings/groups"} element={<Groups />} />
+          <Route path={"/settings/groups/:groupId"} element={<GroupInfo />} />
+          <Route path={"/settings/spaces"} element={<Spaces />} />
+          <Route path={"/settings/billing"} element={<Billing />} />
+          <Route path={"/settings/security"} element={<Security />} />
+          <Route path={"/settings/license"} element={<License />} />
+          <Route path={"*"} element={<Error404 />} />
         </Route>
-
-        <Route path="*" element={<Error404 />} />
       </Routes>
     </>
   );

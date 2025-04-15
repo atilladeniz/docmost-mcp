@@ -6,6 +6,7 @@ import { SpaceHandler } from './handlers/space.handler';
 import { UserHandler } from './handlers/user.handler';
 import { GroupHandler } from './handlers/group.handler';
 import { WorkspaceHandler } from './handlers/workspace.handler';
+import { AttachmentHandler } from './handlers/attachment.handler';
 import { PageModule } from '../../core/page/page.module';
 import { SpaceModule } from '../../core/space/space.module';
 import { UserModule } from '../../core/user/user.module';
@@ -13,6 +14,7 @@ import { GroupModule } from '../../core/group/group.module';
 import { WorkspaceModule } from '../../core/workspace/workspace.module';
 import { CaslModule } from '../../core/casl/casl.module';
 import { MCPPermissionGuard } from './guards/mcp-permission.guard';
+import { AttachmentModule } from '../../core/attachment/attachment.module';
 
 /**
  * Machine Control Protocol (MCP) Module
@@ -28,6 +30,7 @@ import { MCPPermissionGuard } from './guards/mcp-permission.guard';
     UserModule,
     GroupModule,
     WorkspaceModule,
+    AttachmentModule,
     CaslModule,
   ],
   controllers: [MCPController],
@@ -39,6 +42,7 @@ import { MCPPermissionGuard } from './guards/mcp-permission.guard';
     UserHandler,
     GroupHandler,
     WorkspaceHandler,
+    AttachmentHandler,
     // Register guards
     MCPPermissionGuard,
   ],

@@ -15,7 +15,10 @@ import { useTranslation } from "react-i18next";
 import useTrial from "@/ee/hooks/use-trial.tsx";
 import { isCloud } from "@/lib/config.ts";
 
-const links = [{ link: APP_ROUTE.HOME, label: "Home" }];
+const links = [
+  { link: APP_ROUTE.HOME, label: "Home" },
+  { link: APP_ROUTE.FILES, label: "Files" },
+];
 
 export function AppHeader() {
   const { t } = useTranslation();

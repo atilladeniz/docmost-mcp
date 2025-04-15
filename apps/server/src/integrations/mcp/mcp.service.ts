@@ -5,6 +5,7 @@ import { SpaceHandler } from './handlers/space.handler';
 import { UserHandler } from './handlers/user.handler';
 import { GroupHandler } from './handlers/group.handler';
 import { WorkspaceHandler } from './handlers/workspace.handler';
+import { AttachmentHandler } from './handlers/attachment.handler';
 import { User } from '@docmost/db/types/entity.types';
 import {
   createInternalError,
@@ -30,6 +31,7 @@ export class MCPService {
     private readonly userHandler: UserHandler,
     private readonly groupHandler: GroupHandler,
     private readonly workspaceHandler: WorkspaceHandler,
+    private readonly attachmentHandler: AttachmentHandler,
   ) {}
 
   /**
@@ -80,6 +82,13 @@ export class MCPService {
           break;
         case 'workspace':
           result = await this.handleWorkspaceRequest(
+            operation,
+            request.params,
+            user.id,
+          );
+          break;
+        case 'attachment':
+          result = await this.handleAttachmentRequest(
             operation,
             request.params,
             user.id,
@@ -251,6 +260,29 @@ export class MCPService {
         return this.workspaceHandler.removeMember(params, userId);
       default:
         throw createMethodNotFoundError(`workspace.${operation}`);
+    }
+  }
+
+  /**
+   * Handle attachment-related requests
+   *
+   * @param operation The operation to perform
+   * @param params The operation parameters
+   * @param userId The ID of the authenticated user
+   * @returns The operation result
+   */
+  private async handleAttachmentRequest(
+    operation: string,
+    params: any,
+    userId: string,
+  ): Promise<any> {
+    switch (operation) {
+      case 'list':
+        return this.attachmentHandler.listAttachments(params, userId);
+      case 'get':
+        return this.attachmentHandler.getAttachment(params, userId);
+      default:
+        throw createMethodNotFoundError(`attachment.${operation}`);
     }
   }
 
