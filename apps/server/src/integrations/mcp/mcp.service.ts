@@ -4,6 +4,7 @@ import { PageHandler } from './handlers/page.handler';
 import { SpaceHandler } from './handlers/space.handler';
 import { UserHandler } from './handlers/user.handler';
 import { GroupHandler } from './handlers/group.handler';
+import { WorkspaceHandler } from './handlers/workspace.handler';
 import { User } from '@docmost/db/types/entity.types';
 import {
   createInternalError,
@@ -28,6 +29,7 @@ export class MCPService {
     private readonly spaceHandler: SpaceHandler,
     private readonly userHandler: UserHandler,
     private readonly groupHandler: GroupHandler,
+    private readonly workspaceHandler: WorkspaceHandler,
   ) {}
 
   /**
@@ -71,6 +73,13 @@ export class MCPService {
           break;
         case 'group':
           result = await this.handleGroupRequest(
+            operation,
+            request.params,
+            user.id,
+          );
+          break;
+        case 'workspace':
+          result = await this.handleWorkspaceRequest(
             operation,
             request.params,
             user.id,
@@ -197,6 +206,31 @@ export class MCPService {
         return this.groupHandler.listGroups(params, userId);
       default:
         throw createMethodNotFoundError(`group.${operation}`);
+    }
+  }
+
+  /**
+   * Handle workspace-related requests
+   *
+   * @param operation The operation to perform
+   * @param params The operation parameters
+   * @param userId The ID of the authenticated user
+   * @returns The operation result
+   */
+  private async handleWorkspaceRequest(
+    operation: string,
+    params: any,
+    userId: string,
+  ): Promise<any> {
+    switch (operation) {
+      case 'get':
+        return this.workspaceHandler.getWorkspace(params, userId);
+      case 'list':
+        return this.workspaceHandler.listWorkspaces(params, userId);
+      case 'update':
+        return this.workspaceHandler.updateWorkspace(params, userId);
+      default:
+        throw createMethodNotFoundError(`workspace.${operation}`);
     }
   }
 

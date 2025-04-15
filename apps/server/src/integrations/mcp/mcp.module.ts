@@ -5,6 +5,7 @@ import { PageHandler } from './handlers/page.handler';
 import { SpaceHandler } from './handlers/space.handler';
 import { UserHandler } from './handlers/user.handler';
 import { GroupHandler } from './handlers/group.handler';
+import { WorkspaceHandler } from './handlers/workspace.handler';
 import { PageModule } from '../../core/page/page.module';
 import { SpaceModule } from '../../core/space/space.module';
 import { UserModule } from '../../core/user/user.module';
@@ -37,6 +38,7 @@ import { MCPPermissionGuard } from './guards/mcp-permission.guard';
     SpaceHandler,
     UserHandler,
     GroupHandler,
+    WorkspaceHandler,
     // Register guards
     MCPPermissionGuard,
   ],
