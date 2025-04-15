@@ -229,6 +229,10 @@ export class MCPService {
         return this.workspaceHandler.listWorkspaces(params, userId);
       case 'update':
         return this.workspaceHandler.updateWorkspace(params, userId);
+      case 'create':
+        return this.workspaceHandler.createWorkspace(params, userId);
+      case 'delete':
+        return this.workspaceHandler.deleteWorkspace(params, userId);
       default:
         throw createMethodNotFoundError(`workspace.${operation}`);
     }

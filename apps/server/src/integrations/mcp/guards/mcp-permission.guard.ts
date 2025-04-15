@@ -60,6 +60,7 @@ export class MCPPermissionGuard implements CanActivate {
     // Workspace operations
     'workspace.get': MCPPermissionLevel.READ,
     'workspace.update': MCPPermissionLevel.ADMIN,
+    'workspace.create': MCPPermissionLevel.ADMIN,
     'workspace.addMember': MCPPermissionLevel.ADMIN,
     'workspace.removeMember': MCPPermissionLevel.ADMIN,
 

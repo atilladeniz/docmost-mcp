@@ -484,4 +484,48 @@ export class WorkspaceService {
       // empty
     }
   }
+
+  async deleteWorkspace(workspaceId: string): Promise<void> {
+    const workspace = await this.workspaceRepo.findById(workspaceId);
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    // First get all spaces to delete their attachments
+    const spaces = await this.db
+      .selectFrom('spaces')
+      .select(['id'])
+      .where('workspaceId', '=', workspaceId)
+      .execute();
+
+    // Delete all workspace data in a transaction
+    await executeTx(this.db, async (trx) => {
+      // Delete the workspace and rely on cascade deletes configured in the database
+      await trx
+        .deleteFrom('workspaces')
+        .where('id', '=', workspaceId)
+        .execute();
+    });
+
+    // Queue tasks to clean up attachments for each space
+    try {
+      // For each space, queue a delete attachments task
+      for (const space of spaces) {
+        await this.attachmentQueue.add(
+          QueueJob.DELETE_SPACE_ATTACHMENTS,
+          space,
+        );
+      }
+
+      // Queue task to delete user avatars
+      const usersData = { workspaceId };
+      await this.attachmentQueue.add(QueueJob.DELETE_USER_AVATARS, usersData);
+    } catch (err) {
+      this.logger.error(
+        `Failed to queue attachment cleanup for workspace ${workspaceId}`,
+        err,
+      );
+    }
+  }
 }

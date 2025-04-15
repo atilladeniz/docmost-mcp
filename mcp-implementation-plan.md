@@ -297,25 +297,25 @@ Total estimated time: 11-16 weeks
 | **↳ Page Operations** | In Progress | | 2024-04-14 | | |
 | ⠀⠀↳ Read page by ID (page.get) | Completed | | 2024-04-14 | 2024-04-14 | Implemented with permission checking |
 | ⠀⠀↳ List pages (page.list) | Completed | | 2024-04-15 | 2024-04-15 | Implemented with pagination and permission checking |
-| ⠀⠀↳ Create pages (page.create) | Not Started | | | | |
-| ⠀⠀↳ Update pages (page.update) | Not Started | | | | |
-| ⠀⠀↳ Delete pages (page.delete) | Not Started | | | | |
-| ⠀⠀↳ Move pages (page.move) | Not Started | | | | |
-| ⠀⠀↳ Search pages (page.search) | Not Started | | | | |
-| **↳ Workspace Operations** | Not Started | | | | |
-| ⠀⠀↳ Create workspace (workspace.create) | Not Started | | | | |
-| ⠀⠀↳ Get workspace details (workspace.get) | Not Started | | | | |
-| ⠀⠀↳ Update workspace settings (workspace.update) | Not Started | | | | |
-| ⠀⠀↳ List workspaces (workspace.list) | Not Started | | | | |
+| ⠀⠀↳ Create pages (page.create) | Completed | | 2024-04-15 | 2024-04-15 | Implemented with permission checking |
+| ⠀⠀↳ Update pages (page.update) | Completed | | 2024-04-15 | 2024-04-15 | Implemented with permission checking |
+| ⠀⠀↳ Delete pages (page.delete) | Completed | | 2024-04-15 | 2024-04-15 | Implemented with permission checking |
+| ⠀⠀↳ Move pages (page.move) | Completed | | 2024-04-15 | 2024-04-15 | Implemented with permission checking |
+| ⠀⠀↳ Search pages (page.search) | Completed | | 2024-04-15 | 2024-04-15 | Implemented with pagination and permission checking |
+| **↳ Workspace Operations** | In Progress | | 2024-04-18 | | |
+| ⠀⠀↳ Create workspace (workspace.create) | Completed | | 2024-04-19 | 2024-04-19 | Implemented with admin permission checking |
+| ⠀⠀↳ Get workspace details (workspace.get) | Completed | | 2024-04-18 | 2024-04-18 | Implemented with workspace validation |
+| ⠀⠀↳ Update workspace settings (workspace.update) | Completed | | 2024-04-18 | 2024-04-18 | Implemented with permission checking |
+| ⠀⠀↳ List workspaces (workspace.list) | Completed | | 2024-04-18 | 2024-04-18 | Implemented with basic pagination |
 | ⠀⠀↳ Manage workspace members | Not Started | | | | |
-| ⠀⠀↳ Delete workspace (workspace.delete) | Not Started | | | | |
-| **↳ Space Operations** | Not Started | | | | |
-| ⠀⠀↳ Create spaces (space.create) | Not Started | | | | |
-| ⠀⠀↳ Get space details (space.get) | Not Started | | | | |
-| ⠀⠀↳ List spaces (space.list) | Not Started | | | | |
-| ⠀⠀↳ Update space settings (space.update) | Not Started | | | | |
-| ⠀⠀↳ Manage space permissions (space.updatePermissions) | Not Started | | | | |
-| ⠀⠀↳ Delete spaces (space.delete) | Not Started | | | | |
+| ⠀⠀↳ Delete workspace (workspace.delete) | Completed | | 2024-04-19 | 2024-04-19 | Implemented with admin permission checking and cascade delete |
+| **↳ Space Operations** | In Progress | | 2024-04-15 | | |
+| ⠀⠀↳ Create spaces (space.create) | Completed | | 2024-04-15 | 2024-04-15 | Implemented with proper user authentication |
+| ⠀⠀↳ Get space details (space.get) | Completed | | 2024-04-15 | 2024-04-15 | Implemented with workspace validation |
+| ⠀⠀↳ List spaces (space.list) | Completed | | 2024-04-15 | 2024-04-15 | Implemented with pagination support |
+| ⠀⠀↳ Update space settings (space.update) | Completed | | 2024-04-15 | 2024-04-15 | Implemented with permission checking |
+| ⠀⠀↳ Manage space permissions (space.updatePermissions) | Completed | | 2024-04-15 | 2024-04-15 | Implemented role updates for users/groups |
+| ⠀⠀↳ Delete spaces (space.delete) | Completed | | 2024-04-15 | 2024-04-15 | Implemented with permission checking |
 | **↳ User and Group Operations** | Not Started | | | | |
 | ⠀⠀↳ User operations | Not Started | | | | |
 | ⠀⠀↳ Group operations | Not Started | | | | |

@@ -202,4 +202,144 @@ export class WorkspaceHandler {
       throw createInternalError(error?.message || String(error));
     }
   }
+
+  /**
+   * Handles workspace.create operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns The created workspace details
+   */
+  async createWorkspace(params: any, userId: string): Promise<any> {
+    this.logger.debug(
+      `Processing workspace.create operation for user ${userId}`,
+    );
+
+    if (!params.name) {
+      throw createInvalidParamsError('name is required');
+    }
+
+    try {
+      // Get the current user's workspace ID to retrieve the user
+      const userWithWorkspace = await this.db
+        .selectFrom('users')
+        .select(['workspaceId'])
+        .where('id', '=', userId)
+        .executeTakeFirst();
+
+      if (!userWithWorkspace) {
+        throw createResourceNotFoundError('User', userId);
+      }
+
+      // Get the complete user object with the proper type
+      const user = await this.userService.findById(
+        userId,
+        userWithWorkspace.workspaceId,
+      );
+
+      if (!user) {
+        throw createResourceNotFoundError('User', userId);
+      }
+
+      // Only owners or admins can create workspaces
+      if (user.role !== 'OWNER' && user.role !== 'ADMIN') {
+        throw createPermissionDeniedError(
+          'Only owners or admins can create workspaces',
+        );
+      }
+
+      // Create workspace dto from params
+      const createWorkspaceDto = {
+        name: params.name,
+        description: params.description,
+        hostname: params.hostname,
+      };
+
+      // Create the workspace
+      const workspace = await this.workspaceService.create(
+        user,
+        createWorkspaceDto,
+      );
+
+      return workspace;
+    } catch (error: any) {
+      this.logger.error(
+        `Error creating workspace: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles workspace.delete operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns Success indication
+   */
+  async deleteWorkspace(params: any, userId: string): Promise<any> {
+    this.logger.debug(
+      `Processing workspace.delete operation for user ${userId}`,
+    );
+
+    if (!params.workspaceId) {
+      throw createInvalidParamsError('workspaceId is required');
+    }
+
+    try {
+      // Get the current user's workspace ID to retrieve the user
+      const userWithWorkspace = await this.db
+        .selectFrom('users')
+        .select(['workspaceId'])
+        .where('id', '=', userId)
+        .executeTakeFirst();
+
+      if (!userWithWorkspace) {
+        throw createResourceNotFoundError('User', userId);
+      }
+
+      // Get the complete user object with the proper type
+      const user = await this.userService.findById(
+        userId,
+        userWithWorkspace.workspaceId,
+      );
+
+      if (!user) {
+        throw createResourceNotFoundError('User', userId);
+      }
+
+      // Only owners or admins can delete workspaces
+      if (user.role !== 'OWNER' && user.role !== 'ADMIN') {
+        throw createPermissionDeniedError(
+          'Only owners or admins can delete workspaces',
+        );
+      }
+
+      // Check if the workspace exists
+      const workspace = await this.workspaceService.findById(
+        params.workspaceId,
+      );
+      if (!workspace) {
+        throw createResourceNotFoundError('Workspace', params.workspaceId);
+      }
+
+      // Delete the workspace
+      await this.workspaceService.deleteWorkspace(params.workspaceId);
+
+      return { success: true, message: 'Workspace deleted successfully' };
+    } catch (error: any) {
+      this.logger.error(
+        `Error deleting workspace: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
 }
