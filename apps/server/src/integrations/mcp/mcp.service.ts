@@ -6,6 +6,7 @@ import { UserHandler } from './handlers/user.handler';
 import { GroupHandler } from './handlers/group.handler';
 import { WorkspaceHandler } from './handlers/workspace.handler';
 import { AttachmentHandler } from './handlers/attachment.handler';
+import { CommentHandler } from './handlers/comment.handler';
 import { User } from '@docmost/db/types/entity.types';
 import {
   createInternalError,
@@ -32,6 +33,7 @@ export class MCPService {
     private readonly groupHandler: GroupHandler,
     private readonly workspaceHandler: WorkspaceHandler,
     private readonly attachmentHandler: AttachmentHandler,
+    private readonly commentHandler: CommentHandler,
   ) {}
 
   /**
@@ -94,6 +96,13 @@ export class MCPService {
             user.id,
           );
           break;
+        case 'comment':
+          result = await this.handleCommentRequest(
+            operation,
+            request.params,
+            user.id,
+          );
+          break;
         default:
           throw createMethodNotFoundError(request.method);
       }
@@ -136,6 +145,10 @@ export class MCPService {
         return this.pageHandler.movePage(params, userId);
       case 'search':
         return this.pageHandler.searchPages(params, userId);
+      case 'getHistory':
+        return this.pageHandler.getPageHistory(params, userId);
+      case 'restore':
+        return this.pageHandler.restorePageVersion(params, userId);
       default:
         throw createMethodNotFoundError(`page.${operation}`);
     }
@@ -289,6 +302,35 @@ export class MCPService {
         return this.attachmentHandler.deleteAttachment(params, userId);
       default:
         throw createMethodNotFoundError(`attachment.${operation}`);
+    }
+  }
+
+  /**
+   * Handle comment-related requests
+   *
+   * @param operation The operation to perform
+   * @param params The operation parameters
+   * @param userId The ID of the authenticated user
+   * @returns The operation result
+   */
+  private async handleCommentRequest(
+    operation: string,
+    params: any,
+    userId: string,
+  ): Promise<any> {
+    switch (operation) {
+      case 'create':
+        return this.commentHandler.createComment(params, userId);
+      case 'get':
+        return this.commentHandler.getComment(params, userId);
+      case 'list':
+        return this.commentHandler.listComments(params, userId);
+      case 'update':
+        return this.commentHandler.updateComment(params, userId);
+      case 'delete':
+        return this.commentHandler.deleteComment(params, userId);
+      default:
+        throw createMethodNotFoundError(`comment.${operation}`);
     }
   }
 

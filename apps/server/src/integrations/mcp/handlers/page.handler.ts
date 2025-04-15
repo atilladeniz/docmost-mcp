@@ -15,6 +15,8 @@ import {
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { User } from '@docmost/db/types/entity.types';
 import { CreatePageDto } from '../../../core/page/dto/create-page.dto';
+import { PageHistoryService } from '../../../core/page/services/page-history.service';
+import { validate as isValidUUID } from 'uuid';
 
 /**
  * Handler for page-related MCP operations
@@ -27,6 +29,7 @@ export class PageHandler {
     private readonly pageService: PageService,
     private readonly pageRepo: PageRepo,
     private readonly spaceAbility: SpaceAbilityFactory,
+    private readonly pageHistoryService: PageHistoryService,
   ) {}
 
   /**
@@ -504,6 +507,159 @@ export class PageHandler {
     } catch (error: any) {
       this.logger.error(
         `Error searching pages: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles page.getHistory operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns List of page history versions
+   */
+  async getPageHistory(params: any, userId: string): Promise<any> {
+    this.logger.debug(
+      `Processing page.getHistory operation for user ${userId}`,
+    );
+
+    if (!params.pageId) {
+      throw createInvalidParamsError('pageId is required');
+    }
+
+    if (!isValidUUID(params.pageId)) {
+      throw createInvalidParamsError('Invalid pageId format');
+    }
+
+    try {
+      // Get the page to verify it exists and check permissions
+      const page = await this.pageRepo.findById(params.pageId);
+
+      if (!page) {
+        throw createResourceNotFoundError('Page', params.pageId);
+      }
+
+      // Create a mock user with just the ID for permission checking
+      const user = { id: userId } as User;
+
+      // Check permissions
+      const ability = await this.spaceAbility.createForUser(user, page.spaceId);
+      if (ability.cannot(SpaceCaslAction.Read, SpaceCaslSubject.Page)) {
+        throw createPermissionDeniedError(
+          'You do not have permission to view history for this page',
+        );
+      }
+
+      // Get optional parameters with defaults
+      const limit = params.limit || 20;
+      const page_num = params.page || 1;
+
+      // Create pagination options
+      const paginationOptions = new PaginationOptions();
+      paginationOptions.limit = limit;
+      paginationOptions.page = page_num;
+
+      // Get page history
+      const historyResult = await this.pageHistoryService.findHistoryByPageId(
+        params.pageId,
+        paginationOptions,
+      );
+
+      return {
+        history: historyResult.items,
+        pagination: {
+          limit,
+          page: page_num,
+          hasNextPage: historyResult.meta?.hasNextPage,
+          hasPrevPage: historyResult.meta?.hasPrevPage,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `Error getting page history: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+      );
+      if (error?.code && typeof error.code === 'number') {
+        throw error; // Re-throw MCP errors
+      }
+      throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  /**
+   * Handles page.restore operation
+   *
+   * @param params The operation parameters
+   * @param userId The ID of the user making the request
+   * @returns The restored page
+   */
+  async restorePageVersion(params: any, userId: string): Promise<any> {
+    this.logger.debug(`Processing page.restore operation for user ${userId}`);
+
+    if (!params.historyId) {
+      throw createInvalidParamsError('historyId is required');
+    }
+
+    if (!isValidUUID(params.historyId)) {
+      throw createInvalidParamsError('Invalid historyId format');
+    }
+
+    try {
+      // Get the history version to verify it exists
+      const history = await this.pageHistoryService.findById(params.historyId);
+
+      if (!history) {
+        throw createResourceNotFoundError(
+          'Page history version',
+          params.historyId,
+        );
+      }
+
+      // Get the page to verify it exists
+      const page = await this.pageRepo.findById(history.pageId);
+
+      if (!page) {
+        throw createResourceNotFoundError('Page', history.pageId);
+      }
+
+      // Create a mock user with just the ID for permission checking
+      const user = { id: userId } as User;
+
+      // Check permissions
+      const ability = await this.spaceAbility.createForUser(user, page.spaceId);
+      if (ability.cannot(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) {
+        throw createPermissionDeniedError(
+          'You do not have permission to restore this page version',
+        );
+      }
+
+      // Update the page with the history content
+      const updateResult = await this.pageRepo.updatePage(
+        {
+          content: history.content,
+          title: history.title,
+          icon: history.icon,
+          lastUpdatedById: userId,
+          updatedAt: new Date(),
+        },
+        page.id,
+      );
+
+      // Return the updated page
+      return await this.pageRepo.findById(page.id, {
+        includeContent: true,
+        includeSpace: true,
+        includeCreator: true,
+        includeLastUpdatedBy: true,
+      });
+    } catch (error: any) {
+      this.logger.error(
+        `Error restoring page version: ${error?.message || 'Unknown error'}`,
         error?.stack,
       );
       if (error?.code && typeof error.code === 'number') {

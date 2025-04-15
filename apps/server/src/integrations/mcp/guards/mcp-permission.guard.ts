@@ -71,6 +71,13 @@ export class MCPPermissionGuard implements CanActivate {
     'attachment.download': MCPPermissionLevel.READ,
     'attachment.delete': MCPPermissionLevel.WRITE,
 
+    // Comment operations
+    'comment.get': MCPPermissionLevel.READ,
+    'comment.list': MCPPermissionLevel.READ,
+    'comment.create': MCPPermissionLevel.WRITE,
+    'comment.update': MCPPermissionLevel.WRITE,
+    'comment.delete': MCPPermissionLevel.WRITE,
+
     // Default to admin for any operation not explicitly defined
     default: MCPPermissionLevel.ADMIN,
   };
