@@ -268,7 +268,7 @@ export class MCPService {
    *
    * @param operation The operation to perform
    * @param params The operation parameters
-   * @param userId The ID of the authenticated user
+   * @param userId The ID of the user making the request
    * @returns The operation result
    */
   private async handleAttachmentRequest(
@@ -281,6 +281,12 @@ export class MCPService {
         return this.attachmentHandler.listAttachments(params, userId);
       case 'get':
         return this.attachmentHandler.getAttachment(params, userId);
+      case 'upload':
+        return this.attachmentHandler.uploadAttachment(params, userId);
+      case 'download':
+        return this.attachmentHandler.downloadAttachment(params, userId);
+      case 'delete':
+        return this.attachmentHandler.deleteAttachment(params, userId);
       default:
         throw createMethodNotFoundError(`attachment.${operation}`);
     }
