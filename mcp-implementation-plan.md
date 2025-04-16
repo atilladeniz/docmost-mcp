@@ -21,7 +21,7 @@ This document outlines the plan to add Machine Control Protocol (MCP) functional
 
 - [x] Create an MCP server that provides programmatic access to all Docmost functionality
 - [x] Enable external systems to create, read, update, and delete Docmost resources
-- [ ] Support real-time interactions with the Docmost platform
+- [x] Support real-time interactions with the Docmost platform
 - [x] Provide proper authentication and authorization for MCP clients
 - [x] Maintain security and performance of the main application
 
@@ -44,7 +44,7 @@ This document outlines the plan to add Machine Control Protocol (MCP) functional
     - [x] Authenticate MCP clients
     - [x] Process commands received from MCP clients
     - [x] Return appropriate responses based on command execution
-    - [ ] Stream real-time updates when needed
+    - [x] Stream real-time updates when needed
 
 ### MCP Protocol Design
 
@@ -181,10 +181,10 @@ interface MCPResponse {
 ### Phase 3: Advanced Features (3-4 weeks)
 
 - [x] Add support for batched operations
-- [ ] Implement real-time updates via WebSockets
-  - [ ] Real-time page content updates
-  - [ ] Comment notifications
-  - [ ] User presence indicators
+- [x] Implement real-time updates via WebSockets
+  - [x] Real-time page content updates
+  - [x] Comment notifications
+  - [x] User presence indicators
 - [ ] Add rate limiting and throttling
   - [ ] Configure rate limits per operation
   - [ ] Implement graduated throttling for heavy users
@@ -339,7 +339,7 @@ Total estimated time: 11-16 weeks
 | ⠀⠀↳ Delete attachments (attachment.delete) | Completed | | 2024-05-30 | 2024-05-30 | Implemented with permission checks |
 | **Phase 3: Advanced Features** | In Progress | | 2024-04-14 | | |
 | ↳ Add support for batched operations | Completed | | 2024-04-14 | 2024-04-14 | Implemented batch endpoint in controller |
-| ↳ Implement real-time updates | Not Started | | | | |
+| ↳ Implement real-time updates | Completed | | 2024-06-15 | 2024-06-30 | Implemented WebSocket gateway with full event system |
 | ↳ Implement rate limiting and throttling | Not Started | | | | |
 | ↳ Add comprehensive logging and monitoring | In Progress | | 2024-04-14 | | Basic logging implemented |
 | **Phase 4: SDK and Documentation** | Not Started | | | | |
@@ -375,6 +375,149 @@ const response = await fetch("https://example.docmost.com/api/mcp", {
 
 const result = await response.json();
 // result.result will contain the created page information
+```
+
+## Real-time Updates via WebSocket
+
+The MCP includes a WebSocket-based real-time event system for receiving updates when resources are created, updated, deleted, or when other significant events occur. This enables building reactive applications that can immediately respond to changes in Docmost.
+
+### Connecting to the WebSocket
+
+```javascript
+// Using Socket.IO client (recommended)
+import { io } from 'socket.io-client';
+
+// Connect to the MCP WebSocket endpoint
+const socket = io('/mcp', {
+  auth: {
+    token: 'YOUR_AUTH_JWT_TOKEN' // Same token used for HTTP requests
+  }
+});
+
+// Listen for connection events
+socket.on('connect', () => {
+  console.log('Connected to MCP WebSocket');
+});
+
+socket.on('disconnect', () => {
+  console.log('Disconnected from MCP WebSocket');
+});
+
+socket.on('error', (error) => {
+  console.error('WebSocket error:', error);
+});
+```
+
+### Subscribing to Events
+
+You can subscribe to events for specific resources:
+
+```javascript
+// Subscribe to events for a specific page
+socket.emit('subscribe', {
+  resourceType: 'page',
+  resourceId: 'page-123'
+});
+
+// Subscribe to events for a specific space
+socket.emit('subscribe', {
+  resourceType: 'space',
+  resourceId: 'space-456'
+});
+
+// Unsubscribe when no longer needed
+socket.emit('unsubscribe', {
+  resourceType: 'page',
+  resourceId: 'page-123'
+});
+```
+
+### Receiving Events
+
+Events are delivered to the client in a standardized format:
+
+```javascript
+// Listen for all events
+socket.on('event', (event) => {
+  console.log('Received event:', event);
+  
+  // Handle different event types
+  switch(event.type) {
+    case 'created':
+      handleCreatedEvent(event);
+      break;
+    case 'updated':
+      handleUpdatedEvent(event);
+      break;
+    case 'deleted':
+      handleDeletedEvent(event);
+      break;
+    case 'moved':
+      handleMovedEvent(event);
+      break;
+    case 'permission_changed':
+      handlePermissionChangedEvent(event);
+      break;
+    case 'presence':
+      handlePresenceEvent(event);
+      break;
+  }
+});
+```
+
+### Event Structure
+
+All events follow a consistent structure:
+
+```typescript
+interface MCPEvent {
+  // Event type: created, updated, deleted, moved, permission_changed, presence
+  type: string;
+  
+  // Resource type: page, space, workspace, user, group, attachment, comment
+  resource: string;
+  
+  // Operation performed: create, read, update, delete, move, add_member, remove_member
+  operation: string;
+  
+  // ID of the resource that was affected
+  resourceId: string;
+  
+  // ISO timestamp of when the event occurred
+  timestamp: string;
+  
+  // Additional data specific to the event type
+  data?: any;
+  
+  // ID of the user who triggered the event
+  userId: string;
+  
+  // ID of the workspace where the event occurred
+  workspaceId: string;
+  
+  // ID of the space where the event occurred (if applicable)
+  spaceId?: string;
+}
+```
+
+### User Presence
+
+For collaborative editing, the MCP supports user presence notifications:
+
+```javascript
+// Send presence information for collaborative editing
+socket.emit('presence', {
+  pageId: 'page-123',
+  status: 'online', // 'online', 'offline', or 'idle'
+  cursorPosition: { x: 150, y: 200 } // Optional cursor position
+});
+
+// Listen for presence events from other users
+socket.on('event', (event) => {
+  if (event.type === 'presence' && event.resource === 'page') {
+    updateUserPresence(event.userId, event.data);
+  }
+});
 ```
 
 ---

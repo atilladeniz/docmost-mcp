@@ -17,6 +17,10 @@ import { CaslModule } from '../../core/casl/casl.module';
 import { MCPPermissionGuard } from './guards/mcp-permission.guard';
 import { AttachmentModule } from '../../core/attachment/attachment.module';
 import { CommentModule } from '../../core/comment/comment.module';
+import { MCPWebSocketGateway } from './mcp-websocket.gateway';
+import { MCPEventService } from './services/mcp-event.service';
+import { TokenModule } from '../../core/auth/token.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 /**
  * Machine Control Protocol (MCP) Module
@@ -35,6 +39,8 @@ import { CommentModule } from '../../core/comment/comment.module';
     AttachmentModule,
     CommentModule,
     CaslModule,
+    TokenModule,
+    EventEmitterModule.forRoot(),
   ],
   controllers: [MCPController],
   providers: [
@@ -47,9 +53,12 @@ import { CommentModule } from '../../core/comment/comment.module';
     WorkspaceHandler,
     AttachmentHandler,
     CommentHandler,
+    // Register WebSocket components
+    MCPWebSocketGateway,
+    MCPEventService,
     // Register guards
     MCPPermissionGuard,
   ],
-  exports: [MCPService],
+  exports: [MCPService, MCPEventService],
 })
 export class MCPModule {}
