@@ -4,8 +4,10 @@
 data
 # compiled output
 /dist
+dist/
 /node_modules
-
+node_modules/
+.mcp-api-key
 # Logs
 logs
 *.log
