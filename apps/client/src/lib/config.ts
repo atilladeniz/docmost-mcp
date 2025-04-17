@@ -49,7 +49,7 @@ export function getAvatarUrl(avatarUrl: string) {
 }
 
 export function getSpaceUrl(spaceSlug: string) {
-  return "/s/" + spaceSlug;
+  return "/s/" + spaceSlug + "/home";
 }
 
 export function getFileUrl(src: string) {

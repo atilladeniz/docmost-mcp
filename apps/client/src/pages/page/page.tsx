@@ -12,6 +12,7 @@ import {
   SpaceCaslSubject,
 } from "@/features/space/permissions/permissions.type.ts";
 import { useTranslation } from "react-i18next";
+import { Error404 } from "@/components/ui/error-404.tsx";
 
 export default function Page() {
   const { t } = useTranslation();
@@ -32,44 +33,41 @@ export default function Page() {
   }
 
   if (isError || !page) {
-    if ([401, 403, 404].includes(error?.["status"])) {
-      return <div>{t("Page not found")}</div>;
-    }
-    return <div>{t("Error fetching page data.")}</div>;
+    console.error("Error loading page:", error);
+    return <Error404 />;
   }
 
   if (!space) {
-    return <></>;
+    console.error("Space not found for page:", page);
+    return <Error404 />;
   }
 
   return (
-    page && (
-      <div>
-        <Helmet>
-          <title>{`${page?.icon || ""}  ${page?.title || t("untitled")}`}</title>
-        </Helmet>
+    <div>
+      <Helmet>
+        <title>{`${page?.icon || ""}  ${page?.title || t("untitled")}`}</title>
+      </Helmet>
 
-        <PageHeader
-          readOnly={spaceAbility.cannot(
-            SpaceCaslAction.Manage,
-            SpaceCaslSubject.Page,
-          )}
-        />
+      <PageHeader
+        readOnly={spaceAbility.cannot(
+          SpaceCaslAction.Manage,
+          SpaceCaslSubject.Page
+        )}
+      />
 
-        <FullEditor
-          key={page.id}
-          pageId={page.id}
-          title={page.title}
-          content={page.content}
-          slugId={page.slugId}
-          spaceSlug={page?.space?.slug}
-          editable={spaceAbility.can(
-            SpaceCaslAction.Manage,
-            SpaceCaslSubject.Page,
-          )}
-        />
-        <HistoryModal pageId={page.id} />
-      </div>
-    )
+      <FullEditor
+        key={page.id}
+        pageId={page.id}
+        title={page.title}
+        content={page.content}
+        slugId={page.slugId}
+        spaceSlug={page?.space?.slug}
+        editable={spaceAbility.can(
+          SpaceCaslAction.Manage,
+          SpaceCaslSubject.Page
+        )}
+      />
+      <HistoryModal pageId={page.id} />
+    </div>
   );
 }
