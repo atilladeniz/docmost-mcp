@@ -36,14 +36,16 @@ export class UserHandler {
    * @returns List of users in the workspace
    */
   async listUsers(params: any, userId: string): Promise<any> {
-    this.logger.debug(`Processing user.list operation for user ${userId}`);
-
-    if (!params.workspaceId) {
-      throw createInvalidParamsError('workspaceId is required');
-    }
+    this.logger.debug(
+      `UserHandler.listUsers called: userId=${userId}, workspaceId=${params.workspaceId}`,
+    );
 
     try {
-      // Get the workspace
+      if (!params.workspaceId) {
+        throw createInvalidParamsError('workspaceId is required');
+      }
+
+      // Verify the workspace exists
       const workspace = await this.workspaceService.findById(
         params.workspaceId,
       );
@@ -52,53 +54,69 @@ export class UserHandler {
         throw createResourceNotFoundError('Workspace', params.workspaceId);
       }
 
-      // Create user object for ability check
-      const user = { id: userId } as User;
+      // Verify the user exists in the workspace
+      const authUser = await this.userService.findById(
+        userId,
+        params.workspaceId,
+      );
 
-      // Check user has permission to list users
-      const ability = this.workspaceAbility.createForUser(user, workspace);
-      if (
-        ability.cannot(WorkspaceCaslAction.Read, WorkspaceCaslSubject.Member)
-      ) {
+      if (!authUser) {
+        this.logger.warn(
+          `UserHandler: API key references user ${userId} that does not exist in workspace ${params.workspaceId}`,
+        );
         throw createPermissionDeniedError(
-          'You do not have permission to list users in this workspace',
+          'User not found in the specified workspace',
         );
       }
 
-      // Get optional parameters with defaults
-      const limit = params.limit || 50;
-      const page = params.page || 1;
-
-      // Create pagination options
-      const paginationOptions = new PaginationOptions();
-      paginationOptions.limit = limit;
-      paginationOptions.page = page;
-      paginationOptions.query = params.query || '';
-
-      // Get users in the workspace
-      const usersResult = await this.userService.getWorkspaceUsers(
-        params.workspaceId,
-        paginationOptions,
+      this.logger.debug(
+        `UserHandler: User ${authUser.email} authorized for workspace ${params.workspaceId}`,
       );
 
-      return {
-        users: usersResult.items,
-        pagination: {
-          limit,
+      // Set up pagination parameters with defaults
+      const page = params.page || 1;
+      const limit = params.limit || 20;
+      const query = params.query || '';
+
+      // Get users for the workspace with pagination
+      const result = await this.userService.getWorkspaceUsers(
+        params.workspaceId,
+        {
           page,
-          hasNextPage: usersResult.meta?.hasNextPage,
-          hasPrevPage: usersResult.meta?.hasPrevPage,
+          limit,
+          query,
+        },
+      );
+
+      // Format the response
+      return {
+        users: result.items.map((user) => ({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          avatarUrl: user.avatarUrl,
+          role: user.role,
+          lastActiveAt: user.lastActiveAt,
+          createdAt: user.createdAt,
+        })),
+        pagination: {
+          page: result.meta.page,
+          limit: result.meta.limit,
+          hasNextPage: result.meta.hasNextPage,
+          hasPrevPage: result.meta.hasPrevPage,
         },
       };
     } catch (error: any) {
       this.logger.error(
-        `Error listing users: ${error?.message || 'Unknown error'}`,
-        error?.stack,
+        `Error in listUsers: ${error.message || 'Unknown error'}`,
+        error.stack,
       );
-      if (error?.code && typeof error.code === 'number') {
+
+      if (error.code && typeof error.code === 'number') {
         throw error; // Re-throw MCP errors
       }
-      throw createInternalError(error?.message || String(error));
+
+      throw createInternalError(error.message || String(error));
     }
   }
 
@@ -181,32 +199,37 @@ export class UserHandler {
         throw createResourceNotFoundError('Workspace', params.workspaceId);
       }
 
-      // Get the user who is making the request
-      const authUser = await this.userService.findById(
-        userId,
-        params.workspaceId,
-      );
-
-      if (!authUser) {
-        throw createPermissionDeniedError(
-          'You do not have permission to perform this action',
-        );
-      }
-
-      // Check if the user has the permission to update users
-      const ability = this.workspaceAbility.createForUser(authUser, workspace);
-
-      // Users can update their own profile
+      // Check if trying to update self - API key authenticated users can update themselves
       const isUpdatingSelf = userId === params.userId;
 
-      // Admin check is only needed if we're not updating our own profile
-      if (
-        !isUpdatingSelf &&
-        ability.cannot(WorkspaceCaslAction.Edit, WorkspaceCaslSubject.Member)
-      ) {
-        throw createPermissionDeniedError(
-          'You do not have permission to update this user',
+      // Initialize vars for authUser and ability
+      let authUser = null;
+      let ability = null;
+
+      if (!isUpdatingSelf) {
+        this.logger.debug(
+          `UserHandler: API key user ${userId} is trying to update a different user ${params.userId} - checking permissions`,
         );
+
+        // Get the user who is making the request
+        authUser = await this.userService.findById(userId, params.workspaceId);
+
+        if (!authUser) {
+          throw createPermissionDeniedError(
+            'User not found in the specified workspace. API key user must exist in the database to update other users.',
+          );
+        }
+
+        // Check if the user has the permission to update users
+        ability = this.workspaceAbility.createForUser(authUser, workspace);
+
+        if (
+          ability.cannot(WorkspaceCaslAction.Edit, WorkspaceCaslSubject.Member)
+        ) {
+          throw createPermissionDeniedError(
+            'You do not have permission to update this user',
+          );
+        }
       }
 
       // Extract update data from params
@@ -236,6 +259,7 @@ export class UserHandler {
       // Admin users can update user roles
       if (
         params.role !== undefined &&
+        ability &&
         ability.can(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Member)
       ) {
         updateUserDto.role = params.role;
@@ -255,7 +279,14 @@ export class UserHandler {
         params.workspaceId,
       );
 
-      return updatedUser;
+      return {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        avatarUrl: updatedUser.avatarUrl,
+        role: updatedUser.role,
+        locale: updatedUser.locale,
+      };
     } catch (error: any) {
       this.logger.error(
         `Error updating user: ${error?.message || 'Unknown error'}`,

@@ -40,43 +40,97 @@ export class SpaceHandler {
    * @returns List of spaces the user has access to
    */
   async listSpaces(params: any, userId: string): Promise<any> {
-    this.logger.debug(`Processing space.list operation for user ${userId}`);
+    this.logger.debug(
+      `SpaceHandler.listSpaces called: userId=${userId}, workspaceId=${params.workspaceId}`,
+    );
 
     try {
-      // Get optional parameters with defaults
-      const limit = params.limit || 50;
-      const page = params.page || 1;
+      // Validate the workspaceId parameter
+      if (!params.workspaceId) {
+        this.logger.debug('SpaceHandler: Missing workspaceId parameter');
+        throw createInvalidParamsError('workspaceId is required');
+      }
 
-      // Create pagination options
-      const paginationOptions = new PaginationOptions();
-      paginationOptions.limit = limit;
-      paginationOptions.page = page;
-      paginationOptions.query = params.query || '';
-
-      // Get spaces for the user
-      const spacesResult = await this.spaceMemberService.getUserSpaces(
-        userId,
-        paginationOptions,
+      // Verify the workspace exists
+      const workspace = await this.workspaceService.findById(
+        params.workspaceId,
       );
 
-      return {
-        spaces: spacesResult.items,
-        pagination: {
-          limit,
+      if (!workspace) {
+        throw createResourceNotFoundError('Workspace', params.workspaceId);
+      }
+
+      // Verify the user exists in the workspace
+      const authUser = await this.userService.findById(
+        userId,
+        params.workspaceId,
+      );
+
+      if (!authUser) {
+        this.logger.warn(
+          `SpaceHandler: API key references user ${userId} that does not exist in workspace ${params.workspaceId}`,
+        );
+        throw createPermissionDeniedError(
+          'User not found in the specified workspace',
+        );
+      }
+
+      this.logger.debug(
+        `SpaceHandler: User ${authUser.email} authorized for workspace ${params.workspaceId}`,
+      );
+
+      // Set up pagination parameters with defaults
+      const page = params.page || 1;
+      const limit = params.limit || 20;
+      const query = params.query || '';
+
+      this.logger.debug(
+        `SpaceHandler: Pagination parameters: page=${page}, limit=${limit}, query=${query}`,
+      );
+
+      // Get the workspace spaces with pagination
+      const spacesResult = await this.spaceService.getWorkspaceSpaces(
+        params.workspaceId,
+        {
           page,
-          hasNextPage: spacesResult.meta?.hasNextPage,
-          hasPrevPage: spacesResult.meta?.hasPrevPage,
+          limit,
+          query,
+        },
+      );
+
+      this.logger.debug(
+        `SpaceHandler: Found ${spacesResult.items.length} spaces for workspace ${params.workspaceId}`,
+      );
+
+      // Map the spaces to the response format
+      return {
+        spaces: spacesResult.items.map((space) => ({
+          id: space.id,
+          name: space.name,
+          description: space.description,
+          visibility: space.visibility,
+          defaultRole: space.defaultRole,
+          createdAt: space.createdAt,
+          creatorId: space.creatorId,
+          logo: space.logo,
+          workspaceId: space.workspaceId,
+        })),
+        pagination: {
+          page: spacesResult.meta.page,
+          limit: spacesResult.meta.limit,
+          hasNextPage: spacesResult.meta.hasNextPage,
+          hasPrevPage: spacesResult.meta.hasPrevPage,
         },
       };
     } catch (error: any) {
       this.logger.error(
-        `Error listing spaces: ${error?.message || 'Unknown error'}`,
-        error?.stack,
+        `Error in listSpaces: ${error.message || 'Unknown error'}`,
+        error.stack,
       );
-      if (error?.code && typeof error.code === 'number') {
+      if (error.code && typeof error.code === 'number') {
         throw error; // Re-throw MCP errors
       }
-      throw createInternalError(error?.message || String(error));
+      throw createInternalError(error.message || String(error));
     }
   }
 

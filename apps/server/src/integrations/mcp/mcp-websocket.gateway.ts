@@ -19,6 +19,8 @@ import {
 import * as cookie from 'cookie';
 import { WorkspaceService } from '../../core/workspace/services/workspace.service';
 import { MCPPermissionGuard } from './guards/mcp-permission.guard';
+import { MCPApiKeyService } from './services/mcp-api-key.service';
+import { UserService } from '../../core/user/user.service';
 
 /**
  * MCP WebSocket Gateway
@@ -46,42 +48,93 @@ export class MCPWebSocketGateway
   constructor(
     private tokenService: TokenService,
     private workspaceService: WorkspaceService,
+    private mcpApiKeyService: MCPApiKeyService,
+    private userService: UserService,
   ) {}
 
   /**
    * Handle client connections
    *
-   * Verifies the client's JWT token, sets up room subscriptions,
+   * Verifies the client's JWT token or API key, sets up room subscriptions,
    * and stores client information.
    */
   async handleConnection(client: Socket): Promise<void> {
     try {
       this.logger.log(`Client connected: ${client.id}`);
 
-      // Authenticate via cookies or auth header
-      let token: JwtPayload;
-      try {
-        const cookies = cookie.parse(client.handshake.headers.cookie || '');
-        token = await this.tokenService.verifyJwt(
-          cookies['authToken'],
-          JwtType.ACCESS,
-        );
-      } catch (e) {
-        // Try auth header if cookie fails
-        const authHeader = client.handshake.headers.authorization;
-        if (!authHeader) {
-          throw new Error('No authentication provided');
+      let userId: string;
+      let workspaceId: string;
+      let authenticated = false;
+
+      // Try API key authentication first
+      const apiKey = client.handshake.auth.apiKey;
+      if (apiKey && typeof apiKey === 'string' && apiKey.startsWith('mcp_')) {
+        try {
+          // Authenticate using API key
+          const keyData = await this.mcpApiKeyService.validateApiKey(apiKey);
+          if (keyData) {
+            userId = keyData.userId;
+            workspaceId = keyData.workspaceId;
+            authenticated = true;
+            this.logger.debug(
+              `Client ${client.id} authenticated using API key`,
+            );
+          }
+        } catch (e) {
+          const error = e as Error;
+          this.logger.debug(`API key authentication failed: ${error.message}`);
         }
-        const jwt = authHeader.replace('Bearer ', '');
-        token = await this.tokenService.verifyJwt(jwt, JwtType.ACCESS);
       }
 
-      if (!token) {
-        throw new Error('Invalid token');
+      // If API key authentication failed, try JWT
+      if (!authenticated) {
+        try {
+          // Try cookies first
+          const cookies = cookie.parse(client.handshake.headers.cookie || '');
+          if (cookies['authToken']) {
+            const token = await this.tokenService.verifyJwt(
+              cookies['authToken'],
+              JwtType.ACCESS,
+            );
+
+            if (token) {
+              userId = token.sub;
+              workspaceId = token.workspaceId;
+              authenticated = true;
+              this.logger.debug(
+                `Client ${client.id} authenticated using cookie token`,
+              );
+            }
+          }
+          // If cookie authentication failed, try auth header
+          else {
+            const authHeader = client.handshake.headers.authorization;
+            if (authHeader) {
+              const jwt = authHeader.replace('Bearer ', '');
+              const token = await this.tokenService.verifyJwt(
+                jwt,
+                JwtType.ACCESS,
+              );
+
+              if (token) {
+                userId = token.sub;
+                workspaceId = token.workspaceId;
+                authenticated = true;
+                this.logger.debug(
+                  `Client ${client.id} authenticated using auth header token`,
+                );
+              }
+            }
+          }
+        } catch (e) {
+          const error = e as Error;
+          this.logger.debug(`JWT authentication failed: ${error.message}`);
+        }
       }
 
-      const userId = token.sub;
-      const workspaceId = token.workspaceId;
+      if (!authenticated) {
+        throw new Error('Authentication failed');
+      }
 
       // Store client info
       this.connectedClients.set(client.id, { userId, workspaceId });

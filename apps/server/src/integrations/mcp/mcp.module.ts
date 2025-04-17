@@ -21,6 +21,11 @@ import { MCPWebSocketGateway } from './mcp-websocket.gateway';
 import { MCPEventService } from './services/mcp-event.service';
 import { TokenModule } from '../../core/auth/token.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { MCPApiKeyService } from './services/mcp-api-key.service';
+import { ApiKeyController } from './controllers/api-key.controller';
+import { MCPApiKeyGuard } from './guards/mcp-api-key.guard';
+import { MCPAuthGuard } from './guards/mcp-auth.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 /**
  * Machine Control Protocol (MCP) Module
@@ -42,7 +47,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     TokenModule,
     EventEmitterModule.forRoot(),
   ],
-  controllers: [MCPController],
+  controllers: [MCPController, ApiKeyController],
   providers: [
     MCPService,
     // Register all handlers
@@ -56,9 +61,14 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     // Register WebSocket components
     MCPWebSocketGateway,
     MCPEventService,
+    // Register API key service
+    MCPApiKeyService,
     // Register guards
+    JwtAuthGuard,
     MCPPermissionGuard,
+    MCPApiKeyGuard,
+    MCPAuthGuard,
   ],
-  exports: [MCPService, MCPEventService],
+  exports: [MCPService, MCPEventService, MCPApiKeyService],
 })
 export class MCPModule {}

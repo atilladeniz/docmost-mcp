@@ -4,7 +4,12 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import { Logger, NotFoundException, ValidationPipe } from '@nestjs/common';
+import {
+  Logger,
+  LogLevel,
+  NotFoundException,
+  ValidationPipe,
+} from '@nestjs/common';
 import { TransformHttpResponseInterceptor } from './common/interceptors/http-response.interceptor';
 import { WsRedisIoAdapter } from './ws/adapter/ws-redis.adapter';
 import { InternalLogFilter } from './common/logger/internal-log-filter';
@@ -12,6 +17,9 @@ import fastifyMultipart from '@fastify/multipart';
 import fastifyCookie from '@fastify/cookie';
 
 async function bootstrap() {
+  // Define log levels to include debug logs
+  const logLevels: LogLevel[] = ['log', 'error', 'warn', 'debug'];
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({
@@ -22,7 +30,10 @@ async function bootstrap() {
     }),
     {
       rawBody: true,
-      logger: new InternalLogFilter(),
+      logger:
+        process.env.NODE_ENV === 'production'
+          ? new InternalLogFilter()
+          : logLevels,
     },
   );
 

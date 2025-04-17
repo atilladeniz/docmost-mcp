@@ -1,4 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { WorkspaceService } from '../../../core/workspace/services/workspace.service';
 import { User } from '@docmost/db/types/entity.types';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
@@ -7,6 +13,7 @@ import {
   createInternalError,
   createPermissionDeniedError,
   createResourceNotFoundError,
+  createMethodNotFoundError,
 } from '../utils/error.utils';
 import WorkspaceAbilityFactory from '../../../core/casl/abilities/workspace-ability.factory';
 import {
@@ -41,44 +48,74 @@ export class WorkspaceHandler {
    * @returns The workspace details
    */
   async getWorkspace(params: any, userId: string): Promise<any> {
-    this.logger.debug(`Processing workspace.get operation for user ${userId}`);
-
-    if (!params.workspaceId) {
-      throw createInvalidParamsError('workspaceId is required');
-    }
+    this.logger.debug(
+      `WorkspaceHandler.getWorkspace called: userId=${userId}, workspaceId=${params.workspaceId}`,
+    );
 
     try {
-      // Get the workspace
-      const workspace = await this.workspaceService.getWorkspaceInfo(
+      if (!params.workspaceId) {
+        throw createInvalidParamsError('workspaceId is required');
+      }
+
+      // Get workspace
+      const workspace = await this.workspaceService.findById(
         params.workspaceId,
       );
 
       if (!workspace) {
+        this.logger.debug(`Workspace not found: ${params.workspaceId}`);
         throw createResourceNotFoundError('Workspace', params.workspaceId);
       }
 
-      // Get the user to check permissions
+      // Verify the user exists in the workspace
       const authUser = await this.userService.findById(
         userId,
         params.workspaceId,
       );
 
       if (!authUser) {
+        this.logger.warn(
+          `WorkspaceHandler: API key references user ${userId} that does not exist in workspace ${params.workspaceId}`,
+        );
         throw createPermissionDeniedError(
           'User not found in the specified workspace',
         );
       }
 
-      return workspace;
+      this.logger.debug(
+        `WorkspaceHandler: User ${authUser.email} authorized for workspace ${params.workspaceId}`,
+      );
+
+      this.logger.debug(`Workspace found: ${workspace.name || workspace.id}`);
+
+      // Convert workspace to response format
+      return {
+        id: workspace.id,
+        name: workspace.name,
+        description: workspace.description,
+        status: workspace.status,
+        logo: workspace.logo,
+        hostname: workspace.hostname,
+        customDomain: workspace.customDomain,
+        createdAt: workspace.createdAt,
+        updatedAt: workspace.updatedAt,
+        defaultSpaceId: workspace.defaultSpaceId,
+        trialEndAt: workspace.trialEndAt,
+        settings: workspace.settings,
+        billingEmail: workspace.billingEmail,
+        userRole: authUser.role || 'owner', // Use the actual user role when available
+      };
     } catch (error: any) {
       this.logger.error(
-        `Error getting workspace: ${error?.message || 'Unknown error'}`,
-        error?.stack,
+        `Error in getWorkspace: ${error.message || 'Unknown error'}`,
+        error.stack,
       );
-      if (error?.code && typeof error.code === 'number') {
+
+      if (error.code && typeof error.code === 'number') {
         throw error; // Re-throw MCP errors
       }
-      throw createInternalError(error?.message || String(error));
+
+      throw createInternalError(error.message || String(error));
     }
   }
 
@@ -496,6 +533,46 @@ export class WorkspaceHandler {
         throw error; // Re-throw MCP errors
       }
       throw createInternalError(error?.message || String(error));
+    }
+  }
+
+  private async handleWorkspaceRequest(
+    operation: string,
+    params: any,
+    userId: string,
+  ): Promise<any> {
+    this.logger.debug(
+      `WorkspaceHandler: handleWorkspaceRequest operation=${operation}`,
+    );
+    try {
+      switch (operation) {
+        case 'get':
+          this.logger.debug(`WorkspaceHandler: Calling getWorkspace`);
+          return await this.getWorkspace(params, userId);
+        case 'list':
+          return await this.listWorkspaces(params, userId);
+        case 'update':
+          return await this.updateWorkspace(params, userId);
+        case 'create':
+          return await this.createWorkspace(params, userId);
+        case 'delete':
+          return await this.deleteWorkspace(params, userId);
+        case 'addMember':
+          return await this.addMember(params, userId);
+        case 'removeMember':
+          return await this.removeMember(params, userId);
+        default:
+          this.logger.warn(
+            `WorkspaceHandler: Unsupported operation: ${operation}`,
+          );
+          throw createMethodNotFoundError(`workspace.${operation}`);
+      }
+    } catch (error: any) {
+      this.logger.error(
+        `WorkspaceHandler: Error in handleWorkspaceRequest - ${error.message || 'Unknown error'}`,
+        error.stack,
+      );
+      throw error;
     }
   }
 }

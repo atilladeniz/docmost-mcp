@@ -9,6 +9,6 @@ import { TokenModule } from '../auth/token.module';
   imports: [SpaceModule, TokenModule],
   controllers: [WorkspaceController],
   providers: [WorkspaceService, WorkspaceInvitationService],
-  exports: [WorkspaceService],
+  exports: [WorkspaceService, WorkspaceInvitationService],
 })
 export class WorkspaceModule {}

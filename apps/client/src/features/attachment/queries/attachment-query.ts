@@ -1,4 +1,4 @@
-import { api } from "@/lib/api";
+import api from "@/lib/api-client";
 import { IAttachment, IPagination } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 
@@ -27,7 +27,7 @@ export const fetchAttachments = async (
   if (query) queryParams.append("query", query);
 
   const response = await api.get(`/attachments?${queryParams.toString()}`);
-  return response;
+  return response as unknown as IPagination<IAttachment>;
 };
 
 // Hook for using the attachments query

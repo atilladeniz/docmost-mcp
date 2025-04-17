@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
@@ -14,7 +15,42 @@ export class UserService {
   constructor(private userRepo: UserRepo) {}
 
   async findById(userId: string, workspaceId: string) {
-    return this.userRepo.findById(userId, workspaceId);
+    const logger = new Logger('UserService');
+    logger.debug(
+      `UserService: Finding user by ID: ${userId}, workspace: ${workspaceId}`,
+    );
+
+    try {
+      const user = await this.userRepo.findById(userId, workspaceId);
+
+      if (!user) {
+        logger.warn(
+          `UserService: User not found - userId: ${userId}, workspaceId: ${workspaceId}`,
+        );
+        return null;
+      }
+
+      if (user.workspaceId !== workspaceId) {
+        logger.warn(
+          `UserService: User found but workspaceId mismatch - userId: ${userId}, user.workspaceId: ${user.workspaceId}, requested workspaceId: ${workspaceId}`,
+        );
+      }
+
+      logger.debug(`UserService: User found - ${user.email}`);
+      return user;
+    } catch (error: any) {
+      logger.error(
+        `UserService: Error finding user - ${error.message || 'Unknown error'}`,
+        error.stack || '',
+      );
+      if (error.code) {
+        logger.error(`UserService: Error code: ${error.code}`);
+      }
+      if (error.detail) {
+        logger.error(`UserService: Error detail: ${error.detail}`);
+      }
+      return null;
+    }
   }
 
   async getWorkspaceUsers(

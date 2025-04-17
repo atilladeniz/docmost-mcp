@@ -10,11 +10,11 @@ import {
 } from '@nestjs/common';
 import { MCPService } from './mcp.service';
 import { MCPRequest, MCPResponse } from './interfaces/mcp.interface';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { User } from '@docmost/db/types/entity.types';
 import { MCPPermissionGuard } from './guards/mcp-permission.guard';
+import { MCPAuthGuard } from './guards/mcp-auth.guard';
 
 /**
  * Machine Control Protocol (MCP) Controller
@@ -23,7 +23,7 @@ import { MCPPermissionGuard } from './guards/mcp-permission.guard';
  * It validates the requests and forwards them to the MCP service
  * for processing.
  */
-@UseGuards(JwtAuthGuard, MCPPermissionGuard)
+@UseGuards(MCPAuthGuard, MCPPermissionGuard)
 @Controller('mcp')
 export class MCPController {
   private readonly logger = new Logger(MCPController.name);
@@ -48,14 +48,37 @@ export class MCPController {
     @AuthUser() user: User,
   ): Promise<MCPResponse> {
     this.logger.debug(
-      `Received MCP request from user ${user.id}: ${JSON.stringify(request)}`,
+      `MCPController: Processing request: ${request.method}, id: ${request.id}`,
+    );
+    this.logger.debug(
+      `MCPController: User context: id=${user?.id}, email=${user?.email}, workspace=${user?.workspaceId}`,
     );
 
-    if (!request) {
-      throw new BadRequestException('Invalid request');
-    }
+    try {
+      this.logger.debug(
+        `MCPController: Validating request and passing to mcpService.processRequest`,
+      );
+      const response = await this.mcpService.processRequest(request, user);
+      this.logger.debug(
+        `MCPController: Request processed successfully: ${request.id}`,
+      );
+      return response;
+    } catch (error: any) {
+      this.logger.error(
+        `MCPController: Error processing request ${request.id}: ${error.message || 'Unknown error'}`,
+        error.stack || '',
+      );
 
-    return this.mcpService.processRequest(request, user);
+      // Create a proper JSON-RPC error response
+      return {
+        jsonrpc: '2.0',
+        error: {
+          code: -32603, // Internal error
+          message: error.message || 'Internal server error',
+        },
+        id: request.id,
+      };
+    }
   }
 
   /**

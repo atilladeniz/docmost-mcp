@@ -16,6 +16,7 @@ import {
   Billing as BillingSubscription,
   AuthProviders,
   AuthAccounts,
+  McpApiKeys,
 } from './db';
 
 // Workspace
@@ -101,3 +102,18 @@ export type UpdatableAuthProvider = Updateable<Omit<AuthProviders, 'id'>>;
 export type AuthAccount = Selectable<AuthAccounts>;
 export type InsertableAuthAccount = Insertable<AuthAccounts>;
 export type UpdatableAuthAccount = Updateable<Omit<AuthAccounts, 'id'>>;
+
+// MCP API Keys
+export interface MCPApiKeys {
+  id: string;
+  userId: string;
+  workspaceId: string;
+  name: string;
+  hashedKey: string;
+  createdAt: Date;
+  lastUsedAt: Date | null;
+}
+
+export type InsertableMCPApiKey = Insertable<MCPApiKeys>;
+export type UpdateableMCPApiKey = Updateable<MCPApiKeys>;
+export type MCPApiKey = Selectable<McpApiKeys>;

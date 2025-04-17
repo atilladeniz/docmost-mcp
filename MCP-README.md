@@ -26,11 +26,13 @@ Docmost is a powerful documentation and collaboration platform, but currently la
 
 ### For Users
 
-Once the MCP implementation is complete, you'll be able to use it by:
+To use the MCP API:
 
-1. Obtaining an MCP API token from your Docmost workspace settings
-2. Using one of our client SDKs or making direct API calls
-3. Following the MCP API documentation
+1. Create an MCP API key from your Docmost workspace settings or via the API
+2. Use one of our client SDKs or make direct API calls using the API key
+3. Follow the MCP API documentation for detailed instructions
+
+API keys provide a secure way to authenticate with the MCP API without needing user interaction, making them ideal for automation and integration scenarios.
 
 ### For Developers
 
@@ -42,11 +44,11 @@ If you're interested in contributing to the MCP implementation:
 
 ## Implementation Status
 
-The MCP implementation is currently in the planning phase. For detailed information about the implementation plan and progress, please refer to the [MCP Implementation Plan](./mcp-implementation-plan.md).
+The MCP implementation includes full support for API key authentication, making it easier to build integrations and automations with Docmost.
 
 ## Examples
 
-Here's a simple example of how MCP could be used to create a new page:
+Here's a simple example of how to use MCP with API key authentication to create a new page:
 
 ```javascript
 // Example: Creating a new page via MCP
@@ -62,12 +64,12 @@ const mcpRequest = {
   id: "request-1"
 };
 
-// Sending the request
-const response = await fetch("https://example.docmost.com/api/mcp", {
+// Sending the request with API key authentication
+const response = await fetch("https://example.docmost.com/mcp", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    "Authorization": "Bearer YOUR_MCP_TOKEN"
+    "Authorization": "Bearer mcp_your_api_key_here"
   },
   body: JSON.stringify(mcpRequest)
 });
@@ -92,6 +94,32 @@ Contributions to the MCP initiative are welcome! Please check the [MCP Implement
 ## License
 
 The MCP implementation is part of the Docmost project and follows the same licensing terms.
+
+## API Keys
+
+The MCP supports authentication via API keys, which allow applications to access the MCP API without requiring user interaction.
+
+### Managing API Keys
+
+API keys can be managed through the following endpoints:
+
+- `POST /api-keys`: Create a new API key
+- `GET /api-keys`: List all API keys for the current user
+- `DELETE /api-keys/:id`: Revoke an API key
+
+Only users with administrative privileges can create API keys. API keys are associated with both a user and a workspace, allowing the MCP to enforce the same permissions as the user who created the key.
+
+### Using API Keys
+
+API keys can be used in place of JWTs for authentication by including them in the `Authorization` header:
+
+```
+Authorization: Bearer mcp_your_api_key_here
+```
+
+When using API keys, all operations will be performed with the permissions of the user who created the key.
+
+**Important**: API keys should be kept secure and should not be shared or exposed in client-side code. If an API key is compromised, it should be revoked immediately.
 
 ---
 

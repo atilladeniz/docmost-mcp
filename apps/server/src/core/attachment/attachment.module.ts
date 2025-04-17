@@ -10,5 +10,6 @@ import { AttachmentProcessor } from './processors/attachment.processor';
   imports: [StorageModule, UserModule, WorkspaceModule],
   controllers: [AttachmentController],
   providers: [AttachmentService, AttachmentProcessor],
+  exports: [AttachmentService],
 })
 export class AttachmentModule {}

@@ -44,17 +44,23 @@ export class MCPService {
    * @returns The MCP response
    */
   async processRequest(request: MCPRequest, user: User): Promise<MCPResponse> {
+    this.logger.debug(
+      `MCPService: Processing request ${request.method} from user ${user.email}`,
+    );
+
     try {
       this.validateRequest(request);
 
-      this.logger.log(`Processing MCP request for method: ${request.method}`);
-
-      // Route the request to the appropriate handler based on method prefix
       const [resource, operation] = request.method.split('.');
+      this.logger.debug(
+        `MCPService: Request for resource '${resource}', operation '${operation}'`,
+      );
+
       let result: any;
 
       switch (resource) {
         case 'page':
+          this.logger.debug(`MCPService: Delegating to page handler`);
           result = await this.handlePageRequest(
             operation,
             request.params,
@@ -62,6 +68,7 @@ export class MCPService {
           );
           break;
         case 'space':
+          this.logger.debug(`MCPService: Delegating to space handler`);
           result = await this.handleSpaceRequest(
             operation,
             request.params,
@@ -69,6 +76,7 @@ export class MCPService {
           );
           break;
         case 'user':
+          this.logger.debug(`MCPService: Delegating to user handler`);
           result = await this.handleUserRequest(
             operation,
             request.params,
@@ -76,6 +84,7 @@ export class MCPService {
           );
           break;
         case 'group':
+          this.logger.debug(`MCPService: Delegating to group handler`);
           result = await this.handleGroupRequest(
             operation,
             request.params,
@@ -83,6 +92,7 @@ export class MCPService {
           );
           break;
         case 'workspace':
+          this.logger.debug(`MCPService: Delegating to workspace handler`);
           result = await this.handleWorkspaceRequest(
             operation,
             request.params,
@@ -90,6 +100,7 @@ export class MCPService {
           );
           break;
         case 'attachment':
+          this.logger.debug(`MCPService: Delegating to attachment handler`);
           result = await this.handleAttachmentRequest(
             operation,
             request.params,
@@ -97,6 +108,7 @@ export class MCPService {
           );
           break;
         case 'comment':
+          this.logger.debug(`MCPService: Delegating to comment handler`);
           result = await this.handleCommentRequest(
             operation,
             request.params,
@@ -104,15 +116,26 @@ export class MCPService {
           );
           break;
         default:
+          this.logger.warn(`MCPService: Unsupported resource '${resource}'`);
           throw createMethodNotFoundError(request.method);
       }
+
+      this.logger.debug(
+        `MCPService: Request ${request.id} completed successfully`,
+      );
 
       return {
         jsonrpc: '2.0',
         result,
         id: request.id,
       };
-    } catch (error) {
+    } catch (error: any) {
+      this.logger.error(
+        `MCPService: Error in processRequest - ${error.message || 'Unknown error'}`,
+        error.stack,
+      );
+
+      // Return a properly formatted JSON-RPC error response
       return this.handleError(error, request.id);
     }
   }

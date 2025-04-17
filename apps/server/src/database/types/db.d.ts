@@ -142,6 +142,16 @@ export interface GroupUsers {
   userId: string;
 }
 
+export interface McpApiKeys {
+  createdAt: Generated<Timestamp>;
+  hashedKey: string;
+  id: string;
+  lastUsedAt: Timestamp | null;
+  name: string;
+  userId: string;
+  workspaceId: string;
+}
+
 export interface PageHistory {
   content: Json | null;
   coverPhoto: string | null;
@@ -286,6 +296,7 @@ export interface DB {
   comments: Comments;
   groups: Groups;
   groupUsers: GroupUsers;
+  mcpApiKeys: McpApiKeys;
   pageHistory: PageHistory;
   pages: Pages;
   spaceMembers: SpaceMembers;
