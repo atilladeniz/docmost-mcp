@@ -8,6 +8,8 @@ import { GroupHandler } from './handlers/group.handler';
 import { WorkspaceHandler } from './handlers/workspace.handler';
 import { AttachmentHandler } from './handlers/attachment.handler';
 import { CommentHandler } from './handlers/comment.handler';
+import { SystemHandler } from './handlers/system.handler';
+import { ContextHandler } from './handlers/context.handler';
 import { PageModule } from '../../core/page/page.module';
 import { SpaceModule } from '../../core/space/space.module';
 import { UserModule } from '../../core/user/user.module';
@@ -19,6 +21,8 @@ import { AttachmentModule } from '../../core/attachment/attachment.module';
 import { CommentModule } from '../../core/comment/comment.module';
 import { MCPWebSocketGateway } from './mcp-websocket.gateway';
 import { MCPEventService } from './services/mcp-event.service';
+import { MCPSchemaService } from './services/mcp-schema.service';
+import { MCPContextService } from './services/mcp-context.service';
 import { TokenModule } from '../../core/auth/token.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { MCPApiKeyService } from './services/mcp-api-key.service';
@@ -60,6 +64,11 @@ import { EnvironmentModule } from '../../integrations/environment/environment.mo
     WorkspaceHandler,
     AttachmentHandler,
     CommentHandler,
+    SystemHandler,
+    ContextHandler,
+    // Register services
+    MCPSchemaService,
+    MCPContextService,
     // Register WebSocket components
     {
       provide: MCPWebSocketGateway,
@@ -74,6 +83,12 @@ import { EnvironmentModule } from '../../integrations/environment/environment.mo
     MCPApiKeyGuard,
     MCPAuthGuard,
   ],
-  exports: [MCPService, MCPEventService, MCPApiKeyService],
+  exports: [
+    MCPService,
+    MCPEventService,
+    MCPApiKeyService,
+    MCPSchemaService,
+    MCPContextService,
+  ],
 })
 export class MCPModule {}

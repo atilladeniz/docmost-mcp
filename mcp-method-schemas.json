@@ -1,0 +1,772 @@
+{
+  "methods": [
+    {
+      "name": "system.listMethods",
+      "description": "Lists all available MCP methods with their categories",
+      "category": "System",
+      "parameters": {},
+      "returns": {
+        "methods": {
+          "type": "array",
+          "description": "List of all available method names",
+          "items": {
+            "type": "string"
+          }
+        },
+        "categories": {
+          "type": "object",
+          "description": "Methods organized by category",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "code": "INTERNAL_ERROR",
+          "message": "Failed to retrieve method list",
+          "resolution": "Contact support if the issue persists"
+        }
+      ],
+      "examples": [
+        {
+          "description": "List all available methods",
+          "request": {
+            "jsonrpc": "2.0",
+            "method": "system.listMethods",
+            "params": {},
+            "id": 1
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "result": {
+              "methods": [
+                "system.listMethods",
+                "system.getMethodSchema",
+                "context.set",
+                "context.get",
+                "context.delete",
+                "context.list",
+                "context.clear",
+                "space.create",
+                "space.list",
+                "page.create"
+              ],
+              "categories": {
+                "System": [
+                  "system.listMethods",
+                  "system.getMethodSchema"
+                ],
+                "Context Management": [
+                  "context.set",
+                  "context.get",
+                  "context.delete",
+                  "context.list",
+                  "context.clear"
+                ],
+                "Space Management": [
+                  "space.create",
+                  "space.list"
+                ],
+                "Document Management": [
+                  "page.create"
+                ]
+              }
+            },
+            "id": 1
+          }
+        }
+      ],
+      "relatedMethods": ["system.getMethodSchema"]
+    },
+    {
+      "name": "system.getMethodSchema",
+      "description": "Retrieves detailed schema information for a specific method",
+      "category": "System",
+      "parameters": {
+        "methodName": {
+          "type": "string",
+          "description": "Name of the method to retrieve schema for",
+          "required": true,
+          "example": "page.create"
+        }
+      },
+      "returns": {
+        "name": {
+          "type": "string",
+          "description": "Name of the method"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of what the method does"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category the method belongs to"
+        },
+        "parameters": {
+          "type": "object",
+          "description": "Parameter definitions for the method"
+        },
+        "returns": {
+          "type": "object",
+          "description": "Return value structure"
+        },
+        "errors": {
+          "type": "array",
+          "description": "Possible errors the method can return"
+        },
+        "examples": {
+          "type": "array",
+          "description": "Example usage of the method"
+        },
+        "relatedMethods": {
+          "type": "array",
+          "description": "Related methods that might be of interest"
+        }
+      },
+      "errors": [
+        {
+          "code": "METHOD_NOT_FOUND",
+          "message": "The specified method does not exist",
+          "resolution": "Use system.listMethods to get a list of available methods"
+        }
+      ],
+      "examples": [
+        {
+          "description": "Get schema for page.create method",
+          "request": {
+            "jsonrpc": "2.0",
+            "method": "system.getMethodSchema",
+            "params": {
+              "methodName": "page.create"
+            },
+            "id": 1
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "result": {
+              "name": "page.create",
+              "description": "Creates a new document page within a space",
+              "category": "Document Management",
+              "parameters": {
+                "workspaceId": {
+                  "type": "string",
+                  "description": "UUID of the workspace",
+                  "required": true
+                },
+                "spaceId": {
+                  "type": "string",
+                  "description": "UUID of the space to create the page in",
+                  "required": true
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Title of the page",
+                  "required": true
+                },
+                "content": {
+                  "type": "object",
+                  "description": "Page content in Docmost format",
+                  "required": true
+                }
+              },
+              "returns": {
+                "id": {
+                  "type": "string",
+                  "description": "UUID of the created page"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Title of the created page"
+                }
+              },
+              "errors": [
+                {
+                  "code": "SPACE_NOT_FOUND",
+                  "message": "The specified space does not exist",
+                  "resolution": "Check the spaceId parameter or list available spaces"
+                }
+              ],
+              "examples": [],
+              "relatedMethods": [
+                "page.update",
+                "page.get",
+                "page.delete"
+              ]
+            },
+            "id": 1
+          }
+        }
+      ],
+      "relatedMethods": ["system.listMethods"]
+    },
+    {
+      "name": "space.create",
+      "description": "Creates a new workspace space for organizing documents",
+      "category": "Space Management",
+      "parameters": {
+        "workspaceId": {
+          "type": "string",
+          "description": "UUID of the workspace",
+          "required": true,
+          "example": "01963588-32a9-7f89-879e-afb8fb600a5a"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the space",
+          "required": true,
+          "example": "Project Documentation"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the space purpose",
+          "required": false,
+          "example": "Contains all documentation for our main project"
+        }
+      },
+      "returns": {
+        "id": {
+          "type": "string",
+          "description": "UUID of the created space"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the created space"
+        },
+        "slug": {
+          "type": "string",
+          "description": "URL-friendly identifier for the space"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the space"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of when the space was created"
+        }
+      },
+      "errors": [
+        {
+          "code": "DUPLICATE_NAME",
+          "message": "Space with this name already exists",
+          "resolution": "Choose a different name for the space"
+        },
+        {
+          "code": "WORKSPACE_NOT_FOUND",
+          "message": "The specified workspace does not exist",
+          "resolution": "Check the workspaceId parameter"
+        }
+      ],
+      "examples": [
+        {
+          "description": "Create a basic space",
+          "request": {
+            "jsonrpc": "2.0",
+            "method": "space.create",
+            "params": {
+              "workspaceId": "01963588-32a9-7f89-879e-afb8fb600a5a",
+              "name": "Daily Review Demo",
+              "description": "A space for demonstrating real-time document creation"
+            },
+            "id": 1
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "result": {
+              "id": "01964729-c19e-7de3-b67d-71d4dc330b0f",
+              "name": "Daily Review Demo",
+              "slug": "daily-review-demo",
+              "description": "A space for demonstrating real-time document creation",
+              "createdAt": "2023-09-15T14:32:10.123Z"
+            },
+            "id": 1
+          }
+        }
+      ],
+      "relatedMethods": ["space.get", "space.list", "space.update", "space.delete"]
+    },
+    {
+      "name": "space.list",
+      "description": "Lists all spaces in a workspace that the user has access to",
+      "category": "Space Management",
+      "parameters": {
+        "workspaceId": {
+          "type": "string",
+          "description": "UUID of the workspace",
+          "required": true,
+          "example": "01963588-32a9-7f89-879e-afb8fb600a5a"
+        },
+        "page": {
+          "type": "integer",
+          "description": "Page number for pagination",
+          "required": false,
+          "default": 1,
+          "example": 1
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Number of spaces per page",
+          "required": false,
+          "default": 20,
+          "example": 20
+        }
+      },
+      "returns": {
+        "items": {
+          "type": "array",
+          "description": "List of space objects",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "UUID of the space"
+              },
+              "name": {
+                "type": "string",
+                "description": "Name of the space"
+              },
+              "slug": {
+                "type": "string",
+                "description": "URL-friendly identifier for the space"
+              },
+              "description": {
+                "type": "string",
+                "description": "Description of the space"
+              }
+            }
+          }
+        },
+        "total": {
+          "type": "integer",
+          "description": "Total number of spaces available"
+        },
+        "page": {
+          "type": "integer",
+          "description": "Current page number"
+        },
+        "pageCount": {
+          "type": "integer",
+          "description": "Total number of pages available"
+        }
+      },
+      "errors": [
+        {
+          "code": "WORKSPACE_NOT_FOUND",
+          "message": "The specified workspace does not exist",
+          "resolution": "Check the workspaceId parameter"
+        }
+      ],
+      "examples": [
+        {
+          "description": "List all spaces in a workspace",
+          "request": {
+            "jsonrpc": "2.0",
+            "method": "space.list",
+            "params": {
+              "workspaceId": "01963588-32a9-7f89-879e-afb8fb600a5a",
+              "page": 1,
+              "limit": 10
+            },
+            "id": 1
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "result": {
+              "items": [
+                {
+                  "id": "01964729-c19e-7de3-b67d-71d4dc330b0f",
+                  "name": "Daily Review Demo",
+                  "slug": "daily-review-demo",
+                  "description": "A space for demonstrating real-time document creation"
+                }
+              ],
+              "total": 1,
+              "page": 1,
+              "pageCount": 1
+            },
+            "id": 1
+          }
+        }
+      ],
+      "relatedMethods": ["space.create", "space.get", "space.update", "space.delete"]
+    },
+    {
+      "name": "page.create",
+      "description": "Creates a new document page within a space",
+      "category": "Document Management",
+      "parameters": {
+        "workspaceId": {
+          "type": "string",
+          "description": "UUID of the workspace",
+          "required": true,
+          "example": "01963588-32a9-7f89-879e-afb8fb600a5a"
+        },
+        "spaceId": {
+          "type": "string",
+          "description": "UUID of the space to create the page in",
+          "required": true,
+          "example": "01964729-c19e-7de3-b67d-71d4dc330b0f"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the page",
+          "required": true,
+          "example": "Daily Team Review"
+        },
+        "content": {
+          "type": "object",
+          "description": "Page content in Docmost format",
+          "required": true,
+          "example": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Hello world"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "returns": {
+        "id": {
+          "type": "string",
+          "description": "UUID of the created page"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the created page"
+        },
+        "slugId": {
+          "type": "string",
+          "description": "URL-friendly identifier for the page"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of when the page was created"
+        }
+      },
+      "errors": [
+        {
+          "code": "SPACE_NOT_FOUND",
+          "message": "The specified space does not exist",
+          "resolution": "Check the spaceId parameter or list available spaces"
+        },
+        {
+          "code": "INVALID_CONTENT",
+          "message": "The provided content format is invalid",
+          "resolution": "Ensure content follows the Docmost document schema"
+        }
+      ],
+      "examples": [
+        {
+          "description": "Create a simple page",
+          "request": {
+            "jsonrpc": "2.0",
+            "method": "page.create",
+            "params": {
+              "workspaceId": "01963588-32a9-7f89-879e-afb8fb600a5a",
+              "spaceId": "01964729-c19e-7de3-b67d-71d4dc330b0f",
+              "title": "Daily Team Review",
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "This is a test page."
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "id": 1
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "result": {
+              "id": "01964729-c9c8-726a-b1ad-313000d32328",
+              "title": "Daily Team Review",
+              "slugId": "daily-team-review",
+              "createdAt": "2023-09-15T14:35:22.456Z"
+            },
+            "id": 1
+          }
+        }
+      ],
+      "relatedMethods": ["page.get", "page.update", "page.delete", "page.list"]
+    },
+    {
+      "name": "context.set",
+      "description": "Stores a context value for the current session",
+      "category": "Context Management",
+      "parameters": {
+        "key": {
+          "type": "string",
+          "description": "The key for the context value",
+          "required": true,
+          "example": "currentProject"
+        },
+        "value": {
+          "type": "any",
+          "description": "The value to store",
+          "required": true,
+          "example": "project-123"
+        },
+        "ttl": {
+          "type": "integer",
+          "description": "Time-to-live in seconds for the context value",
+          "required": false,
+          "example": 3600
+        }
+      },
+      "returns": {
+        "success": {
+          "type": "boolean",
+          "description": "Whether the operation was successful"
+        }
+      },
+      "errors": [
+        {
+          "code": "INVALID_PARAMS",
+          "message": "Missing required parameters",
+          "resolution": "Ensure key and value parameters are provided"
+        },
+        {
+          "code": "CONTEXT_ERROR",
+          "message": "Failed to store context",
+          "resolution": "Check that Redis is operational"
+        }
+      ],
+      "examples": [
+        {
+          "description": "Set a context value",
+          "request": {
+            "jsonrpc": "2.0",
+            "method": "context.set",
+            "params": {
+              "key": "currentProject",
+              "value": "project-123"
+            },
+            "id": 1
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "result": {
+              "success": true
+            },
+            "id": 1
+          }
+        }
+      ],
+      "relatedMethods": ["context.get", "context.delete", "context.list", "context.clear"]
+    },
+    {
+      "name": "context.get",
+      "description": "Retrieves a context value from the current session",
+      "category": "Context Management",
+      "parameters": {
+        "key": {
+          "type": "string",
+          "description": "The key for the context value",
+          "required": true,
+          "example": "currentProject"
+        }
+      },
+      "returns": {
+        "key": {
+          "type": "string",
+          "description": "The key of the context value"
+        },
+        "value": {
+          "type": "any",
+          "description": "The stored context value"
+        }
+      },
+      "errors": [
+        {
+          "code": "INVALID_PARAMS",
+          "message": "Missing required parameters",
+          "resolution": "Ensure key parameter is provided"
+        },
+        {
+          "code": "NOT_FOUND",
+          "message": "Context key not found",
+          "resolution": "Verify that the key exists or was set previously"
+        },
+        {
+          "code": "CONTEXT_ERROR",
+          "message": "Failed to retrieve context",
+          "resolution": "Check that Redis is operational"
+        }
+      ],
+      "examples": [
+        {
+          "description": "Get a context value",
+          "request": {
+            "jsonrpc": "2.0",
+            "method": "context.get",
+            "params": {
+              "key": "currentProject"
+            },
+            "id": 1
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "result": {
+              "key": "currentProject",
+              "value": "project-123"
+            },
+            "id": 1
+          }
+        }
+      ],
+      "relatedMethods": ["context.set", "context.delete", "context.list", "context.clear"]
+    },
+    {
+      "name": "context.delete",
+      "description": "Deletes a context value from the current session",
+      "category": "Context Management",
+      "parameters": {
+        "key": {
+          "type": "string",
+          "description": "The key for the context value to delete",
+          "required": true,
+          "example": "currentProject"
+        }
+      },
+      "returns": {
+        "success": {
+          "type": "boolean",
+          "description": "Whether the operation was successful"
+        }
+      },
+      "errors": [
+        {
+          "code": "INVALID_PARAMS",
+          "message": "Missing required parameters",
+          "resolution": "Ensure key parameter is provided"
+        },
+        {
+          "code": "CONTEXT_ERROR",
+          "message": "Failed to delete context",
+          "resolution": "Check that Redis is operational"
+        }
+      ],
+      "examples": [
+        {
+          "description": "Delete a context value",
+          "request": {
+            "jsonrpc": "2.0",
+            "method": "context.delete",
+            "params": {
+              "key": "currentProject"
+            },
+            "id": 1
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "result": {
+              "success": true
+            },
+            "id": 1
+          }
+        }
+      ],
+      "relatedMethods": ["context.set", "context.get", "context.list", "context.clear"]
+    },
+    {
+      "name": "context.list",
+      "description": "Lists all context keys for the current session",
+      "category": "Context Management",
+      "parameters": {},
+      "returns": {
+        "keys": {
+          "type": "array",
+          "description": "List of context keys",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "errors": [
+        {
+          "code": "CONTEXT_ERROR",
+          "message": "Failed to list context keys",
+          "resolution": "Check that Redis is operational"
+        }
+      ],
+      "examples": [
+        {
+          "description": "List all context keys",
+          "request": {
+            "jsonrpc": "2.0",
+            "method": "context.list",
+            "params": {},
+            "id": 1
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "result": {
+              "keys": ["currentProject", "lastSearchQuery", "userPreferences"]
+            },
+            "id": 1
+          }
+        }
+      ],
+      "relatedMethods": ["context.set", "context.get", "context.delete", "context.clear"]
+    },
+    {
+      "name": "context.clear",
+      "description": "Clears all context values for the current session",
+      "category": "Context Management",
+      "parameters": {},
+      "returns": {
+        "success": {
+          "type": "boolean",
+          "description": "Whether the operation was successful"
+        }
+      },
+      "errors": [
+        {
+          "code": "CONTEXT_ERROR",
+          "message": "Failed to clear context",
+          "resolution": "Check that Redis is operational"
+        }
+      ],
+      "examples": [
+        {
+          "description": "Clear all context values",
+          "request": {
+            "jsonrpc": "2.0",
+            "method": "context.clear",
+            "params": {},
+            "id": 1
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "result": {
+              "success": true
+            },
+            "id": 1
+          }
+        }
+      ],
+      "relatedMethods": ["context.set", "context.get", "context.delete", "context.list"]
+    }
+  ]
+} 

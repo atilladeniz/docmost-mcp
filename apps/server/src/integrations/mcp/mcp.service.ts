@@ -7,6 +7,8 @@ import { GroupHandler } from './handlers/group.handler';
 import { WorkspaceHandler } from './handlers/workspace.handler';
 import { AttachmentHandler } from './handlers/attachment.handler';
 import { CommentHandler } from './handlers/comment.handler';
+import { SystemHandler } from './handlers/system.handler';
+import { ContextHandler } from './handlers/context.handler';
 import { User } from '@docmost/db/types/entity.types';
 import {
   createInternalError,
@@ -34,6 +36,8 @@ export class MCPService {
     private readonly workspaceHandler: WorkspaceHandler,
     private readonly attachmentHandler: AttachmentHandler,
     private readonly commentHandler: CommentHandler,
+    private readonly systemHandler: SystemHandler,
+    private readonly contextHandler: ContextHandler,
   ) {}
 
   /**
@@ -110,6 +114,18 @@ export class MCPService {
         case 'comment':
           this.logger.debug(`MCPService: Delegating to comment handler`);
           result = await this.handleCommentRequest(
+            operation,
+            request.params,
+            user.id,
+          );
+          break;
+        case 'system':
+          this.logger.debug(`MCPService: Delegating to system handler`);
+          result = await this.handleSystemRequest(operation, request.params);
+          break;
+        case 'context':
+          this.logger.debug(`MCPService: Delegating to context handler`);
+          result = await this.handleContextRequest(
             operation,
             request.params,
             user.id,
@@ -354,6 +370,56 @@ export class MCPService {
         return this.commentHandler.deleteComment(params, userId);
       default:
         throw createMethodNotFoundError(`comment.${operation}`);
+    }
+  }
+
+  /**
+   * Handle system-related requests
+   *
+   * @param operation The operation to perform
+   * @param params The operation parameters
+   * @returns The operation result
+   */
+  private async handleSystemRequest(
+    operation: string,
+    params: any,
+  ): Promise<any> {
+    switch (operation) {
+      case 'listMethods':
+        return this.systemHandler.listMethods();
+      case 'getMethodSchema':
+        return this.systemHandler.getMethodSchema(params);
+      default:
+        throw createMethodNotFoundError(`system.${operation}`);
+    }
+  }
+
+  /**
+   * Handle context-related requests
+   *
+   * @param operation The operation to perform
+   * @param params The operation parameters
+   * @param userId The ID of the authenticated user
+   * @returns The operation result
+   */
+  private async handleContextRequest(
+    operation: string,
+    params: any,
+    userId: string,
+  ): Promise<any> {
+    switch (operation) {
+      case 'set':
+        return this.contextHandler.setContext(params, userId);
+      case 'get':
+        return this.contextHandler.getContext(params, userId);
+      case 'delete':
+        return this.contextHandler.deleteContext(params, userId);
+      case 'list':
+        return this.contextHandler.listContextKeys(params, userId);
+      case 'clear':
+        return this.contextHandler.clearSessionContext(params, userId);
+      default:
+        throw createMethodNotFoundError(`context.${operation}`);
     }
   }
 

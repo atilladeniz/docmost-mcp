@@ -64,6 +64,7 @@
     "cross-env": "^7.0.3",
     "date-fns": "^4.1.0",
     "dompurify": "^3.2.4",
+    "express": "^5.1.0",
     "fractional-indexing-jittered": "^1.0.0",
     "ioredis": "^5.4.1",
     "jszip": "^3.10.1",
@@ -74,7 +75,8 @@
     "pino-pretty": "^13.0.0",
     "uuid": "^11.1.0",
     "y-indexeddb": "^9.0.12",
-    "yjs": "^13.6.20"
+    "yjs": "^13.6.20",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@nx/js": "20.4.5",

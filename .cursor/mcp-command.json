@@ -1,0 +1,7 @@
+{
+  "name": "Docmost MCP (Command)",
+  "description": "Access Docmost functionality through the Model Context Protocol (MCP)",
+  "type": "command",
+  "command": "node mcp-cursor-sdk.js",
+  "cwd": "${workspaceFolder}"
+} 

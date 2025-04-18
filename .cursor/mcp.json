@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "docmost-mcp": {
+      "name": "Docmost Model Context Protocol",
+      "description": "Access Docmost functionality through the Model Context Protocol (MCP)",
+      "url": "http://localhost:3002/tools",
+      "env": {
+        "NODE_ENV": "development"
+      }
+    }
+  }
+} 

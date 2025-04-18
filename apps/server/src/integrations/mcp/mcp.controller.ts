@@ -7,6 +7,8 @@ import {
   Logger,
   UseGuards,
   BadRequestException,
+  Get,
+  Param,
 } from '@nestjs/common';
 import { MCPService } from './mcp.service';
 import { MCPRequest, MCPResponse } from './interfaces/mcp.interface';
@@ -15,6 +17,8 @@ import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { User } from '@docmost/db/types/entity.types';
 import { MCPPermissionGuard } from './guards/mcp-permission.guard';
 import { MCPAuthGuard } from './guards/mcp-auth.guard';
+import { MCPSchemaService } from './services/mcp-schema.service';
+import { Public } from '../../common/decorators/public.decorator';
 
 /**
  * Machine Control Protocol (MCP) Controller
@@ -28,7 +32,10 @@ import { MCPAuthGuard } from './guards/mcp-auth.guard';
 export class MCPController {
   private readonly logger = new Logger(MCPController.name);
 
-  constructor(private readonly mcpService: MCPService) {}
+  constructor(
+    private readonly mcpService: MCPService,
+    private readonly mcpSchemaService: MCPSchemaService,
+  ) {}
 
   /**
    * Process an MCP request
@@ -112,5 +119,146 @@ export class MCPController {
     );
 
     return responses;
+  }
+
+  /**
+   * Get tool definitions for AI assistants
+   *
+   * This endpoint exposes MCP methods as tools in a format compatible
+   * with AI assistants like those from OpenAI, Anthropic, or Cursor.
+   */
+  @Get('tools')
+  @Public()
+  @SkipTransform()
+  async getTools() {
+    this.logger.debug('Getting tool definitions for AI assistants');
+
+    // Get all method schemas
+    const schemas = this.mcpSchemaService.getAllMethodSchemas();
+
+    // Convert schemas to tool definitions
+    const tools = schemas.map((schema) => {
+      // Convert MCP parameters to tool parameters
+      const parameters = {
+        type: 'object',
+        properties: {},
+        required: [],
+      };
+
+      // Add parameters
+      for (const [key, param] of Object.entries(schema.parameters)) {
+        parameters.properties[key] = {
+          type: param.type === 'object' ? 'object' : 'string',
+          description: param.description,
+        };
+
+        if (param.required) {
+          parameters.required.push(key);
+        }
+      }
+
+      return {
+        type: 'function',
+        function: {
+          name: schema.name,
+          description: schema.description,
+          parameters: parameters,
+        },
+      };
+    });
+
+    return {
+      schema_version: '1.0',
+      name_for_model: 'Docmost MCP',
+      name_for_human: 'Docmost Machine Control Protocol',
+      tools,
+    };
+  }
+
+  /**
+   * Get OpenAPI specification for the MCP API
+   *
+   * This endpoint generates an OpenAPI spec from MCP method schemas
+   */
+  @Get('openapi.json')
+  @Public()
+  @SkipTransform()
+  async getOpenAPISpec() {
+    this.logger.debug('Generating OpenAPI specification');
+
+    // Get all method schemas
+    const schemas = this.mcpSchemaService.getAllMethodSchemas();
+    const paths = {};
+    const components = {
+      schemas: {},
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
+    };
+
+    // Create paths for each method
+    schemas.forEach((schema) => {
+      const [resource, operation] = schema.name.split('.');
+      const path = `/api/mcp/${resource}/${operation}`;
+
+      paths[path] = {
+        post: {
+          summary: schema.description,
+          tags: [schema.category],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: schema.parameters,
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'Successful operation',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: schema.returns,
+                  },
+                },
+              },
+            },
+            '400': {
+              description: 'Bad request',
+            },
+            '401': {
+              description: 'Unauthorized',
+            },
+          },
+        },
+      };
+    });
+
+    return {
+      openapi: '3.0.0',
+      info: {
+        title: 'Docmost Machine Control Protocol API',
+        description: 'API for AI agents to interact with Docmost',
+        version: '1.0.0',
+      },
+      servers: [
+        {
+          url: 'http://localhost:3000',
+          description: 'Local development server',
+        },
+      ],
+      paths,
+      components,
+    };
   }
 }
