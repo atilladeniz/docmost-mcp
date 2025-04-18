@@ -24,6 +24,9 @@ import { UserService } from '../../../core/user/user.service';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 import { WorkspaceInvitationService } from '../../../core/workspace/services/workspace-invitation.service';
+import { SpaceRole, UserRole } from '../../../common/helpers/types/permission';
+import { MCPEventService } from '../services/mcp-event.service';
+import { MCPResourceType } from '../interfaces/mcp-event.interface';
 
 /**
  * Handler for workspace-related MCP operations
@@ -37,6 +40,7 @@ export class WorkspaceHandler {
     private readonly workspaceAbility: WorkspaceAbilityFactory,
     private readonly userService: UserService,
     private readonly workspaceInvitationService: WorkspaceInvitationService,
+    private readonly mcpEventService: MCPEventService,
     @InjectKysely() private readonly db: KyselyDB,
   ) {}
 
@@ -229,6 +233,27 @@ export class WorkspaceHandler {
         updateWorkspaceDto,
       );
 
+      // Publish event for workspace update
+      this.logger.debug(
+        `Publishing event for updated workspace ${workspaceId}`,
+      );
+      this.mcpEventService.createUpdatedEvent(
+        MCPResourceType.WORKSPACE,
+        workspaceId,
+        {
+          name: updatedWorkspace.name,
+          // Include only modified fields in the event data
+          ...(updateWorkspaceDto.hostname && {
+            hostname: updatedWorkspace.hostname,
+          }),
+          ...(updateWorkspaceDto.description && {
+            description: updatedWorkspace.description,
+          }),
+        },
+        userId,
+        workspaceId,
+      );
+
       return updatedWorkspace;
     } catch (error: any) {
       this.logger.error(
@@ -298,6 +323,22 @@ export class WorkspaceHandler {
       const workspace = await this.workspaceService.create(
         user,
         createWorkspaceDto,
+      );
+
+      // Publish event for workspace creation
+      this.logger.debug(
+        `Publishing event for created workspace ${workspace.id}`,
+      );
+      this.mcpEventService.createCreatedEvent(
+        MCPResourceType.WORKSPACE,
+        workspace.id,
+        {
+          name: workspace.name,
+          description: workspace.description,
+          hostname: workspace.hostname,
+        },
+        userId,
+        workspace.id,
       );
 
       return workspace;

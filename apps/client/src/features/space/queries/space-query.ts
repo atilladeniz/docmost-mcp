@@ -32,13 +32,16 @@ import { useEffect } from "react";
 import { validate as isValidUuid } from "uuid";
 
 export function useGetSpacesQuery(
-  params?: QueryParams,
+  params?: QueryParams
 ): UseQueryResult<IPagination<ISpace>, Error> {
   return useQuery({
     queryKey: ["spaces", params],
     queryFn: () => getSpaces(params),
     placeholderData: keepPreviousData,
     refetchOnMount: true,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 }
 
@@ -47,6 +50,9 @@ export function useSpaceQuery(spaceId: string): UseQueryResult<ISpace, Error> {
     queryKey: ["space", spaceId],
     queryFn: () => getSpaceById(spaceId),
     enabled: !!spaceId,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
   useEffect(() => {
     if (query.data) {
@@ -96,13 +102,15 @@ export function useCreateSpaceMutation() {
 }
 
 export function useGetSpaceBySlugQuery(
-  spaceId: string,
+  spaceId: string
 ): UseQueryResult<ISpace, Error> {
   return useQuery({
     queryKey: ["space", spaceId],
     queryFn: () => getSpaceById(spaceId),
     enabled: !!spaceId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 }
 
@@ -155,7 +163,7 @@ export function useDeleteSpaceMutation() {
       const spaces = queryClient.getQueryData(["spaces"]) as any;
       if (spaces) {
         spaces.items = spaces.items?.filter(
-          (space: ISpace) => space.id !== variables.id,
+          (space: ISpace) => space.id !== variables.id
         );
         queryClient.setQueryData(["spaces"], spaces);
       }
@@ -169,7 +177,7 @@ export function useDeleteSpaceMutation() {
 
 export function useSpaceMembersQuery(
   spaceId: string,
-  params?: QueryParams,
+  params?: QueryParams
 ): UseQueryResult<IPagination<ISpaceMember>, Error> {
   return useQuery({
     queryKey: ["spaceMembers", spaceId, params],

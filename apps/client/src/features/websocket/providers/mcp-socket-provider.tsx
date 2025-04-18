@@ -50,8 +50,9 @@ export const MCPSocketProvider: React.FC<MCPSocketProviderProps> = ({
       const newSocket = io(socketUrl, {
         transports: ["websocket"],
         withCredentials: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 2000,
+        timeout: 10000,
         autoConnect: true,
       });
 
@@ -65,6 +66,30 @@ export const MCPSocketProvider: React.FC<MCPSocketProviderProps> = ({
         );
       });
 
+      // Attempt to reconnect if disconnected
+      newSocket.io.on("reconnect_attempt", (attempt) => {
+        console.log(
+          `%c[MCP-SOCKET] Reconnection attempt #${attempt}`,
+          "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
+        );
+      });
+
+      newSocket.io.on("reconnect", (attempt) => {
+        console.log(
+          `%c[MCP-SOCKET] Reconnected after ${attempt} attempts!`,
+          "background: #4CAF50; color: white; padding: 3px; border-radius: 3px;"
+        );
+
+        // Re-subscribe after reconnection
+        if (currentUser?.workspace?.id) {
+          console.log(
+            "%c[MCP-SOCKET] Re-subscribing after reconnection",
+            "background: #2196F3; color: white; padding: 3px; border-radius: 3px;"
+          );
+          subscribeToResources(newSocket, currentUser);
+        }
+      });
+
       // @ts-ignore
       setMcpSocket(newSocket);
 
@@ -75,55 +100,8 @@ export const MCPSocketProvider: React.FC<MCPSocketProviderProps> = ({
           newSocket.id
         );
 
-        // Subscribe to workspace events
-        if (currentUser?.workspace?.id) {
-          console.log(
-            "%c[MCP-SOCKET] Subscribing to workspace events for workspace:",
-            "background: #2196F3; color: white; padding: 3px; border-radius: 3px;",
-            currentUser.workspace.id
-          );
-
-          // Subscribe to workspace events
-          newSocket.emit("mcp:subscribe", {
-            resourceType: MCPResourceType.WORKSPACE,
-            resourceId: currentUser.workspace.id,
-          });
-
-          // Subscribe to space events if there are any spaces
-          const defaultSpaceId = currentUser.workspace.defaultSpaceId;
-          if (defaultSpaceId) {
-            console.log(
-              "%c[MCP-SOCKET] Subscribing to default space events:",
-              "background: #2196F3; color: white; padding: 3px; border-radius: 3px;",
-              defaultSpaceId
-            );
-
-            newSocket.emit("mcp:subscribe", {
-              resourceType: MCPResourceType.SPACE,
-              resourceId: defaultSpaceId,
-            });
-          }
-
-          // Subscribe to user events
-          console.log(
-            "%c[MCP-SOCKET] Subscribing to user events:",
-            "background: #2196F3; color: white; padding: 3px; border-radius: 3px;",
-            currentUser.user.id
-          );
-
-          newSocket.emit("mcp:subscribe", {
-            resourceType: MCPResourceType.USER,
-            resourceId: currentUser.user.id,
-          });
-
-          // Also subscribe to all events for debugging purposes
-          console.log(
-            "%c[MCP-SOCKET] Subscribing to ALL events (debugging)",
-            "background: #FF5722; color: white; padding: 3px; border-radius: 3px;"
-          );
-
-          setSubscribed(true);
-        }
+        // Subscribe to resources
+        subscribeToResources(newSocket, currentUser);
       });
 
       newSocket.on("connect_error", (error) => {
@@ -168,7 +146,20 @@ export const MCPSocketProvider: React.FC<MCPSocketProviderProps> = ({
         );
       });
 
+      // Force a reconnect if connection attempt takes too long
+      const connectionTimeout = setTimeout(() => {
+        if (!newSocket.connected) {
+          console.log(
+            "%c[MCP-SOCKET] Connection timed out, forcing reconnect...",
+            "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
+          );
+          newSocket.disconnect();
+          newSocket.connect();
+        }
+      }, 5000);
+
       return () => {
+        clearTimeout(connectionTimeout);
         console.log(
           "%c[MCP-SOCKET] Cleaning up connection",
           "background: #607D8B; color: white; padding: 3px; border-radius: 3px;"
@@ -185,6 +176,69 @@ export const MCPSocketProvider: React.FC<MCPSocketProviderProps> = ({
       );
     }
   }, [currentUser, setMcpSocket]);
+
+  // Helper function to subscribe to necessary resources
+  const subscribeToResources = (socket, currentUser) => {
+    if (!socket || !currentUser?.workspace?.id) return;
+
+    console.log(
+      "%c[MCP-SOCKET] Subscribing to workspace events for workspace:",
+      "background: #2196F3; color: white; padding: 3px; border-radius: 3px;",
+      currentUser.workspace.id
+    );
+
+    // Subscribe to workspace events
+    socket.emit("mcp:subscribe", {
+      resourceType: MCPResourceType.WORKSPACE,
+      resourceId: currentUser.workspace.id,
+    });
+
+    // Subscribe to ALL resources in the workspace for testing
+    // In production, you would be more selective
+    const resources = Object.values(MCPResourceType);
+    resources.forEach((resourceType) => {
+      if (resourceType !== MCPResourceType.WORKSPACE) {
+        console.log(
+          `%c[MCP-SOCKET] Subscribing to all ${resourceType} events`,
+          "background: #2196F3; color: white; padding: 3px; border-radius: 3px;"
+        );
+
+        socket.emit("mcp:subscribe", {
+          resourceType: resourceType,
+          resourceId: "all",
+        });
+      }
+    });
+
+    // Subscribe to spaces
+    const defaultSpaceId = currentUser.workspace.defaultSpaceId;
+    if (defaultSpaceId) {
+      console.log(
+        "%c[MCP-SOCKET] Subscribing to default space events:",
+        "background: #2196F3; color: white; padding: 3px; border-radius: 3px;",
+        defaultSpaceId
+      );
+
+      socket.emit("mcp:subscribe", {
+        resourceType: MCPResourceType.SPACE,
+        resourceId: defaultSpaceId,
+      });
+    }
+
+    // Subscribe to user events
+    console.log(
+      "%c[MCP-SOCKET] Subscribing to user events:",
+      "background: #2196F3; color: white; padding: 3px; border-radius: 3px;",
+      currentUser.user.id
+    );
+
+    socket.emit("mcp:subscribe", {
+      resourceType: MCPResourceType.USER,
+      resourceId: currentUser.user.id,
+    });
+
+    setSubscribed(true);
+  };
 
   // Use the MCP events hook to handle incoming events
   useMCPEvents();

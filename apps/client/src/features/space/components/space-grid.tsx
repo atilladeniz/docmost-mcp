@@ -1,5 +1,14 @@
-import { Text, Avatar, SimpleGrid, Card, rem } from "@mantine/core";
-import React, { useEffect } from 'react';
+import {
+  Text,
+  Avatar,
+  SimpleGrid,
+  Card,
+  rem,
+  Button,
+  Group,
+  Loader,
+} from "@mantine/core";
+import React, { useEffect, useCallback, useState } from "react";
 import {
   prefetchSpace,
   useGetSpacesQuery,
@@ -9,10 +18,77 @@ import { Link } from "react-router-dom";
 import classes from "./space-grid.module.css";
 import { formatMemberCount } from "@/lib";
 import { useTranslation } from "react-i18next";
+import { IconRefresh } from "@tabler/icons-react";
+import { useAtom } from "jotai";
+import { mcpSocketAtom } from "@/features/websocket/atoms/mcp-socket-atom";
+import {
+  MCPEventType,
+  MCPResourceType,
+} from "@/features/websocket/types/mcp-event.types";
 
 export default function SpaceGrid() {
   const { t } = useTranslation();
-  const { data, isLoading } = useGetSpacesQuery({ page: 1 });
+  const [socket] = useAtom(mcpSocketAtom);
+  const { data, isLoading, refetch, isRefetching } = useGetSpacesQuery({
+    page: 1,
+  });
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Handle immediate refetch when a space is created
+  const handleSpaceEvent = useCallback(
+    (event) => {
+      if (
+        event.resource === MCPResourceType.SPACE &&
+        (event.type === MCPEventType.CREATED ||
+          event.type === MCPEventType.UPDATED ||
+          event.type === MCPEventType.DELETED)
+      ) {
+        console.log(
+          "🔄 SpaceGrid: Space event detected, refreshing spaces...",
+          event
+        );
+        setRefreshing(true);
+        refetch().finally(() => setRefreshing(false));
+      }
+    },
+    [refetch]
+  );
+
+  // Register for direct MCP events
+  useEffect(() => {
+    if (socket) {
+      // Listen directly for MCP events
+      socket.on("mcp:event", handleSpaceEvent);
+
+      return () => {
+        socket.off("mcp:event", handleSpaceEvent);
+      };
+    }
+  }, [socket, handleSpaceEvent]);
+
+  // Force a refetch when the component mounts and set up periodic refreshes
+  useEffect(() => {
+    console.log("🔍 SpaceGrid: Component mounted, fetching spaces...");
+    // Refetch immediately on mount
+    refetch();
+
+    // Setup an interval for periodic checks
+    const refreshInterval = setInterval(() => {
+      console.log("⏱️ SpaceGrid: Periodic refresh triggered");
+      refetch();
+    }, 10000); // Check every 10 seconds
+
+    return () => {
+      clearInterval(refreshInterval);
+    };
+  }, [refetch]);
+
+  // Force a manual refetch when refresh button is clicked
+  const handleManualRefresh = () => {
+    console.log("👆 SpaceGrid: Manual refresh triggered");
+    setRefreshing(true);
+    refetch().finally(() => setRefreshing(false));
+  };
 
   const cards = data?.items.map((space, index) => (
     <Card
@@ -46,11 +122,40 @@ export default function SpaceGrid() {
 
   return (
     <>
-      <Text fz="sm" fw={500} mb={"md"}>
-        {t("Spaces you belong to")}
-      </Text>
+      <Group justify="space-between" mb="md">
+        <Text fz="sm" fw={500}>
+          {t("Spaces you belong to")}
+        </Text>
+        <Button
+          variant="subtle"
+          size="xs"
+          leftSection={
+            refreshing ? <Loader size="xs" /> : <IconRefresh size={16} />
+          }
+          onClick={handleManualRefresh}
+          loading={refreshing}
+          disabled={refreshing || isRefetching}
+        >
+          {refreshing ? t("Refreshing...") : t("Refresh")}
+        </Button>
+      </Group>
 
-      <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }}>{cards}</SimpleGrid>
+      <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }}>
+        {isLoading ? (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              width: "100%",
+              padding: "20px",
+            }}
+          >
+            <Loader size="sm" />
+          </div>
+        ) : (
+          cards
+        )}
+      </SimpleGrid>
     </>
   );
 }

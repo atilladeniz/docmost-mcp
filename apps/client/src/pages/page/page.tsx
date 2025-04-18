@@ -13,23 +13,92 @@ import {
 } from "@/features/space/permissions/permissions.type.ts";
 import { useTranslation } from "react-i18next";
 import { Error404 } from "@/components/ui/error-404.tsx";
+import { useCallback, useEffect, useState } from "react";
+import { useAtom } from "jotai";
+import { mcpSocketAtom } from "@/features/websocket/atoms/mcp-socket-atom";
+import {
+  MCPEventType,
+  MCPResourceType,
+} from "@/features/websocket/types/mcp-event.types";
+import { Loader } from "@mantine/core";
 
 export default function Page() {
   const { t } = useTranslation();
   const { pageSlug } = useParams();
+  const [socket] = useAtom(mcpSocketAtom);
+  const pageId = extractPageSlugId(pageSlug);
+  const [refreshing, setRefreshing] = useState(false);
+
   const {
     data: page,
     isLoading,
     isError,
     error,
-  } = usePageQuery({ pageId: extractPageSlugId(pageSlug) });
-  const { data: space } = useGetSpaceBySlugQuery(page?.space?.slug);
+    refetch,
+  } = usePageQuery({ pageId });
+
+  const { data: space, refetch: refetchSpace } = useGetSpaceBySlugQuery(
+    page?.space?.slug
+  );
 
   const spaceRules = space?.membership?.permissions;
   const spaceAbility = useSpaceAbility(spaceRules);
 
+  // Handle immediate refetch when this page is updated
+  const handlePageEvent = useCallback(
+    (event) => {
+      if (
+        event.resource === MCPResourceType.PAGE &&
+        event.resourceId === pageId &&
+        (event.type === MCPEventType.UPDATED ||
+          event.type === MCPEventType.MOVED)
+      ) {
+        console.log(
+          "🔄 PageView: Page update event detected, refreshing page...",
+          event
+        );
+        setRefreshing(true);
+
+        // Force refetch the page data
+        Promise.all([refetch(), refetchSpace()]).finally(() => {
+          setRefreshing(false);
+        });
+      }
+    },
+    [pageId, refetch, refetchSpace]
+  );
+
+  // Register for direct MCP events
+  useEffect(() => {
+    if (socket) {
+      console.log(
+        "🔗 PageView: Setting up MCP event listener for page:",
+        pageId
+      );
+
+      // Listen directly for MCP events related to this page
+      socket.on("mcp:event", handlePageEvent);
+
+      // Also subscribe to specific page events if not already subscribed
+      socket.emit("mcp:subscribe", {
+        resourceType: MCPResourceType.PAGE,
+        resourceId: pageId,
+      });
+
+      return () => {
+        socket.off("mcp:event", handlePageEvent);
+      };
+    }
+  }, [socket, pageId, handlePageEvent]);
+
   if (isLoading) {
-    return <></>;
+    return (
+      <div
+        style={{ display: "flex", justifyContent: "center", padding: "50px" }}
+      >
+        <Loader size="md" />
+      </div>
+    );
   }
 
   if (isError || !page) {
@@ -54,6 +123,19 @@ export default function Page() {
           SpaceCaslSubject.Page
         )}
       />
+
+      {refreshing && (
+        <div
+          style={{
+            position: "absolute",
+            top: "60px",
+            right: "20px",
+            zIndex: 1000,
+          }}
+        >
+          <Loader size="sm" />
+        </div>
+      )}
 
       <FullEditor
         key={page.id}

@@ -5,6 +5,7 @@ import { getAppName } from "@/lib/config.ts";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { MCPEventIndicator } from "@/features/websocket/components/mcp-event-indicator";
+import { MCPEventDebugger } from "@/features/websocket/components/mcp-event-debugger";
 
 export default function Home() {
   const { t } = useTranslation();
@@ -23,7 +24,8 @@ export default function Home() {
 
         <HomeTabs />
 
-        <MCPEventIndicator />
+        {/* <MCPEventIndicator />
+        <MCPEventDebugger /> */}
       </Container>
     </>
   );

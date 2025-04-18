@@ -8,8 +8,6 @@ import {
 } from "../types/mcp-event.types";
 import { useQueryClient } from "@tanstack/react-query";
 import { treeDataAtom } from "@/features/page/tree/atoms/tree-data-atom";
-import { SimpleTree } from "react-arborist";
-import { SpaceTreeNode } from "@/features/page/tree/types";
 
 /**
  * A hook that listens for MCP events and updates the application state accordingly
@@ -103,6 +101,11 @@ export const useMCPEvents = () => {
           );
           handleWorkspaceEvent(event);
           break;
+        default:
+          console.warn(
+            `%c[MCP-EVENT] Unknown resource type: ${event.resource}`,
+            "color: #F44336; font-weight: bold;"
+          );
       }
     };
 
@@ -131,36 +134,244 @@ export const useMCPEvents = () => {
 
   // Function to handle page events
   const handlePageEvent = (event: MCPEvent) => {
-    console.log(`%c[MCP-HANDLER] Handling PAGE event`, "color: #4CAF50;");
+    console.log(
+      `%c[MCP-HANDLER] Handling PAGE event ${event.type}`,
+      "background: #4CAF50; color: white; padding: 3px; border-radius: 3px;"
+    );
+
+    // Always refetch pages data immediately
+    console.log(
+      `%c[MCP-HANDLER] 🔄 IMMEDIATELY refetching pages list`,
+      "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
+    );
+
+    // Force refetch pages data with highest priority
+    queryClient.refetchQueries({
+      queryKey: ["pages"],
+      type: "all",
+      exact: false,
+    });
+
+    if (event.resourceId) {
+      // Handle specific page
+      console.log(
+        `%c[MCP-HANDLER] 🔄 IMMEDIATELY refetching page ${event.resourceId}`,
+        "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
+      );
+
+      // Force refetch the specific page with highest priority
+      queryClient.refetchQueries({
+        queryKey: ["page", event.resourceId],
+      });
+
+      // Also refetch the content
+      queryClient.refetchQueries({
+        queryKey: ["pageContent", event.resourceId],
+      });
+    }
+
+    // If this is a page in a space, also handle space's pages
+    if (event.spaceId) {
+      console.log(
+        `%c[MCP-HANDLER] 🔄 IMMEDIATELY refetching pages for space ${event.spaceId}`,
+        "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
+      );
+
+      // Force refetch for the space's pages
+      queryClient.refetchQueries({
+        queryKey: ["spacePages", event.spaceId],
+      });
+
+      // Also refetch the space itself (may need to update page counts)
+      queryClient.refetchQueries({
+        queryKey: ["space", event.spaceId],
+      });
+    }
+
+    // Handle page tree for created, deleted or moved pages
     if (
       event.type === MCPEventType.CREATED ||
-      event.type === MCPEventType.UPDATED ||
-      event.type === MCPEventType.DELETED
+      event.type === MCPEventType.DELETED ||
+      event.type === MCPEventType.MOVED
     ) {
-      // Invalidate page queries
-      queryClient.invalidateQueries({ queryKey: ["pages"] });
-      if (event.resourceId) {
-        queryClient.invalidateQueries({
-          queryKey: ["pages", event.resourceId],
-        });
+      console.log(
+        `%c[MCP-HANDLER] 🔄 IMMEDIATELY refetching page tree data`,
+        "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
+      );
+
+      // Force refetch for page tree with highest priority
+      queryClient.refetchQueries({
+        queryKey: ["pageTree"],
+      });
+
+      // For created pages, use a special approach
+      if (event.type === MCPEventType.CREATED) {
+        console.log(
+          `%c[MCP-HANDLER] 🚨 NEW PAGE CREATED - forcing immediate refresh of all related queries`,
+          "background: #F44336; color: white; padding: 3px; border-radius: 3px; font-weight: bold;"
+        );
+
+        if (event.spaceId) {
+          // Try to get the current pages data for this space
+          const pagesData = queryClient.getQueryData([
+            "spacePages",
+            event.spaceId,
+          ]) as any;
+
+          // If we have the new page data in the event, add it directly to the cache
+          if (event.data && pagesData?.items) {
+            console.log(
+              `%c[MCP-HANDLER] 📝 Directly updating pages cache with new page`,
+              "background: #9C27B0; color: white; padding: 3px; border-radius: 3px;"
+            );
+
+            // Only add if not already present
+            const pageExists = pagesData.items.some(
+              (page: any) => page.id === event.resourceId
+            );
+
+            if (!pageExists && event.data) {
+              // Add the new page to the beginning of the list
+              pagesData.items = [event.data, ...pagesData.items];
+
+              // Update total count
+              if (pagesData.total !== undefined) {
+                pagesData.total += 1;
+              }
+
+              // Update the cache directly
+              queryClient.setQueryData(
+                ["spacePages", event.spaceId],
+                pagesData
+              );
+            }
+          }
+        }
       }
     }
+
+    // Also refetch any active navigation-related queries
+    console.log(
+      `%c[MCP-HANDLER] 🔄 Refetching navigation and breadcrumb data`,
+      "background: #2196F3; color: white; padding: 3px; border-radius: 3px;"
+    );
+
+    queryClient.refetchQueries({
+      queryKey: ["navigation"],
+    });
+
+    queryClient.refetchQueries({
+      queryKey: ["breadcrumbs"],
+    });
   };
 
   // Function to handle space events
   const handleSpaceEvent = (event: MCPEvent) => {
-    console.log(`%c[MCP-HANDLER] Handling SPACE event`, "color: #4CAF50;");
-    if (
-      event.type === MCPEventType.CREATED ||
-      event.type === MCPEventType.UPDATED ||
-      event.type === MCPEventType.DELETED
-    ) {
-      // Invalidate space queries
-      queryClient.invalidateQueries({ queryKey: ["spaces"] });
-      if (event.resourceId) {
-        queryClient.invalidateQueries({
-          queryKey: ["spaces", event.resourceId],
+    console.log(
+      `%c[MCP-HANDLER] Handling SPACE event ${event.type}`,
+      "background: #4CAF50; color: white; padding: 3px; border-radius: 3px;"
+    );
+
+    // Always refetch spaces data immediately
+    console.log(
+      `%c[MCP-HANDLER] 🔄 IMMEDIATELY refetching spaces list`,
+      "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
+    );
+
+    // Force refetch spaces data with highest priority
+    queryClient.refetchQueries({
+      queryKey: ["spaces"],
+      type: "all",
+      exact: false,
+    });
+
+    if (event.resourceId) {
+      // Handle specific space
+      console.log(
+        `%c[MCP-HANDLER] 🔄 IMMEDIATELY refetching space ${event.resourceId}`,
+        "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
+      );
+
+      // Force refetch the specific space with highest priority
+      queryClient.refetchQueries({
+        queryKey: ["space", event.resourceId],
+      });
+
+      // Handle by slug if it's in the event data
+      if (event.data?.slug) {
+        console.log(
+          `%c[MCP-HANDLER] 🔄 IMMEDIATELY refetching space with slug ${event.data.slug}`,
+          "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
+        );
+
+        // Force refetch by slug
+        queryClient.refetchQueries({
+          queryKey: ["space", "slug", event.data.slug],
         });
+      }
+    }
+
+    // Handle space permissions
+    console.log(
+      `%c[MCP-HANDLER] 🔄 Refetching space permissions`,
+      "background: #2196F3; color: white; padding: 3px; border-radius: 3px;"
+    );
+    queryClient.refetchQueries({
+      queryKey: ["spacePermissions"],
+    });
+
+    // Handle page tree
+    console.log(
+      `%c[MCP-HANDLER] 🔄 Refetching page tree data`,
+      "background: #2196F3; color: white; padding: 3px; border-radius: 3px;"
+    );
+    queryClient.refetchQueries({
+      queryKey: ["pageTree"],
+    });
+
+    // For created spaces, use a special approach
+    if (event.type === MCPEventType.CREATED) {
+      console.log(
+        `%c[MCP-HANDLER] 🚨 NEW SPACE CREATED - forcing immediate refresh of all space-related queries`,
+        "background: #F44336; color: white; padding: 3px; border-radius: 3px; font-weight: bold;"
+      );
+
+      // Refetch all queries that might display spaces
+      queryClient.refetchQueries({
+        queryKey: ["homepage"],
+      });
+
+      queryClient.refetchQueries({
+        queryKey: ["dashboard"],
+      });
+
+      // Get the current spaces data
+      const spacesData = queryClient.getQueryData(["spaces"]) as any;
+
+      // If we have the new space data in the event, add it directly to the cache
+      if (event.data && spacesData?.items) {
+        console.log(
+          `%c[MCP-HANDLER] 📝 Directly updating spaces cache with new space`,
+          "background: #9C27B0; color: white; padding: 3px; border-radius: 3px;"
+        );
+
+        // Only add if not already present
+        const spaceExists = spacesData.items.some(
+          (space: any) => space.id === event.resourceId
+        );
+
+        if (!spaceExists && event.data) {
+          // Add the new space to the beginning of the list
+          spacesData.items = [event.data, ...spacesData.items];
+
+          // Update total count
+          if (spacesData.total !== undefined) {
+            spacesData.total += 1;
+          }
+
+          // Update the cache directly
+          queryClient.setQueryData(["spaces"], spacesData);
+        }
       }
     }
   };
@@ -168,40 +379,186 @@ export const useMCPEvents = () => {
   // Function to handle comment events
   const handleCommentEvent = (event: MCPEvent) => {
     console.log(`%c[MCP-HANDLER] Handling COMMENT event`, "color: #4CAF50;");
+    console.log(
+      `%c[MCP-HANDLER] Invalidating comment queries`,
+      "color: #4CAF50;"
+    );
+
+    // Comments are usually associated with a page
     if (event.data?.pageId) {
+      console.log(
+        `%c[MCP-HANDLER] Invalidating comments for page ${event.data.pageId}`,
+        "color: #4CAF50;"
+      );
       queryClient.invalidateQueries({
         queryKey: ["comments", event.data.pageId],
       });
     }
+
+    // Also invalidate by comment ID
+    if (event.resourceId) {
+      console.log(
+        `%c[MCP-HANDLER] Invalidating comment ${event.resourceId}`,
+        "color: #4CAF50;"
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["comment", event.resourceId],
+      });
+    }
+
+    // Update the general comments collection
+    queryClient.invalidateQueries({ queryKey: ["comments"] });
   };
 
   // Function to handle attachment events
   const handleAttachmentEvent = (event: MCPEvent) => {
     console.log(`%c[MCP-HANDLER] Handling ATTACHMENT event`, "color: #4CAF50;");
+    console.log(
+      `%c[MCP-HANDLER] Invalidating attachment queries`,
+      "color: #4CAF50;"
+    );
+
+    // Invalidate all attachments
     queryClient.invalidateQueries({ queryKey: ["attachments"] });
+
+    // Invalidate by ID if available
+    if (event.resourceId) {
+      console.log(
+        `%c[MCP-HANDLER] Invalidating attachment ${event.resourceId}`,
+        "color: #4CAF50;"
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["attachment", event.resourceId],
+      });
+    }
+
+    // If attachment is associated with a space
+    if (event.spaceId) {
+      console.log(
+        `%c[MCP-HANDLER] Invalidating attachments for space ${event.spaceId}`,
+        "color: #4CAF50;"
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["attachments", { spaceId: event.spaceId }],
+      });
+    }
+
+    // If attachment is associated with a page
+    if (event.data?.pageId) {
+      console.log(
+        `%c[MCP-HANDLER] Invalidating attachments for page ${event.data.pageId}`,
+        "color: #4CAF50;"
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["attachments", { pageId: event.data.pageId }],
+      });
+    }
   };
 
   // Function to handle group events
   const handleGroupEvent = (event: MCPEvent) => {
     console.log(`%c[MCP-HANDLER] Handling GROUP event`, "color: #4CAF50;");
+    console.log(
+      `%c[MCP-HANDLER] Invalidating group queries`,
+      "color: #4CAF50;"
+    );
+
+    // Invalidate all groups
     queryClient.invalidateQueries({ queryKey: ["groups"] });
+
     if (event.resourceId) {
-      queryClient.invalidateQueries({ queryKey: ["groups", event.resourceId] });
+      console.log(
+        `%c[MCP-HANDLER] Invalidating group ${event.resourceId}`,
+        "color: #4CAF50;"
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["group", event.resourceId],
+      });
+
+      // Group members may have changed
+      queryClient.invalidateQueries({
+        queryKey: ["groupMembers", event.resourceId],
+      });
     }
+
+    // Group changes may affect space permissions
+    queryClient.invalidateQueries({ queryKey: ["spacePermissions"] });
   };
 
   // Function to handle user events
   const handleUserEvent = (event: MCPEvent) => {
     console.log(`%c[MCP-HANDLER] Handling USER event`, "color: #4CAF50;");
+    console.log(`%c[MCP-HANDLER] Invalidating user queries`, "color: #4CAF50;");
+
+    // Invalidate all users
     queryClient.invalidateQueries({ queryKey: ["users"] });
+
     if (event.resourceId) {
-      queryClient.invalidateQueries({ queryKey: ["users", event.resourceId] });
+      console.log(
+        `%c[MCP-HANDLER] Invalidating user ${event.resourceId}`,
+        "color: #4CAF50;"
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["user", event.resourceId],
+      });
+
+      // May need to update current user info
+      queryClient.invalidateQueries({
+        queryKey: ["currentUser"],
+      });
     }
+
+    // User changes may affect space permissions
+    queryClient.invalidateQueries({ queryKey: ["spacePermissions"] });
   };
 
   // Function to handle workspace events
   const handleWorkspaceEvent = (event: MCPEvent) => {
     console.log(`%c[MCP-HANDLER] Handling WORKSPACE event`, "color: #4CAF50;");
-    queryClient.invalidateQueries({ queryKey: ["workspace"] });
+    console.log(
+      `%c[MCP-HANDLER] Invalidating workspace queries`,
+      "color: #4CAF50;"
+    );
+
+    // Invalidate all workspace-related queries
+    queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+
+    // Invalidate the specific workspace
+    if (event.resourceId) {
+      console.log(
+        `%c[MCP-HANDLER] Invalidating workspace ${event.resourceId}`,
+        "color: #4CAF50;"
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["workspace", event.resourceId],
+      });
+
+      // Force refetch for the specific workspace
+      queryClient.refetchQueries({
+        queryKey: ["workspace", event.resourceId],
+        exact: true,
+      });
+    }
+
+    // Workspace changes may affect user roles and permissions
+    queryClient.invalidateQueries({ queryKey: ["currentUser"] });
+    queryClient.invalidateQueries({ queryKey: ["users"] });
+    queryClient.invalidateQueries({ queryKey: ["permissions"] });
+
+    // Force UI update by refetching all active workspace queries
+    console.log(
+      `%c[MCP-HANDLER] Force refetching active workspace queries`,
+      "color: #4CAF50;"
+    );
+    queryClient.refetchQueries({
+      queryKey: ["workspaces"],
+      type: "active",
+    });
+
+    // Also refetch current user data
+    queryClient.refetchQueries({
+      queryKey: ["currentUser"],
+      type: "active",
+    });
   };
 };

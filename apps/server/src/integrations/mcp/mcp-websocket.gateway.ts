@@ -10,7 +10,7 @@ import {
   OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Inject, Logger, UseGuards, forwardRef } from '@nestjs/common';
 import { TokenService } from '../../core/auth/services/token.service';
 import { JwtPayload, JwtType } from '../../core/auth/dto/jwt-payload';
 import {
@@ -57,6 +57,7 @@ export class MCPWebSocketGateway
     private mcpApiKeyService: MCPApiKeyService,
     private userService: UserService,
     private readonly environmentService: EnvironmentService,
+    @Inject(forwardRef(() => MCPService))
     private readonly mcpService: MCPService,
     @InjectPinoLogger(MCPWebSocketGateway.name)
     private readonly pinoLogger: PinoLogger,
@@ -344,9 +345,9 @@ export class MCPWebSocketGateway
   public publishEvent(event: MCPEvent): void {
     // Add debug logs to track event publishing
     this.logger.debug(
-      `Publishing event: ${event.type}.${event.resource}.${event.operation} for ID: ${event.resourceId}`,
+      `[MCP-WebSocket] Publishing event: ${event.type}.${event.resource}.${event.operation} for ID: ${event.resourceId}`,
     );
-    this.logger.debug(`Event data: ${JSON.stringify(event)}`);
+    this.logger.debug(`[MCP-WebSocket] Event data: ${JSON.stringify(event)}`);
 
     try {
       // First emit to the specific resource room
@@ -356,7 +357,7 @@ export class MCPWebSocketGateway
       );
       const roomSize = this.getRoomSize(roomName);
       this.logger.debug(
-        `Broadcasting to ${roomSize} clients in room: ${roomName}`,
+        `[MCP-WebSocket] Broadcasting to ${roomSize} clients in room: ${roomName}`,
       );
 
       this.server.to(roomName).emit('mcp:event', event);
@@ -366,7 +367,7 @@ export class MCPWebSocketGateway
         const workspaceRoom = this.getWorkspaceRoomName(event.workspaceId);
         const workspaceRoomSize = this.getRoomSize(workspaceRoom);
         this.logger.debug(
-          `Broadcasting to ${workspaceRoomSize} clients in workspace room: ${workspaceRoom}`,
+          `[MCP-WebSocket] Broadcasting to ${workspaceRoomSize} clients in workspace room: ${workspaceRoom}`,
         );
 
         this.server.to(workspaceRoom).emit('mcp:event', event);
@@ -377,7 +378,7 @@ export class MCPWebSocketGateway
         const userRoom = this.getUserRoomName(event.userId);
         const userRoomSize = this.getRoomSize(userRoom);
         this.logger.debug(
-          `Broadcasting to ${userRoomSize} clients in user room: ${userRoom}`,
+          `[MCP-WebSocket] Broadcasting to ${userRoomSize} clients in user room: ${userRoom}`,
         );
 
         this.server.to(userRoom).emit('mcp:event', event);
@@ -385,14 +386,35 @@ export class MCPWebSocketGateway
 
       // For debugging, let's see if we have any connected clients at all
       const totalClients = this.server.sockets.sockets.size;
-      this.logger.debug(`Total connected clients: ${totalClients}`);
+      this.logger.debug(
+        `[MCP-WebSocket] Total connected clients: ${totalClients}`,
+      );
 
-      // Emit to all clients as a fallback for debugging
-      this.logger.debug(`Broadcasting to all clients for debugging`);
+      // Log all connected clients
+      if (totalClients > 0) {
+        this.logger.debug('[MCP-WebSocket] Connected client details:');
+        this.connectedClients.forEach((details, clientId) => {
+          this.logger.debug(
+            `[MCP-WebSocket] Client ${clientId}: workspaceId=${details.workspaceId}, userId=${details.userId}`,
+          );
+        });
+      } else {
+        this.logger.warn(
+          '[MCP-WebSocket] No clients connected to receive events!',
+        );
+      }
+
+      // Emit to all clients to ensure events are received during testing
+      this.logger.debug(
+        `[MCP-WebSocket] Broadcasting to all clients for testing`,
+      );
       this.server.emit('mcp:event', event);
     } catch (error) {
       const err = error as Error;
-      this.logger.error(`Error publishing event: ${err.message}`, err.stack);
+      this.logger.error(
+        `[MCP-WebSocket] Error publishing event: ${err.message}`,
+        err.stack,
+      );
     }
   }
 

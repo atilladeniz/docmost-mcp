@@ -30,13 +30,15 @@ import { validate as isValidUuid } from "uuid";
 import { useTranslation } from "react-i18next";
 
 export function usePageQuery(
-  pageInput: Partial<IPageInput>,
+  pageInput: Partial<IPageInput>
 ): UseQueryResult<IPage, Error> {
   const query = useQuery({
     queryKey: ["pages", pageInput.pageId],
     queryFn: () => getPageById(pageInput),
     enabled: !!pageInput.pageId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   useEffect(() => {
@@ -109,11 +111,14 @@ export function useMovePageMutation() {
 }
 
 export function useGetSidebarPagesQuery(
-  data: SidebarPagesParams,
+  data: SidebarPagesParams
 ): UseQueryResult<IPagination<IPage>, Error> {
   return useQuery({
     queryKey: ["sidebar-pages", data],
     queryFn: () => getSidebarPages(data),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 }
 
@@ -132,12 +137,15 @@ export function useGetRootSidebarPagesQuery(data: SidebarPagesParams) {
 }
 
 export function usePageBreadcrumbsQuery(
-  pageId: string,
+  pageId: string
 ): UseQueryResult<Partial<IPage[]>, Error> {
   return useQuery({
     queryKey: ["breadcrumbs", pageId],
     queryFn: () => getPageBreadcrumbs(pageId),
     enabled: !!pageId,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 }
 
@@ -152,11 +160,14 @@ export async function fetchAncestorChildren(params: SidebarPagesParams) {
 }
 
 export function useRecentChangesQuery(
-  spaceId?: string,
+  spaceId?: string
 ): UseQueryResult<IPagination<IPage>, Error> {
   return useQuery({
     queryKey: ["recent-changes", spaceId],
     queryFn: () => getRecentChanges(spaceId),
     refetchOnMount: true,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 }

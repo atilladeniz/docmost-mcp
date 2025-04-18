@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MCPController } from './mcp.controller';
 import { MCPService } from './mcp.service';
 import { PageHandler } from './handlers/page.handler';
@@ -26,6 +26,7 @@ import { ApiKeyController } from './controllers/api-key.controller';
 import { MCPApiKeyGuard } from './guards/mcp-api-key.guard';
 import { MCPAuthGuard } from './guards/mcp-auth.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { EnvironmentModule } from '../../integrations/environment/environment.module';
 
 /**
  * Machine Control Protocol (MCP) Module
@@ -45,6 +46,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
     CommentModule,
     CaslModule,
     TokenModule,
+    EnvironmentModule,
     EventEmitterModule.forRoot(),
   ],
   controllers: [MCPController, ApiKeyController],
@@ -59,7 +61,10 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
     AttachmentHandler,
     CommentHandler,
     // Register WebSocket components
-    MCPWebSocketGateway,
+    {
+      provide: MCPWebSocketGateway,
+      useClass: MCPWebSocketGateway,
+    },
     MCPEventService,
     // Register API key service
     MCPApiKeyService,

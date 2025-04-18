@@ -17,6 +17,8 @@ import { User } from '@docmost/db/types/entity.types';
 import { CreatePageDto } from '../../../core/page/dto/create-page.dto';
 import { PageHistoryService } from '../../../core/page/services/page-history.service';
 import { validate as isValidUUID } from 'uuid';
+import { MCPEventService } from '../services/mcp-event.service';
+import { MCPResourceType } from '../interfaces/mcp-event.interface';
 
 /**
  * Handler for page-related MCP operations
@@ -30,6 +32,7 @@ export class PageHandler {
     private readonly pageRepo: PageRepo,
     private readonly spaceAbility: SpaceAbilityFactory,
     private readonly pageHistoryService: PageHistoryService,
+    private readonly mcpEventService: MCPEventService,
   ) {}
 
   /**
@@ -199,13 +202,21 @@ export class PageHandler {
         createPageDto,
       );
 
-      // Return the created page with additional details
-      return await this.pageRepo.findById(createdPage.id, {
-        includeContent: true,
-        includeSpace: true,
-        includeCreator: true,
-        includeLastUpdatedBy: true,
-      });
+      // Publish an event for the created page
+      this.logger.debug(`Publishing event for created page ${createdPage.id}`);
+      this.mcpEventService.createCreatedEvent(
+        MCPResourceType.PAGE,
+        createdPage.id,
+        {
+          title: createdPage.title,
+          parentPageId: createdPage.parentPageId,
+        },
+        userId,
+        workspace.id,
+        params.spaceId,
+      );
+
+      return createdPage;
     } catch (error: any) {
       this.logger.error(
         `Error creating page: ${error?.message || 'Unknown error'}`,
@@ -233,7 +244,6 @@ export class PageHandler {
     }
 
     try {
-      // Find the page to get its spaceId
       const page = await this.pageRepo.findById(params.pageId, {
         includeSpace: true,
       });
@@ -266,7 +276,6 @@ export class PageHandler {
 
       if (params.content !== undefined) {
         updateData.content = params.content;
-        updateData.lastUpdatedById = userId;
       }
 
       if (params.parentPageId !== undefined) {
@@ -276,13 +285,29 @@ export class PageHandler {
       // Update the page
       await this.pageRepo.updatePage(updateData, params.pageId);
 
-      // Return the updated page with additional details
-      return await this.pageRepo.findById(params.pageId, {
+      // Get the updated page
+      const updatedPage = await this.pageRepo.findById(params.pageId, {
         includeContent: true,
         includeSpace: true,
         includeCreator: true,
         includeLastUpdatedBy: true,
       });
+
+      // Publish an event for the updated page
+      this.logger.debug(`Publishing event for updated page ${updatedPage.id}`);
+      this.mcpEventService.createUpdatedEvent(
+        MCPResourceType.PAGE,
+        updatedPage.id,
+        {
+          title: updatedPage.title,
+          content: params.content ? true : undefined,
+        },
+        userId,
+        page.workspaceId,
+        page.spaceId,
+      );
+
+      return updatedPage;
     } catch (error: any) {
       this.logger.error(
         `Error updating page: ${error?.message || 'Unknown error'}`,
@@ -300,7 +325,7 @@ export class PageHandler {
    *
    * @param params The operation parameters
    * @param userId The ID of the user making the request
-   * @returns Success indication
+   * @returns Success status
    */
   async deletePage(params: any, userId: string): Promise<any> {
     this.logger.debug(`Processing page.delete operation for user ${userId}`);
@@ -310,7 +335,6 @@ export class PageHandler {
     }
 
     try {
-      // Find the page to get its spaceId
       const page = await this.pageRepo.findById(params.pageId, {
         includeSpace: true,
       });
@@ -332,6 +356,20 @@ export class PageHandler {
 
       // Delete the page
       await this.pageRepo.deletePage(params.pageId);
+
+      // Publish an event for the deleted page
+      this.logger.debug(`Publishing event for deleted page ${params.pageId}`);
+      this.mcpEventService.createDeletedEvent(
+        MCPResourceType.PAGE,
+        params.pageId,
+        {
+          title: page.title,
+          parentPageId: page.parentPageId,
+        },
+        userId,
+        page.workspaceId,
+        page.spaceId,
+      );
 
       return { success: true, message: 'Page deleted successfully' };
     } catch (error: any) {
