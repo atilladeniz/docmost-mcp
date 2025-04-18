@@ -1,12 +1,17 @@
 {
   "mcpServers": {
-    "docmost-mcp": {
-      "name": "Docmost Model Context Protocol",
-      "description": "Access Docmost functionality through the Model Context Protocol (MCP)",
-      "url": "http://localhost:3002/tools",
+    "docmost": {
+      "command": "npx",
+      "args": [
+        "tsx",
+        "./packages/mcp-bridge/src/server.ts"
+      ],
       "env": {
+        "MCP_DEBUG": "true",
+        "MCP_SERVER_URL": "http://localhost:3000",
+        "MCP_API_KEY": "$(cat .mcp-api-key)",
         "NODE_ENV": "development"
       }
     }
   }
-} 
+}
