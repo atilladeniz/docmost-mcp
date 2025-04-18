@@ -1,0 +1,235 @@
+import React, { useEffect, useState } from "react";
+import {
+  Badge,
+  Button,
+  Card,
+  Container,
+  Divider,
+  Group,
+  Paper,
+  ScrollArea,
+  Select,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
+import { useAtom } from "jotai";
+import { mcpSocketAtom } from "../atoms/mcp-socket-atom";
+import { MCPEvent, MCPResourceType } from "../types/mcp-event.types";
+import { MCPSubscriptionExample } from "../components/mcp-subscription-example";
+import { useMCPEventSubscription } from "../hooks/use-mcp-socket";
+import { useParams } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
+import { getAppName } from "@/lib/config";
+
+/**
+ * A page for testing MCP WebSocket events and real-time updates
+ */
+export default function MCPTestPage() {
+  const [socket] = useAtom(mcpSocketAtom);
+  const [connected, setConnected] = useState<boolean>(false);
+  const [events, setEvents] = useState<MCPEvent[]>([]);
+  const [resourceType, setResourceType] = useState<MCPResourceType>(
+    MCPResourceType.PAGE
+  );
+  const [resourceId, setResourceId] = useState<string>("");
+  const { isSubscribed, subscribe, unsubscribe } = useMCPEventSubscription(
+    resourceType,
+    resourceId
+  );
+
+  // Track connection status
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleConnect = () => setConnected(true);
+    const handleDisconnect = () => setConnected(false);
+    const handleEvent = (event: MCPEvent) => {
+      setEvents((prev) => [event, ...prev.slice(0, 19)]); // Keep last 20 events
+    };
+
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+    socket.on("mcp:event", handleEvent);
+
+    setConnected(socket.connected);
+
+    return () => {
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+      socket.off("mcp:event", handleEvent);
+    };
+  }, [socket]);
+
+  // Format timestamp
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString();
+  };
+
+  return (
+    <>
+      <Helmet>
+        <title>MCP Test Dashboard - {getAppName()}</title>
+      </Helmet>
+      <Container size="lg" py="xl">
+        <Title order={2} mb="lg">
+          MCP Real-time Events Dashboard
+        </Title>
+
+        <Group align="flex-start" grow>
+          {/* Left column: Connection status and subscription */}
+          <Paper p="md" withBorder>
+            <Stack>
+              <Group position="apart">
+                <Text fw={500}>Connection Status</Text>
+                <Badge color={connected ? "green" : "red"}>
+                  {connected ? "Connected" : "Disconnected"}
+                </Badge>
+              </Group>
+
+              <Divider />
+
+              <Text fw={500}>Resource Subscription</Text>
+
+              <Select
+                label="Resource Type"
+                value={resourceType}
+                onChange={(value) => setResourceType(value as MCPResourceType)}
+                data={Object.values(MCPResourceType).map((type) => ({
+                  value: type,
+                  label: type.charAt(0).toUpperCase() + type.slice(1),
+                }))}
+              />
+
+              <TextInput
+                label="Resource ID"
+                value={resourceId}
+                onChange={(e) => setResourceId(e.target.value)}
+                placeholder="Enter resource ID to subscribe"
+              />
+
+              <Group>
+                <Button
+                  onClick={() => subscribe()}
+                  disabled={!resourceId || isSubscribed}
+                  color="blue"
+                >
+                  Subscribe
+                </Button>
+                <Button
+                  onClick={() => unsubscribe()}
+                  disabled={!isSubscribed}
+                  color="red"
+                  variant="outline"
+                >
+                  Unsubscribe
+                </Button>
+              </Group>
+
+              {isSubscribed && (
+                <Badge color="green">
+                  Subscribed to {resourceType} events for ID: {resourceId}
+                </Badge>
+              )}
+
+              <Divider />
+
+              <Text fw={500}>Subscription Examples</Text>
+
+              {resourceId && (
+                <MCPSubscriptionExample
+                  resourceType={resourceType}
+                  resourceId={resourceId}
+                  title={`${resourceType.charAt(0).toUpperCase() + resourceType.slice(1)} Subscription`}
+                  description="This example shows how to use the MCPSubscriptionExample component"
+                />
+              )}
+            </Stack>
+          </Paper>
+
+          {/* Right column: Event log */}
+          <Card withBorder>
+            <Card.Section withBorder p="md">
+              <Group position="apart">
+                <Text fw={500}>Event Log</Text>
+                <Badge>{events.length} events</Badge>
+              </Group>
+            </Card.Section>
+
+            <ScrollArea h={500} p="md">
+              {events.length === 0 ? (
+                <Text color="dimmed" align="center" my="xl">
+                  No events received yet. Subscribe to a resource to see events.
+                </Text>
+              ) : (
+                <Stack spacing="xs">
+                  {events.map((event, index) => (
+                    <Paper key={index} p="sm" withBorder>
+                      <Group position="apart" mb="xs">
+                        <Badge color={getEventColor(event.type)}>
+                          {event.type.toUpperCase()}
+                        </Badge>
+                        <Text size="xs" color="dimmed">
+                          {formatTime(event.timestamp)}
+                        </Text>
+                      </Group>
+
+                      <Group position="apart" mb="xs">
+                        <Text size="sm" fw={500}>
+                          {event.resource.toUpperCase()}
+                        </Text>
+                        <Badge variant="outline" size="sm">
+                          {event.operation}
+                        </Badge>
+                      </Group>
+
+                      <Text size="sm">ID: {event.resourceId}</Text>
+                      {event.spaceId && (
+                        <Text size="sm">Space: {event.spaceId}</Text>
+                      )}
+
+                      {event.data && (
+                        <Paper mt="xs" p="xs" bg="gray.0">
+                          <Text size="xs" fw={500} mb="xs">
+                            Event Data:
+                          </Text>
+                          <ScrollArea h={60}>
+                            <Text size="xs" ff="monospace">
+                              {JSON.stringify(event.data, null, 2)}
+                            </Text>
+                          </ScrollArea>
+                        </Paper>
+                      )}
+                    </Paper>
+                  ))}
+                </Stack>
+              )}
+            </ScrollArea>
+          </Card>
+        </Group>
+      </Container>
+    </>
+  );
+}
+
+// Helper to get color based on event type
+function getEventColor(eventType: string): string {
+  switch (eventType) {
+    case "created":
+      return "green";
+    case "updated":
+      return "blue";
+    case "deleted":
+      return "red";
+    case "moved":
+      return "orange";
+    case "permission_changed":
+      return "purple";
+    case "presence":
+      return "cyan";
+    default:
+      return "gray";
+  }
+}

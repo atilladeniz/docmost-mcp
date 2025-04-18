@@ -4,6 +4,7 @@ import SpaceGrid from "@/features/space/components/space-grid.tsx";
 import { getAppName } from "@/lib/config.ts";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
+import { MCPEventIndicator } from "@/features/websocket/components/mcp-event-indicator";
 
 export default function Home() {
   const { t } = useTranslation();
@@ -21,6 +22,8 @@ export default function Home() {
         <Space h="xl" />
 
         <HomeTabs />
+
+        <MCPEventIndicator />
       </Container>
     </>
   );

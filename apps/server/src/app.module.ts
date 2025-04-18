@@ -17,6 +17,7 @@ import { ImportModule } from './integrations/import/import.module';
 import { SecurityModule } from './integrations/security/security.module';
 import { TelemetryModule } from './integrations/telemetry/telemetry.module';
 import { MCPModule } from './integrations/mcp/mcp.module';
+import { LoggerModule } from 'nestjs-pino';
 
 const enterpriseModules = [];
 try {
@@ -34,6 +35,16 @@ try {
 
 @Module({
   imports: [
+    LoggerModule.forRoot({
+      pinoHttp: {
+        transport: {
+          target: 'pino-pretty',
+          options: {
+            singleLine: true,
+          },
+        },
+      },
+    }),
     CoreModule,
     DatabaseModule,
     EnvironmentModule,

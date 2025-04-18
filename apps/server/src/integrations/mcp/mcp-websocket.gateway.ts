@@ -5,6 +5,9 @@ import {
   OnGatewayDisconnect,
   SubscribeMessage,
   MessageBody,
+  ConnectedSocket,
+  WsResponse,
+  OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger, UseGuards } from '@nestjs/common';
@@ -21,6 +24,9 @@ import { WorkspaceService } from '../../core/workspace/services/workspace.servic
 import { MCPPermissionGuard } from './guards/mcp-permission.guard';
 import { MCPApiKeyService } from './services/mcp-api-key.service';
 import { UserService } from '../../core/user/user.service';
+import { EnvironmentService } from '../../integrations/environment/environment.service';
+import { MCPService } from './mcp.service';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 /**
  * MCP WebSocket Gateway
@@ -34,10 +40,10 @@ import { UserService } from '../../core/user/user.service';
   cors: { origin: '*' },
 })
 export class MCPWebSocketGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
   @WebSocketServer()
-  server: Server;
+  private server: Server;
 
   private readonly logger = new Logger(MCPWebSocketGateway.name);
   private connectedClients: Map<
@@ -50,7 +56,16 @@ export class MCPWebSocketGateway
     private workspaceService: WorkspaceService,
     private mcpApiKeyService: MCPApiKeyService,
     private userService: UserService,
+    private readonly environmentService: EnvironmentService,
+    private readonly mcpService: MCPService,
+    @InjectPinoLogger(MCPWebSocketGateway.name)
+    private readonly pinoLogger: PinoLogger,
   ) {}
+
+  // Implement the afterInit method required by OnGatewayInit
+  afterInit(server: Server): void {
+    this.logger.log('WebSocket Gateway initialized');
+  }
 
   /**
    * Handle client connections
@@ -60,6 +75,11 @@ export class MCPWebSocketGateway
    */
   async handleConnection(client: Socket): Promise<void> {
     try {
+      if (!client) {
+        this.logger.error('Client object is undefined in handleConnection');
+        return;
+      }
+
       this.logger.log(`Client connected: ${client.id}`);
 
       let userId: string;
@@ -156,8 +176,10 @@ export class MCPWebSocketGateway
     } catch (error) {
       const err = error as Error;
       this.logger.error(`Client connection error: ${err.message}`, err.stack);
-      client.emit('mcp:error', { message: 'Authentication failed' });
-      client.disconnect();
+      if (client) {
+        client.emit('mcp:error', { message: 'Authentication failed' });
+        client.disconnect();
+      }
     }
   }
 
@@ -178,7 +200,7 @@ export class MCPWebSocketGateway
    */
   @SubscribeMessage('mcp:subscribe')
   handleSubscribe(
-    client: Socket,
+    @ConnectedSocket() client: Socket,
     @MessageBody()
     payload: {
       resourceType: MCPResourceType;
@@ -186,6 +208,11 @@ export class MCPWebSocketGateway
     },
   ): void {
     try {
+      if (!client) {
+        this.logger.error('Client object is undefined in handleSubscribe');
+        return;
+      }
+
       const clientInfo = this.connectedClients.get(client.id);
       if (!clientInfo) {
         throw new Error('Client not authenticated');
@@ -201,10 +228,12 @@ export class MCPWebSocketGateway
     } catch (error) {
       const err = error as Error;
       this.logger.error(`Subscribe error: ${err.message}`);
-      client.emit('mcp:error', {
-        message: 'Failed to subscribe',
-        error: err.message,
-      });
+      if (client) {
+        client.emit('mcp:error', {
+          message: 'Failed to subscribe',
+          error: err.message,
+        });
+      }
     }
   }
 
@@ -215,7 +244,7 @@ export class MCPWebSocketGateway
    */
   @SubscribeMessage('mcp:unsubscribe')
   handleUnsubscribe(
-    client: Socket,
+    @ConnectedSocket() client: Socket,
     @MessageBody()
     payload: {
       resourceType: MCPResourceType;
@@ -223,6 +252,11 @@ export class MCPWebSocketGateway
     },
   ): void {
     try {
+      if (!client) {
+        this.logger.error('Client object is undefined in handleUnsubscribe');
+        return;
+      }
+
       const { resourceType, resourceId } = payload;
       const roomName = this.getResourceRoomName(resourceType, resourceId);
 
@@ -233,10 +267,12 @@ export class MCPWebSocketGateway
     } catch (error) {
       const err = error as Error;
       this.logger.error(`Unsubscribe error: ${err.message}`);
-      client.emit('mcp:error', {
-        message: 'Failed to unsubscribe',
-        error: err.message,
-      });
+      if (client) {
+        client.emit('mcp:error', {
+          message: 'Failed to unsubscribe',
+          error: err.message,
+        });
+      }
     }
   }
 
@@ -247,7 +283,7 @@ export class MCPWebSocketGateway
    */
   @SubscribeMessage('mcp:presence')
   handlePresence(
-    client: Socket,
+    @ConnectedSocket() client: Socket,
     @MessageBody()
     payload: {
       pageId: string;
@@ -256,6 +292,11 @@ export class MCPWebSocketGateway
     },
   ): void {
     try {
+      if (!client) {
+        this.logger.error('Client object is undefined in handlePresence');
+        return;
+      }
+
       const clientInfo = this.connectedClients.get(client.id);
       if (!clientInfo) {
         throw new Error('Client not authenticated');
@@ -286,10 +327,12 @@ export class MCPWebSocketGateway
     } catch (error) {
       const err = error as Error;
       this.logger.error(`Presence update error: ${err.message}`);
-      client.emit('mcp:error', {
-        message: 'Failed to update presence',
-        error: err.message,
-      });
+      if (client) {
+        client.emit('mcp:error', {
+          message: 'Failed to update presence',
+          error: err.message,
+        });
+      }
     }
   }
 
@@ -299,33 +342,77 @@ export class MCPWebSocketGateway
    * This method is called by other parts of the application to broadcast events.
    */
   public publishEvent(event: MCPEvent): void {
-    try {
-      this.logger.debug(
-        `Publishing MCP event: ${event.type} ${event.resource} ${event.resourceId}`,
-      );
+    // Add debug logs to track event publishing
+    this.logger.debug(
+      `Publishing event: ${event.type}.${event.resource}.${event.operation} for ID: ${event.resourceId}`,
+    );
+    this.logger.debug(`Event data: ${JSON.stringify(event)}`);
 
-      // Determine which rooms should receive this event
-      const resourceRoom = this.getResourceRoomName(
+    try {
+      // First emit to the specific resource room
+      const roomName = this.getResourceRoomName(
         event.resource,
         event.resourceId,
       );
-      const workspaceRoom = this.getWorkspaceRoomName(event.workspaceId);
+      const roomSize = this.getRoomSize(roomName);
+      this.logger.debug(
+        `Broadcasting to ${roomSize} clients in room: ${roomName}`,
+      );
 
-      // Broadcast to relevant rooms
-      this.server.to(resourceRoom).emit('mcp:event', event);
-      this.server.to(workspaceRoom).emit('mcp:event', event);
+      this.server.to(roomName).emit('mcp:event', event);
 
-      // If this is a user-specific event, also send to their room
-      if (event.resource === MCPResourceType.USER) {
-        const userRoom = this.getUserRoomName(event.resourceId);
+      // Also emit to the workspace room
+      if (event.workspaceId) {
+        const workspaceRoom = this.getWorkspaceRoomName(event.workspaceId);
+        const workspaceRoomSize = this.getRoomSize(workspaceRoom);
+        this.logger.debug(
+          `Broadcasting to ${workspaceRoomSize} clients in workspace room: ${workspaceRoom}`,
+        );
+
+        this.server.to(workspaceRoom).emit('mcp:event', event);
+      }
+
+      // Also emit to the user room if applicable
+      if (event.userId) {
+        const userRoom = this.getUserRoomName(event.userId);
+        const userRoomSize = this.getRoomSize(userRoom);
+        this.logger.debug(
+          `Broadcasting to ${userRoomSize} clients in user room: ${userRoom}`,
+        );
+
         this.server.to(userRoom).emit('mcp:event', event);
       }
+
+      // For debugging, let's see if we have any connected clients at all
+      const totalClients = this.server.sockets.sockets.size;
+      this.logger.debug(`Total connected clients: ${totalClients}`);
+
+      // Emit to all clients as a fallback for debugging
+      this.logger.debug(`Broadcasting to all clients for debugging`);
+      this.server.emit('mcp:event', event);
     } catch (error) {
       const err = error as Error;
-      this.logger.error(
-        `Error publishing MCP event: ${err.message}`,
-        err.stack,
+      this.logger.error(`Error publishing event: ${err.message}`, err.stack);
+    }
+  }
+
+  // Helper method to safely get room size
+  private getRoomSize(roomName: string): number {
+    try {
+      // The adapter might be using a Map to store rooms
+      if (this.server.adapter && typeof this.server.adapter === 'object') {
+        // Try to access rooms safely
+        const adapter = this.server.adapter as any;
+        if (adapter.rooms && adapter.rooms instanceof Map) {
+          return adapter.rooms.get(roomName)?.size || 0;
+        }
+      }
+      return 0;
+    } catch (error) {
+      this.logger.warn(
+        `Could not determine room size for ${roomName}: ${error}`,
       );
+      return 0;
     }
   }
 
@@ -351,5 +438,69 @@ export class MCPWebSocketGateway
    */
   private getUserRoomName(userId: string): string {
     return `user:${userId}`;
+  }
+
+  @SubscribeMessage('mcp:test-event')
+  handleTestEvent(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    payload: MCPEvent,
+  ): WsResponse<{ success: boolean; message?: string; error?: string }> {
+    if (!client) {
+      this.logger.error('Client object is undefined in handleTestEvent');
+      return {
+        event: 'mcp:test-event',
+        data: { success: false, error: 'Client is undefined' },
+      };
+    }
+
+    this.logger.debug(
+      `Received test event from client ${client.id}. Broadcasting to room.`,
+    );
+
+    try {
+      // Log the received test event
+      this.logger.debug(`Test event payload: ${JSON.stringify(payload)}`);
+
+      // Modify the payload to indicate it's an echo from server
+      const modifiedPayload = {
+        ...payload,
+        data: {
+          ...(payload.data || {}),
+          echoedByServer: true,
+          serverTimestamp: new Date().toISOString(),
+        },
+      };
+
+      // Use our modified publishEvent method to send the event
+      this.logger.debug('Broadcasting test event to all clients...');
+
+      // First, broadcast to specific resource room if provided
+      if (payload.resourceId) {
+        const roomName = this.getResourceRoomName(
+          payload.resource,
+          payload.resourceId,
+        );
+        this.server.to(roomName).emit('mcp:event', modifiedPayload);
+        this.logger.debug(`Test event sent to room: ${roomName}`);
+      }
+
+      // Also broadcast to all clients for testing purposes
+      this.server.emit('mcp:event', modifiedPayload);
+      this.logger.debug(`Test event broadcasted to all clients`);
+
+      // Return acknowledgment to sender
+      return {
+        event: 'mcp:test-event',
+        data: { success: true, message: 'Test event broadcasted' },
+      };
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(`Error handling test event: ${err.message}`, err.stack);
+      return {
+        event: 'mcp:test-event',
+        data: { success: false, error: err.message },
+      };
+    }
   }
 }
