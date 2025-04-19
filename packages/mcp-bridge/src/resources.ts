@@ -1,28 +1,49 @@
 import { z } from "zod";
+import { api } from "./api.js";
 import axios from "axios";
 
 // Helper function to make API requests
 async function makeRequest(
-  endpoint: string,
-  method: string = "GET",
+  method: string,
+  httpMethod: string = "GET",
   data?: any
 ) {
-  const url = `${process.env.MCP_SERVER_URL}/api${endpoint}`;
-  const headers = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${process.env.MCP_API_KEY}`,
-  };
+  console.error(`[DEBUG] Making ${httpMethod} request with method ${method}`);
+  console.error(`[DEBUG] Data: ${JSON.stringify(data, null, 2)}`);
+  console.error(
+    `[DEBUG] Headers: ${JSON.stringify(api.defaults.headers, null, 2)}`
+  );
 
   try {
-    const response = await axios({
+    // Format as JSON-RPC 2.0 request
+    const jsonRpcRequest = {
+      jsonrpc: "2.0",
       method,
-      url,
-      headers,
-      data,
+      params: data,
+      id: Date.now(),
+    };
+
+    console.error(
+      `[DEBUG] JSON-RPC Request: ${JSON.stringify(jsonRpcRequest, null, 2)}`
+    );
+
+    const response = await api({
+      method: "POST",
+      url: "/api/mcp",
+      data: jsonRpcRequest,
     });
-    return response.data;
+    console.error(
+      `[DEBUG] Response: ${JSON.stringify(response.data, null, 2)}`
+    );
+    return response.data.result;
   } catch (error) {
     if (axios.isAxiosError(error)) {
+      console.error("[DEBUG] API Error:", {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        headers: error.response?.headers,
+      });
       throw new Error(
         `API request failed: ${error.response?.data?.message || error.message}`
       );
@@ -39,25 +60,28 @@ const spaceResource = {
     name: z.string().describe("Name of the space"),
     description: z.string().optional().describe("Description of the space"),
     slug: z.string().optional().describe("URL-friendly slug for the space"),
+    workspaceId: z
+      .string()
+      .describe("ID of the workspace this space belongs to"),
   }),
   operations: {
     create: {
       description: "Create a new space",
       handler: async (params: any) => {
-        return makeRequest("/spaces", "POST", params);
+        return makeRequest("space.create", "POST", params);
       },
     },
     list: {
       description: "List all spaces",
       handler: async () => {
-        return makeRequest("/spaces");
+        return makeRequest("space.list");
       },
     },
     update: {
       description: "Update a space",
       handler: async (params: any) => {
         const { id, ...data } = params;
-        return makeRequest(`/spaces/${id}`, "PUT", data);
+        return makeRequest("space.update", "POST", { id, ...data });
       },
     },
   },
@@ -77,7 +101,7 @@ const pageResource = {
     create: {
       description: "Create a new page",
       handler: async (params: any) => {
-        return makeRequest("/pages", "POST", params);
+        return makeRequest("page.create", "POST", params);
       },
     },
   },

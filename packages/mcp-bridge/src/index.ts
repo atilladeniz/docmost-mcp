@@ -45,10 +45,7 @@ server.registerTool("space.create", {
     description: z.string().optional(),
   }),
   handler: async (params) => {
-    const response = await axios.post(
-      "http://localhost:3000/api/spaces",
-      params
-    );
+    const response = await api.post("/api/spaces", params);
     return response.data;
   },
 });
@@ -56,7 +53,7 @@ server.registerTool("space.create", {
 server.registerTool("space.list", {
   schema: z.object({}),
   handler: async () => {
-    const response = await axios.get("http://localhost:3000/api/spaces");
+    const response = await api.get("/api/spaces");
     return response.data;
   },
 });
@@ -68,10 +65,7 @@ server.registerTool("page.create", {
     content: z.string().optional(),
   }),
   handler: async (params) => {
-    const response = await axios.post(
-      "http://localhost:3000/api/pages",
-      params
-    );
+    const response = await api.post("/api/pages", params);
     return response.data;
   },
 });

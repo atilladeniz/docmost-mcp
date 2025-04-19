@@ -9,7 +9,7 @@
       "env": {
         "MCP_DEBUG": "true",
         "MCP_SERVER_URL": "http://localhost:3000",
-        "MCP_API_KEY": "$(cat .mcp-api-key)",
+        "MCP_API_KEY": "mcp_a68e63ded924146c3b53b00ef47f8e73193e01b5eeaa3ae67cd63b99357acc08",
         "NODE_ENV": "development"
       }
     }

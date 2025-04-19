@@ -34,8 +34,8 @@ try {
     envVars = envContent.split("\n").reduce(
       (acc, line) => {
         const [key, value] = line.split("=");
-        if (key && value) {
-          acc[key.trim()] = value.trim();
+        if (key && value && !key.startsWith("#")) {
+          acc[key.trim()] = value.trim().replace(/['"]/g, "");
         }
         return acc;
       },
@@ -51,10 +51,34 @@ try {
 }
 
 // Set environment variables
-process.env.MCP_DEBUG = envVars.MCP_DEBUG || "true";
-process.env.MCP_SERVER_URL = envVars.APP_URL || "http://localhost:3000";
-process.env.MCP_API_KEY = envVars.APP_SECRET;
-process.env.NODE_ENV = envVars.NODE_ENV || "development";
+process.env.MCP_DEBUG = process.env.MCP_DEBUG || "true";
+process.env.MCP_SERVER_URL =
+  process.env.MCP_SERVER_URL || "http://localhost:3000";
+// Don't override MCP_API_KEY if it's already set
+if (!process.env.MCP_API_KEY) {
+  process.env.MCP_API_KEY = envVars.APP_SECRET;
+}
+process.env.NODE_ENV = process.env.NODE_ENV || "development";
+
+// Debug environment variables
+console.error("Debug: Environment variables:");
+console.error("MCP_DEBUG:", process.env.MCP_DEBUG);
+console.error("MCP_SERVER_URL:", process.env.MCP_SERVER_URL);
+console.error("MCP_API_KEY:", process.env.MCP_API_KEY ? "***" : "not set");
+console.error("NODE_ENV:", process.env.NODE_ENV);
+console.error("Current working directory:", process.cwd());
+console.error(
+  "APP_SECRET from envVars:",
+  envVars.APP_SECRET ? "***" : "not set"
+);
+
+logToFile(`Environment variables set:
+  MCP_DEBUG: ${process.env.MCP_DEBUG}
+  MCP_SERVER_URL: ${process.env.MCP_SERVER_URL}
+  MCP_API_KEY: ${process.env.MCP_API_KEY ? "***" : "not set"}
+  NODE_ENV: ${process.env.NODE_ENV}
+  APP_SECRET from envVars: ${envVars.APP_SECRET ? "***" : "not set"}
+`);
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const baseURL = process.env.MCP_SERVER_URL || "http://localhost:3000/api";
+const baseURL = process.env.MCP_SERVER_URL || "http://localhost:3000";
 const apiKey = process.env.MCP_API_KEY;
 
 if (!apiKey) {

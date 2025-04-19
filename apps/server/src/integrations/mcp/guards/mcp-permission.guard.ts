@@ -92,7 +92,7 @@ export class MCPPermissionGuard implements CanActivate {
    */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const user: User = request.user;
+    const user: User = request.user?.user || request.user;
     const mcpRequest: MCPRequest = request.body;
 
     if (!user) {
