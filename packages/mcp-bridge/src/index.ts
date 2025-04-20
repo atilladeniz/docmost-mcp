@@ -215,15 +215,15 @@ async function main() {
         } else if (resource.name === "comment") {
           if (opName === "create") {
             zodSchema = {
-              content: z.union([
-                z.string(),
-                z.object({
-                  text: z.string(),
-                }),
-              ]),
-              pageId: z.string(),
-              workspaceId: z.string(),
-              parentId: z.string().optional(),
+              text: z.string().describe("Text content of the comment"),
+              pageId: z
+                .string()
+                .describe("ID of the page this comment belongs to"),
+              workspaceId: z.string().describe("ID of the workspace"),
+              parentCommentId: z
+                .string()
+                .optional()
+                .describe("ID of the parent comment, if replying to a comment"),
             };
           } else if (opName === "get") {
             zodSchema = {
@@ -355,8 +355,20 @@ async function main() {
               limit: z.number().optional(),
             };
           }
+        } else if (resource.name === "ui") {
+          if (opName === "navigate") {
+            zodSchema = {
+              destination: z.enum(["space", "page", "home", "dashboard"]),
+              spaceId: z.string().optional(),
+              spaceSlug: z.string().optional(),
+              pageId: z.string().optional(),
+              pageSlug: z.string().optional(),
+              workspaceId: z.string(),
+            };
+          }
         }
 
+        // Register the tool with MCP
         server.tool(
           toolName,
           operation.description,
@@ -454,10 +466,36 @@ async function main() {
               // Special handling for comment content format
               if (
                 resource.name === "comment" &&
-                (opName === "create" || opName === "update") &&
+                opName === "create" &&
+                params.text
+              ) {
+                logToFile(`Creating comment with text: ${params.text}`);
+                // Create content object from text parameter
+                params.content = { text: params.text };
+                delete params.text;
+                logToFile(
+                  `Converted text to content object: ${JSON.stringify(params.content)}`
+                );
+
+                // Handle parentId parameter if it exists, renaming to parentCommentId
+                if (params.parentId) {
+                  params.parentCommentId = params.parentId;
+                  delete params.parentId;
+                  logToFile(
+                    `Renamed parentId to parentCommentId: ${params.parentCommentId}`
+                  );
+                }
+              } else if (
+                resource.name === "comment" &&
+                opName === "update" &&
                 params.content
               ) {
-                logToFile(`Normalizing comment content format for ${opName}`);
+                logToFile(`Normalizing comment content format for update`);
+                logToFile(`Comment content type: ${typeof params.content}`);
+                logToFile(
+                  `Comment content value: ${JSON.stringify(params.content)}`
+                );
+
                 // If content is a string, convert it to { text: content }
                 if (typeof params.content === "string") {
                   params.content = { text: params.content };

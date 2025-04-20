@@ -10,6 +10,7 @@ import { AttachmentHandler } from './handlers/attachment.handler';
 import { CommentHandler } from './handlers/comment.handler';
 import { SystemHandler } from './handlers/system.handler';
 import { ContextHandler } from './handlers/context.handler';
+import { UIHandler } from './handlers/ui.handler';
 import { PageModule } from '../../core/page/page.module';
 import { SpaceModule } from '../../core/space/space.module';
 import { UserModule } from '../../core/user/user.module';
@@ -66,6 +67,7 @@ import { EnvironmentModule } from '../../integrations/environment/environment.mo
     CommentHandler,
     SystemHandler,
     ContextHandler,
+    UIHandler,
     // Register services
     MCPSchemaService,
     MCPContextService,

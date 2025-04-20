@@ -87,6 +87,11 @@ export enum MCPEventType {
    * User presence update
    */
   PRESENCE = 'presence',
+
+  /**
+   * Navigation event
+   */
+  NAVIGATION = 'navigation',
 }
 
 /**
@@ -100,6 +105,7 @@ export enum MCPResourceType {
   GROUP = 'group',
   ATTACHMENT = 'attachment',
   COMMENT = 'comment',
+  UI = 'ui',
 }
 
 /**
@@ -113,6 +119,7 @@ export enum MCPOperationType {
   MOVE = 'move',
   ADD_MEMBER = 'add_member',
   REMOVE_MEMBER = 'remove_member',
+  NAVIGATE = 'navigate',
 }
 
 /**

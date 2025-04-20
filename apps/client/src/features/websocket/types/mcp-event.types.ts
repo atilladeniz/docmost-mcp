@@ -5,6 +5,7 @@ export enum MCPEventType {
   MOVED = "moved",
   PERMISSION_CHANGED = "permission_changed",
   PRESENCE = "presence",
+  NAVIGATION = "navigation",
 }
 
 export enum MCPResourceType {
@@ -15,6 +16,7 @@ export enum MCPResourceType {
   GROUP = "group",
   ATTACHMENT = "attachment",
   COMMENT = "comment",
+  UI = "ui",
 }
 
 export enum MCPOperationType {
@@ -25,6 +27,7 @@ export enum MCPOperationType {
   MOVE = "move",
   ADD_MEMBER = "add_member",
   REMOVE_MEMBER = "remove_member",
+  NAVIGATE = "navigate",
 }
 
 export interface MCPEvent {
@@ -59,4 +62,12 @@ export interface PresenceEventData {
     x: number;
     y: number;
   };
+}
+
+export interface NavigationEventData {
+  destination: "space" | "page" | "home" | "dashboard";
+  spaceId?: string;
+  spaceSlug?: string;
+  pageId?: string;
+  pageSlug?: string;
 }

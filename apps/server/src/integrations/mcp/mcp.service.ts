@@ -9,6 +9,7 @@ import { AttachmentHandler } from './handlers/attachment.handler';
 import { CommentHandler } from './handlers/comment.handler';
 import { SystemHandler } from './handlers/system.handler';
 import { ContextHandler } from './handlers/context.handler';
+import { UIHandler } from './handlers/ui.handler';
 import { User } from '@docmost/db/types/entity.types';
 import {
   createInternalError,
@@ -38,6 +39,7 @@ export class MCPService {
     private readonly commentHandler: CommentHandler,
     private readonly systemHandler: SystemHandler,
     private readonly contextHandler: ContextHandler,
+    private readonly uiHandler: UIHandler,
   ) {}
 
   /**
@@ -60,80 +62,107 @@ export class MCPService {
         `MCPService: Request for resource '${resource}', operation '${operation}'`,
       );
 
+      // Add detailed debug logging for the resource
+      this.logger.debug(
+        `MCPService: Resource details - value: '${resource}', type: ${typeof resource}, length: ${resource.length}, charCodes: [${Array.from(resource).map((c) => c.charCodeAt(0))}]`,
+      );
+
       let result: any;
 
-      switch (resource) {
-        case 'page':
-          this.logger.debug(`MCPService: Delegating to page handler`);
-          result = await this.handlePageRequest(
-            operation,
-            request.params,
-            user.id,
-          );
-          break;
-        case 'space':
-          this.logger.debug(`MCPService: Delegating to space handler`);
-          result = await this.handleSpaceRequest(
-            operation,
-            request.params,
-            user.id,
-          );
-          break;
-        case 'user':
-          this.logger.debug(`MCPService: Delegating to user handler`);
-          result = await this.handleUserRequest(
-            operation,
-            request.params,
-            user.id,
-          );
-          break;
-        case 'group':
-          this.logger.debug(`MCPService: Delegating to group handler`);
-          result = await this.handleGroupRequest(
-            operation,
-            request.params,
-            user.id,
-          );
-          break;
-        case 'workspace':
-          this.logger.debug(`MCPService: Delegating to workspace handler`);
-          result = await this.handleWorkspaceRequest(
-            operation,
-            request.params,
-            user.id,
-          );
-          break;
-        case 'attachment':
-          this.logger.debug(`MCPService: Delegating to attachment handler`);
-          result = await this.handleAttachmentRequest(
-            operation,
-            request.params,
-            user.id,
-          );
-          break;
-        case 'comment':
-          this.logger.debug(`MCPService: Delegating to comment handler`);
-          result = await this.handleCommentRequest(
-            operation,
-            request.params,
-            user.id,
-          );
-          break;
-        case 'system':
-          this.logger.debug(`MCPService: Delegating to system handler`);
-          result = await this.handleSystemRequest(operation, request.params);
-          break;
-        case 'context':
-          this.logger.debug(`MCPService: Delegating to context handler`);
-          result = await this.handleContextRequest(
-            operation,
-            request.params,
-            user.id,
-          );
-          break;
-        default:
-          this.logger.warn(`MCPService: Unsupported resource '${resource}'`);
-          throw createMethodNotFoundError(request.method);
+      // Handle UI navigation as a special case first
+      if (
+        resource.trim().toLowerCase() === 'ui' &&
+        operation.trim().toLowerCase() === 'navigate'
+      ) {
+        this.logger.debug(`MCPService: Special handling for UI navigation`);
+        result = await this.handleUIRequest(operation, request.params, user.id);
+      } else {
+        // Handle other resources with the switch statement
+        switch (resource) {
+          case 'page':
+            this.logger.debug(`MCPService: Delegating to page handler`);
+            result = await this.handlePageRequest(
+              operation,
+              request.params,
+              user.id,
+            );
+            break;
+          case 'space':
+            this.logger.debug(`MCPService: Delegating to space handler`);
+            result = await this.handleSpaceRequest(
+              operation,
+              request.params,
+              user.id,
+            );
+            break;
+          case 'user':
+            this.logger.debug(`MCPService: Delegating to user handler`);
+            result = await this.handleUserRequest(
+              operation,
+              request.params,
+              user.id,
+            );
+            break;
+          case 'group':
+            this.logger.debug(`MCPService: Delegating to group handler`);
+            result = await this.handleGroupRequest(
+              operation,
+              request.params,
+              user.id,
+            );
+            break;
+          case 'workspace':
+            this.logger.debug(`MCPService: Delegating to workspace handler`);
+            result = await this.handleWorkspaceRequest(
+              operation,
+              request.params,
+              user.id,
+            );
+            break;
+          case 'attachment':
+            this.logger.debug(`MCPService: Delegating to attachment handler`);
+            result = await this.handleAttachmentRequest(
+              operation,
+              request.params,
+              user.id,
+            );
+            break;
+          case 'comment':
+            this.logger.debug(`MCPService: Delegating to comment handler`);
+            result = await this.handleCommentRequest(
+              operation,
+              request.params,
+              user.id,
+            );
+            break;
+          case 'system':
+            this.logger.debug(`MCPService: Delegating to system handler`);
+            result = await this.handleSystemRequest(operation, request.params);
+            break;
+          case 'context':
+            this.logger.debug(`MCPService: Delegating to context handler`);
+            result = await this.handleContextRequest(
+              operation,
+              request.params,
+              user.id,
+            );
+            break;
+          case 'ui':
+          case 'UI':
+          case ' ui':
+          case 'ui ':
+          case String(resource).trim().toLowerCase() === 'ui' ? resource : '':
+            this.logger.debug(`MCPService: Delegating to UI handler`);
+            result = await this.handleUIRequest(
+              operation,
+              request.params,
+              user.id,
+            );
+            break;
+          default:
+            this.logger.warn(`MCPService: Unsupported resource '${resource}'`);
+            throw createMethodNotFoundError(request.method);
+        }
       }
 
       this.logger.debug(
@@ -420,6 +449,28 @@ export class MCPService {
         return this.contextHandler.clearSessionContext(params, userId);
       default:
         throw createMethodNotFoundError(`context.${operation}`);
+    }
+  }
+
+  /**
+   * Handle UI-related requests
+   *
+   * @param operation The operation to perform
+   * @param params The operation parameters
+   * @param userId The ID of the authenticated user
+   * @returns The operation result
+   */
+  private async handleUIRequest(
+    operation: string,
+    params: any,
+    userId: string,
+  ): Promise<any> {
+    this.logger.debug(`Handling UI request: ${operation}`, params);
+    switch (operation) {
+      case 'navigate':
+        return this.uiHandler.navigate(params, userId);
+      default:
+        throw createMethodNotFoundError(`ui.${operation}`);
     }
   }
 

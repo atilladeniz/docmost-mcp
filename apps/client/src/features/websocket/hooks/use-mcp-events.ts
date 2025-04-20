@@ -5,9 +5,13 @@ import {
   MCPEvent,
   MCPEventType,
   MCPResourceType,
+  NavigationEventData,
 } from "../types/mcp-event.types";
 import { useQueryClient } from "@tanstack/react-query";
 import { treeDataAtom } from "@/features/page/tree/atoms/tree-data-atom";
+import { useNavigate } from "react-router-dom";
+import { getSpaceUrl } from "@/lib/config";
+import { buildPageUrl } from "@/features/page/page.utils";
 
 /**
  * A hook that listens for MCP events and updates the application state accordingly
@@ -17,6 +21,7 @@ export const useMCPEvents = () => {
   const [treeData, setTreeData] = useAtom(treeDataAtom);
   const queryClient = useQueryClient();
   const eventHandlerRegistered = useRef(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!socket) {
@@ -49,6 +54,19 @@ export const useMCPEvents = () => {
         "color: #2196F3; font-weight: bold;"
       );
       console.log("Event details:", event);
+
+      // Add diagnostic logs to debug the UI case
+      console.log(
+        `Resource type from event: "${event.resource}" (type: ${typeof event.resource})`
+      );
+      console.log(
+        `MCPResourceType.UI value: "${MCPResourceType.UI}" (type: ${typeof MCPResourceType.UI})`
+      );
+      console.log(`Do they match? ${event.resource === MCPResourceType.UI}`);
+      console.log(
+        `All MCPResourceType values:`,
+        Object.values(MCPResourceType)
+      );
 
       // Handle different resource types
       switch (event.resource) {
@@ -101,6 +119,14 @@ export const useMCPEvents = () => {
           );
           handleWorkspaceEvent(event);
           break;
+        case MCPResourceType.UI:
+          console.log(
+            `%c[MCP-EVENT] Processing UI event via MCPResourceType.UI case`,
+            "color: #FF9800; font-weight: bold;"
+          );
+          handleNavigationEvent(event);
+          break;
+
         default:
           console.warn(
             `%c[MCP-EVENT] Unknown resource type: ${event.resource}`,
@@ -130,7 +156,7 @@ export const useMCPEvents = () => {
       socket.off("mcp:event", handleMCPEvent);
       eventHandlerRegistered.current = false;
     };
-  }, [socket, queryClient]);
+  }, [socket, queryClient, navigate]);
 
   // Function to handle page events
   const handlePageEvent = (event: MCPEvent) => {
@@ -716,5 +742,69 @@ export const useMCPEvents = () => {
       queryKey: ["currentUser"],
       type: "active",
     });
+  };
+
+  // Function to handle navigation events
+  const handleNavigationEvent = (event: MCPEvent) => {
+    console.log(`%c[MCP-HANDLER] Handling NAVIGATION event`, "color: #4CAF50;");
+    console.log("Event details:", event);
+
+    const data = event.data as NavigationEventData;
+    if (data) {
+      switch (data.destination) {
+        case "home":
+          console.log(`%c[MCP-HANDLER] Navigating to home`, "color: #4CAF50;");
+          navigate("/");
+          break;
+
+        case "dashboard":
+          console.log(
+            `%c[MCP-HANDLER] Navigating to dashboard`,
+            "color: #4CAF50;"
+          );
+          navigate("/dashboard");
+          break;
+
+        case "space":
+          console.log(`%c[MCP-HANDLER] Navigating to space`, "color: #4CAF50;");
+          if (data.spaceSlug) {
+            navigate(getSpaceUrl(data.spaceSlug));
+          } else if (data.spaceId) {
+            // Use the correct URL format based on getSpaceUrl function
+            console.log(
+              `%c[MCP-HANDLER] Navigating to space by ID: ${data.spaceId}`,
+              "color: #4CAF50;"
+            );
+            // Format: /s/[spaceId]/home
+            navigate(`/s/${data.spaceId}/home`);
+          }
+          break;
+
+        case "page":
+          console.log(`%c[MCP-HANDLER] Navigating to page`, "color: #4CAF50;");
+          if (data.pageId) {
+            // Navigate based on what information we have available
+            console.log(
+              `%c[MCP-HANDLER] Navigating to page by ID: ${data.pageId}`,
+              "color: #4CAF50;"
+            );
+
+            // If we have a spaceSlug, use that for navigation
+            if (data.spaceSlug) {
+              // Format will be /s/{spaceSlug}/p/{pageId}
+              navigate(`/s/${data.spaceSlug}/p/${data.pageId}`);
+            }
+            // If we have a spaceId but no slug, use the ID
+            else if (data.spaceId) {
+              navigate(`/s/${data.spaceId}/p/${data.pageId}`);
+            }
+            // Fallback to just using the page ID
+            else {
+              navigate(`/p/${data.pageId}`);
+            }
+          }
+          break;
+      }
+    }
   };
 };

@@ -78,6 +78,9 @@ export class MCPPermissionGuard implements CanActivate {
     'comment.update': MCPPermissionLevel.WRITE,
     'comment.delete': MCPPermissionLevel.WRITE,
 
+    // UI operations
+    'ui.navigate': MCPPermissionLevel.ADMIN,
+
     // Default to admin for any operation not explicitly defined
     default: MCPPermissionLevel.ADMIN,
   };

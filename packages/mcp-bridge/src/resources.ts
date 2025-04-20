@@ -342,7 +342,7 @@ const createCommentSchema = z.object({
     .describe("Content of the comment"),
   pageId: z.string().describe("ID of the page this comment belongs to"),
   workspaceId: z.string().describe("ID of the workspace"),
-  parentId: z
+  parentCommentId: z
     .string()
     .optional()
     .describe("ID of the parent comment, if replying to a comment"),
@@ -739,6 +739,32 @@ const attachmentResource = {
   },
 };
 
+// UI resource schema
+const navigateUISchema = z.object({
+  destination: z
+    .enum(["space", "page", "home", "dashboard"])
+    .describe("The UI destination to navigate to"),
+  spaceId: z.string().optional().describe("ID of the space to navigate to"),
+  spaceSlug: z.string().optional().describe("Slug of the space to navigate to"),
+  pageId: z.string().optional().describe("ID of the page to navigate to"),
+  pageSlug: z.string().optional().describe("Slug of the page to navigate to"),
+  workspaceId: z.string().describe("ID of the workspace"),
+});
+
+// UI resource
+const uiResource = {
+  name: "ui",
+  description: "Control the Docmost UI",
+  operations: {
+    navigate: {
+      description: "Navigate to a specific destination in the UI",
+      handler: async (params: z.infer<typeof navigateUISchema>) => {
+        return makeRequest("ui.navigate", navigateUISchema, params);
+      },
+    },
+  },
+};
+
 // Export all resources
 export const resources = [
   spaceResource,
@@ -748,4 +774,5 @@ export const resources = [
   workspaceResource,
   groupResource,
   attachmentResource,
+  uiResource,
 ];

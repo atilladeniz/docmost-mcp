@@ -194,6 +194,19 @@ export class PageHandler {
         createPageDto,
       );
 
+      // Emit the page.created event
+      this.mcpEventService.createCreatedEvent(
+        MCPResourceType.PAGE,
+        page.id,
+        {
+          title: page.title,
+          parentPageId: page.parentPageId,
+        },
+        userId,
+        space.workspaceId,
+        page.spaceId,
+      );
+
       return page;
     } catch (error: any) {
       this.logger.error(

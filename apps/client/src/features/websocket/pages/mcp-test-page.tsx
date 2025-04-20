@@ -19,9 +19,11 @@ import { mcpSocketAtom } from "../atoms/mcp-socket-atom";
 import { MCPEvent, MCPResourceType } from "../types/mcp-event.types";
 import { MCPSubscriptionExample } from "../components/mcp-subscription-example";
 import { useMCPEventSubscription } from "../hooks/use-mcp-socket";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { getAppName } from "@/lib/config";
+import { notifications } from "@mantine/notifications";
+import { useGetSpacesQuery } from "@/features/space/queries/space-query";
 
 /**
  * A page for testing MCP WebSocket events and real-time updates
@@ -38,6 +40,22 @@ export default function MCPTestPage() {
     resourceType,
     resourceId
   );
+  const [destination, setDestination] = useState<
+    "home" | "dashboard" | "space" | "page"
+  >("home");
+  const [spaceId, setSpaceId] = useState<string>("");
+  const [pageId, setPageId] = useState<string>("");
+  const navigate = useNavigate();
+
+  // Get spaces for the dropdown
+  const { data: spaces } = useGetSpacesQuery();
+
+  // Get space options for the dropdown
+  const spaceOptions =
+    spaces?.items?.map((space) => ({
+      value: space.id,
+      label: space.name,
+    })) || [];
 
   // Track connection status
   useEffect(() => {
@@ -66,6 +84,42 @@ export default function MCPTestPage() {
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString();
+  };
+
+  const handleNavigate = () => {
+    if (!socket) {
+      notifications.show({
+        title: "Error",
+        message: "Socket not connected",
+        color: "red",
+      });
+      return;
+    }
+
+    // Create a navigation event
+    const navigationEvent: MCPEvent = {
+      type: "navigation",
+      resource: "UI",
+      operation: "NAVIGATE",
+      resourceId: "navigation",
+      timestamp: new Date().toISOString(),
+      data: {
+        destination,
+        spaceId: destination === "space" ? spaceId : undefined,
+        pageId: destination === "page" ? pageId : undefined,
+      },
+      userId: "current-user", // This will be replaced by the server
+      workspaceId: "current-workspace", // This will be replaced by the server
+    };
+
+    // Emit the event
+    socket.emit("mcp:event", navigationEvent);
+
+    notifications.show({
+      title: "Navigation",
+      message: `Navigating to ${destination}`,
+      color: "blue",
+    });
   };
 
   return (
@@ -209,6 +263,87 @@ export default function MCPTestPage() {
             </ScrollArea>
           </Card>
         </Group>
+
+        <Card withBorder shadow="sm" p="lg" radius="md" mt="xl">
+          <Title order={4} mb="md">
+            MCP Navigation Test
+          </Title>
+          <Text size="sm">
+            This page allows you to test the MCP navigation capabilities. Select
+            a destination and click "Navigate" to emit a navigation event.
+          </Text>
+
+          <Select
+            label="Destination"
+            placeholder="Select destination"
+            value={destination}
+            onChange={(value) => setDestination(value as any)}
+            data={[
+              { value: "home", label: "Home" },
+              { value: "dashboard", label: "Dashboard" },
+              { value: "space", label: "Space" },
+              { value: "page", label: "Page" },
+            ]}
+            required
+          />
+
+          {destination === "space" && (
+            <Select
+              label="Space"
+              placeholder="Select space"
+              value={spaceId}
+              onChange={setSpaceId}
+              data={spaceOptions}
+              required
+            />
+          )}
+
+          {destination === "page" && (
+            <>
+              <Select
+                label="Space"
+                placeholder="Select space"
+                value={spaceId}
+                onChange={setSpaceId}
+                data={spaceOptions}
+                required
+              />
+
+              <TextInput
+                label="Page ID"
+                placeholder="Enter page ID"
+                value={pageId}
+                onChange={(e) => setPageId(e.currentTarget.value)}
+                required
+              />
+            </>
+          )}
+
+          <Group position="right" mt="md">
+            <Button onClick={handleNavigate} color="blue">
+              Navigate
+            </Button>
+          </Group>
+        </Card>
+
+        <Card withBorder shadow="sm" p="lg" radius="md" mt="xl">
+          <Title order={4} mb="md">
+            Using the MCP Navigation Tool
+          </Title>
+          <Text size="sm">
+            The navigation tool can be used by an agent to control the Docmost
+            UI. When a navigation event is emitted:
+          </Text>
+          <ul>
+            <li>The client receives the event</li>
+            <li>The navigation handler processes the event</li>
+            <li>The React Router navigates to the requested destination</li>
+          </ul>
+          <Text size="sm" mt="md">
+            This allows agents to show users exactly what they're working on in
+            real-time.
+          </Text>
+        </Card>
       </Container>
     </>
   );

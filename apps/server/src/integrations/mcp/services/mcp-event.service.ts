@@ -57,6 +57,32 @@ export class MCPEventService {
   }
 
   /**
+   * Broadcast an MCP event directly
+   *
+   * Use this method when you need to send an event directly without the internal event emitter
+   *
+   * @param event The MCP event to broadcast
+   */
+  public async broadcastEvent(event: MCPEvent): Promise<void> {
+    try {
+      this.logger.debug(
+        `Broadcasting MCP event: ${event.type}.${event.resource}.${event.operation}`,
+      );
+
+      // Publish to WebSocket clients
+      this.mcpWebSocketGateway.publishEvent(event);
+      return Promise.resolve();
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(
+        `Error broadcasting MCP event: ${err.message}`,
+        err.stack,
+      );
+      return Promise.reject(error);
+    }
+  }
+
+  /**
    * Create a resource created event
    *
    * @param resource The resource type

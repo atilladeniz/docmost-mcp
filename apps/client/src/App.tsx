@@ -27,10 +27,15 @@ import Security from "@/ee/security/pages/security.tsx";
 import License from "@/ee/licence/pages/license.tsx";
 import { useRedirectToCloudSelect } from "@/ee/hooks/use-redirect-to-cloud-select.tsx";
 import AttachmentsPage from "@/features/attachment/pages/attachments-page.tsx";
+import { useMCPEvents } from "@/features/websocket/hooks/use-mcp-events";
+import NavigationTestPage from "@/features/websocket/pages/navigation-test-page.tsx";
 
 export default function App() {
   const { t } = useTranslation();
   useRedirectToCloudSelect();
+
+  // Initialize MCP events handling (including navigation events)
+  useMCPEvents();
 
   return (
     <>
@@ -76,6 +81,7 @@ export default function App() {
           <Route path={"/settings/billing"} element={<Billing />} />
           <Route path={"/settings/security"} element={<Security />} />
           <Route path={"/settings/license"} element={<License />} />
+          <Route path={"/navigation-test"} element={<NavigationTestPage />} />
           <Route path={"*"} element={<Error404 />} />
         </Route>
       </Routes>

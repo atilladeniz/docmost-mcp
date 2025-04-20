@@ -16,6 +16,8 @@ import {
   SpaceCaslSubject,
 } from '../../../core/casl/interfaces/space-ability.type';
 import { UserService } from '../../../core/user/user.service';
+import { MCPEventService } from '../services/mcp-event.service';
+import { MCPResourceType } from '../interfaces/mcp-event.interface';
 
 /**
  * Handler for space-related MCP operations
@@ -30,6 +32,7 @@ export class SpaceHandler {
     private readonly workspaceService: WorkspaceService,
     private readonly spaceAbility: SpaceAbilityFactory,
     private readonly userService: UserService,
+    private readonly mcpEventService: MCPEventService,
   ) {}
 
   /**
@@ -230,6 +233,19 @@ export class SpaceHandler {
         createSpaceDto,
       );
 
+      // Emit the space.created event
+      this.mcpEventService.createCreatedEvent(
+        MCPResourceType.SPACE,
+        space.id,
+        {
+          name: space.name,
+          slug: space.slug,
+          description: space.description,
+        },
+        userId,
+        params.workspaceId,
+      );
+
       return space;
     } catch (error: any) {
       this.logger.error(
@@ -261,45 +277,77 @@ export class SpaceHandler {
       throw createInvalidParamsError('workspaceId is required');
     }
 
+    // At least one field to update must be provided
+    if (
+      !params.name &&
+      params.description === undefined &&
+      params.slug === undefined
+    ) {
+      throw createInvalidParamsError(
+        'At least one field to update must be provided',
+      );
+    }
+
     try {
-      // Get the user from the database
-      const authUser = await this.userService.findById(
-        userId,
+      // Get the space first to verify it exists
+      const space = await this.spaceService.getSpaceInfo(
+        params.spaceId,
         params.workspaceId,
       );
 
-      if (!authUser) {
-        throw createPermissionDeniedError(
-          'User not found in the specified workspace',
-        );
+      if (!space) {
+        throw createResourceNotFoundError('Space', params.spaceId);
       }
+
+      // Create a mock user with just the ID for permission checking
+      const user = { id: userId } as User;
 
       // Check permissions
       const ability = await this.spaceAbility.createForUser(
-        authUser,
+        user,
         params.spaceId,
       );
-      if (ability.cannot(SpaceCaslAction.Manage, SpaceCaslSubject.Settings)) {
+      if (ability.cannot(SpaceCaslAction.Edit, SpaceCaslSubject.Settings)) {
         throw createPermissionDeniedError(
           'You do not have permission to update this space',
         );
       }
 
-      // Prepare the update data
-      const updateSpaceDto = {
-        spaceId: params.spaceId,
-        name: params.name,
-        description: params.description,
-        slug: params.slug,
-      };
+      // Create a DTO with the fields to update
+      const updateSpaceDto = {};
+
+      if (params.name) {
+        updateSpaceDto['name'] = params.name;
+      }
+
+      if (params.description !== undefined) {
+        updateSpaceDto['description'] = params.description;
+      }
+
+      if (params.slug !== undefined) {
+        updateSpaceDto['slug'] = params.slug;
+      }
 
       // Update the space
-      const space = await this.spaceService.updateSpace(
-        updateSpaceDto,
+      const updatedSpace = await this.spaceService.updateSpace(
+        { ...updateSpaceDto, spaceId: params.spaceId },
         params.workspaceId,
       );
 
-      return space;
+      // Emit the space.updated event
+      this.mcpEventService.createUpdatedEvent(
+        MCPResourceType.SPACE,
+        updatedSpace.id,
+        {
+          name: updatedSpace.name,
+          slug: updatedSpace.slug,
+          description: updatedSpace.description,
+        },
+        userId,
+        params.workspaceId,
+      );
+
+      return updatedSpace;
     } catch (error: any) {
       this.logger.error(
         `Error updating space: ${error?.message || 'Unknown error'}`,
@@ -317,7 +365,7 @@ export class SpaceHandler {
    *
    * @param params The operation parameters
    * @param userId The ID of the user making the request
-   * @returns Success indication
+   * @returns Success status
    */
   async deleteSpace(params: any, userId: string): Promise<any> {
     this.logger.debug(`Processing space.delete operation for user ${userId}`);
@@ -331,24 +379,25 @@ export class SpaceHandler {
     }
 
     try {
-      // Get the user from the database
-      const authUser = await this.userService.findById(
-        userId,
+      // Get the space first to verify it exists
+      const space = await this.spaceService.getSpaceInfo(
+        params.spaceId,
         params.workspaceId,
       );
 
-      if (!authUser) {
-        throw createPermissionDeniedError(
-          'User not found in the specified workspace',
-        );
+      if (!space) {
+        throw createResourceNotFoundError('Space', params.spaceId);
       }
+
+      // Create a mock user with just the ID for permission checking
+      const user = { id: userId } as User;
 
       // Check permissions
       const ability = await this.spaceAbility.createForUser(
-        authUser,
+        user,
         params.spaceId,
       );
-      if (ability.cannot(SpaceCaslAction.Manage, SpaceCaslSubject.Settings)) {
+      if (ability.cannot(SpaceCaslAction.Delete, SpaceCaslSubject.Settings)) {
         throw createPermissionDeniedError(
           'You do not have permission to delete this space',
         );
@@ -356,6 +405,18 @@ export class SpaceHandler {
 
       // Delete the space
       await this.spaceService.deleteSpace(params.spaceId, params.workspaceId);
+
+      // Emit the space.deleted event
+      this.mcpEventService.createDeletedEvent(
+        MCPResourceType.SPACE,
+        params.spaceId,
+        {
+          name: space.name,
+          slug: space.slug,
+        },
+        userId,
+        params.workspaceId,
+      );
 
       return { success: true, message: 'Space deleted successfully' };
     } catch (error: any) {
