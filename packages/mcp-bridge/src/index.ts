@@ -425,28 +425,15 @@ async function main() {
                 params = restParams;
               }
 
-              // Special handling for group.addMember and group.removeMember
+              // Special handling for group.addMember to transform userId into userIds array
               if (
                 resource.name === "group" &&
-                (opName === "addMember" || opName === "removeMember")
+                opName === "addMember" &&
+                params.userId
               ) {
-                logToFile(
-                  `Mapping group.${opName} to group.${opName === "addMember" ? "addGroupMember" : "removeGroupMember"}`
-                );
-                const methodName =
-                  opName === "addMember"
-                    ? "group.addGroupMember"
-                    : "group.removeGroupMember";
-                const result = await makeRequest(methodName, params);
-                logToFile(`Tool ${toolName} completed successfully`);
-                return {
-                  content: [
-                    {
-                      type: "text" as const,
-                      text: JSON.stringify(result, null, 2),
-                    },
-                  ],
-                };
+                logToFile(`Adding userIds array to group.addMember operation`);
+                // Keep userId and also add userIds array
+                params = { ...params, userIds: [params.userId] };
               }
 
               // Special handling for attachment.upload

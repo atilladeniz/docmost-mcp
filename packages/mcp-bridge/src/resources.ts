@@ -72,6 +72,15 @@ async function makeRequest<T extends z.ZodSchema>(
     console.error(
       `[DEBUG] Response: ${JSON.stringify(response.data, null, 2)}`
     );
+
+    // If result is null or undefined, return a success message
+    if (response.data.result === null || response.data.result === undefined) {
+      return {
+        success: true,
+        message: `Operation ${method} completed successfully`,
+      };
+    }
+
     return response.data.result;
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -605,7 +614,7 @@ const groupResource = {
         workspaceId: string;
       }) => {
         return makeRequest(
-          "group.addGroupMember",
+          "group.addMember",
           z.object({
             groupId: z.string().describe("ID of the group"),
             userId: z.string().describe("ID of the user to add"),
@@ -623,7 +632,7 @@ const groupResource = {
         workspaceId: string;
       }) => {
         return makeRequest(
-          "group.removeGroupMember",
+          "group.removeMember",
           z.object({
             groupId: z.string().describe("ID of the group"),
             userId: z.string().describe("ID of the user to remove"),

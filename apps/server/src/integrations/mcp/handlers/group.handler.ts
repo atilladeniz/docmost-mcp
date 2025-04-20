@@ -56,8 +56,14 @@ export class GroupHandler {
         throw createResourceNotFoundError('Workspace', params.workspaceId);
       }
 
-      // Create user object for ability check
-      const user = { id: userId } as User;
+      // Get the complete user object with role information
+      const user = await this.userService.findById(userId, params.workspaceId);
+
+      if (!user) {
+        throw createPermissionDeniedError(
+          'User not found in the specified workspace',
+        );
+      }
 
       // Check user has permission to list groups
       const ability = this.workspaceAbility.createForUser(user, workspace);
@@ -125,8 +131,14 @@ export class GroupHandler {
     }
 
     try {
-      // Create user object for ability check
-      const user = { id: userId } as User;
+      // Get the complete user object with role information
+      const user = await this.userService.findById(userId, params.workspaceId);
+
+      if (!user) {
+        throw createPermissionDeniedError(
+          'User not found in the specified workspace',
+        );
+      }
 
       // Get the workspace
       const workspace = await this.workspaceService.findById(
@@ -253,12 +265,12 @@ export class GroupHandler {
   async updateGroup(params: any, userId: string): Promise<any> {
     this.logger.debug(`Processing group.update operation for user ${userId}`);
 
-    if (!params.workspaceId) {
-      throw createInvalidParamsError('workspaceId is required');
-    }
-
     if (!params.groupId) {
       throw createInvalidParamsError('groupId is required');
+    }
+
+    if (!params.workspaceId) {
+      throw createInvalidParamsError('workspaceId is required');
     }
 
     if (!params.name && !params.description) {
@@ -277,20 +289,17 @@ export class GroupHandler {
         throw createResourceNotFoundError('Workspace', params.workspaceId);
       }
 
-      // Get the requesting user
-      const authUser = await this.userService.findById(
-        userId,
-        params.workspaceId,
-      );
+      // Get the complete user object with role information
+      const user = await this.userService.findById(userId, params.workspaceId);
 
-      if (!authUser) {
+      if (!user) {
         throw createPermissionDeniedError(
           'User not found in the specified workspace',
         );
       }
 
       // Check if user has permission to update groups
-      const ability = this.workspaceAbility.createForUser(authUser, workspace);
+      const ability = this.workspaceAbility.createForUser(user, workspace);
       if (
         ability.cannot(WorkspaceCaslAction.Edit, WorkspaceCaslSubject.Group)
       ) {
@@ -335,12 +344,12 @@ export class GroupHandler {
   async deleteGroup(params: any, userId: string): Promise<any> {
     this.logger.debug(`Processing group.delete operation for user ${userId}`);
 
-    if (!params.workspaceId) {
-      throw createInvalidParamsError('workspaceId is required');
-    }
-
     if (!params.groupId) {
       throw createInvalidParamsError('groupId is required');
+    }
+
+    if (!params.workspaceId) {
+      throw createInvalidParamsError('workspaceId is required');
     }
 
     try {
@@ -353,20 +362,17 @@ export class GroupHandler {
         throw createResourceNotFoundError('Workspace', params.workspaceId);
       }
 
-      // Get the requesting user
-      const authUser = await this.userService.findById(
-        userId,
-        params.workspaceId,
-      );
+      // Get the complete user object with role information
+      const user = await this.userService.findById(userId, params.workspaceId);
 
-      if (!authUser) {
+      if (!user) {
         throw createPermissionDeniedError(
           'User not found in the specified workspace',
         );
       }
 
       // Check if user has permission to delete groups
-      const ability = this.workspaceAbility.createForUser(authUser, workspace);
+      const ability = this.workspaceAbility.createForUser(user, workspace);
       if (
         ability.cannot(WorkspaceCaslAction.Delete, WorkspaceCaslSubject.Group)
       ) {
@@ -406,22 +412,16 @@ export class GroupHandler {
       `Processing group.addMember operation for user ${userId}`,
     );
 
-    if (!params.workspaceId) {
-      throw createInvalidParamsError('workspaceId is required');
-    }
-
     if (!params.groupId) {
       throw createInvalidParamsError('groupId is required');
     }
 
-    if (
-      !params.userIds ||
-      !Array.isArray(params.userIds) ||
-      params.userIds.length === 0
-    ) {
-      throw createInvalidParamsError(
-        'userIds is required and must be a non-empty array',
-      );
+    if (!params.userId) {
+      throw createInvalidParamsError('userId is required');
+    }
+
+    if (!params.workspaceId) {
+      throw createInvalidParamsError('workspaceId is required');
     }
 
     try {
@@ -434,20 +434,23 @@ export class GroupHandler {
         throw createResourceNotFoundError('Workspace', params.workspaceId);
       }
 
-      // Get the requesting user
-      const authUser = await this.userService.findById(
+      // Get the complete requesting user object with role information
+      const requestingUser = await this.userService.findById(
         userId,
         params.workspaceId,
       );
 
-      if (!authUser) {
+      if (!requestingUser) {
         throw createPermissionDeniedError(
-          'User not found in the specified workspace',
+          'Requesting user not found in the specified workspace',
         );
       }
 
-      // Check if user has permission to manage group members
-      const ability = this.workspaceAbility.createForUser(authUser, workspace);
+      // Check if requesting user has permission to manage groups
+      const ability = this.workspaceAbility.createForUser(
+        requestingUser,
+        workspace,
+      );
       if (
         ability.cannot(WorkspaceCaslAction.Edit, WorkspaceCaslSubject.Group)
       ) {
@@ -492,16 +495,16 @@ export class GroupHandler {
       `Processing group.removeMember operation for user ${userId}`,
     );
 
-    if (!params.workspaceId) {
-      throw createInvalidParamsError('workspaceId is required');
-    }
-
     if (!params.groupId) {
       throw createInvalidParamsError('groupId is required');
     }
 
     if (!params.userId) {
       throw createInvalidParamsError('userId is required');
+    }
+
+    if (!params.workspaceId) {
+      throw createInvalidParamsError('workspaceId is required');
     }
 
     try {
@@ -514,20 +517,23 @@ export class GroupHandler {
         throw createResourceNotFoundError('Workspace', params.workspaceId);
       }
 
-      // Get the requesting user
-      const authUser = await this.userService.findById(
+      // Get the complete requesting user object with role information
+      const requestingUser = await this.userService.findById(
         userId,
         params.workspaceId,
       );
 
-      if (!authUser) {
+      if (!requestingUser) {
         throw createPermissionDeniedError(
-          'User not found in the specified workspace',
+          'Requesting user not found in the specified workspace',
         );
       }
 
-      // Check if user has permission to manage group members
-      const ability = this.workspaceAbility.createForUser(authUser, workspace);
+      // Check if requesting user has permission to manage groups
+      const ability = this.workspaceAbility.createForUser(
+        requestingUser,
+        workspace,
+      );
       if (
         ability.cannot(WorkspaceCaslAction.Edit, WorkspaceCaslSubject.Group)
       ) {
