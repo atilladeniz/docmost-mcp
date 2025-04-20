@@ -190,6 +190,171 @@ async function main() {
               spaceId: z.string().optional(),
             };
           }
+        } else if (resource.name === "user") {
+          if (opName === "list") {
+            zodSchema = {
+              workspaceId: z.string(),
+              page: z.number().optional(),
+              limit: z.number().optional(),
+              query: z.string().optional(),
+            };
+          } else if (opName === "get") {
+            zodSchema = {
+              userId: z.string(),
+              workspaceId: z.string(),
+            };
+          } else if (opName === "update") {
+            zodSchema = {
+              userId: z.string(),
+              workspaceId: z.string(),
+              name: z.string().optional(),
+              role: z.string().optional(),
+              avatarUrl: z.string().optional(),
+            };
+          }
+        } else if (resource.name === "comment") {
+          if (opName === "create") {
+            zodSchema = {
+              content: z.union([
+                z.string(),
+                z.object({
+                  text: z.string(),
+                }),
+              ]),
+              pageId: z.string(),
+              workspaceId: z.string(),
+              parentId: z.string().optional(),
+            };
+          } else if (opName === "get") {
+            zodSchema = {
+              commentId: z.string(),
+              workspaceId: z.string(),
+            };
+          } else if (opName === "list") {
+            zodSchema = {
+              pageId: z.string(),
+              workspaceId: z.string(),
+              page: z.number().optional(),
+              limit: z.number().optional(),
+            };
+          } else if (opName === "update") {
+            zodSchema = {
+              commentId: z.string(),
+              workspaceId: z.string(),
+              content: z.object({
+                text: z.string(),
+              }),
+            };
+          } else if (opName === "delete") {
+            zodSchema = {
+              commentId: z.string(),
+              workspaceId: z.string(),
+            };
+          }
+        } else if (resource.name === "workspace") {
+          if (opName === "create") {
+            zodSchema = {
+              name: z.string(),
+              slug: z.string().optional(),
+              logo: z.string().optional(),
+            };
+          } else if (opName === "get") {
+            zodSchema = {
+              workspaceId: z.string(),
+            };
+          } else if (opName === "list") {
+            zodSchema = {
+              page: z.number().optional(),
+              limit: z.number().optional(),
+            };
+          } else if (opName === "update") {
+            zodSchema = {
+              workspaceId: z.string(),
+              name: z.string().optional(),
+              slug: z.string().optional(),
+              logo: z.string().optional(),
+            };
+          } else if (opName === "delete") {
+            zodSchema = {
+              workspaceId: z.string(),
+            };
+          } else if (opName === "addMember") {
+            zodSchema = {
+              workspaceId: z.string(),
+              email: z.string(),
+              role: z.string().optional(),
+            };
+          } else if (opName === "removeMember") {
+            zodSchema = {
+              workspaceId: z.string(),
+              userId: z.string(),
+            };
+          }
+        } else if (resource.name === "group") {
+          if (opName === "create") {
+            zodSchema = {
+              name: z.string(),
+              description: z.string().optional(),
+              workspaceId: z.string(),
+            };
+          } else if (opName === "get") {
+            zodSchema = {
+              groupId: z.string(),
+              workspaceId: z.string(),
+            };
+          } else if (opName === "list") {
+            zodSchema = {
+              workspaceId: z.string(),
+              page: z.number().optional(),
+              limit: z.number().optional(),
+              query: z.string().optional(),
+            };
+          } else if (opName === "update") {
+            zodSchema = {
+              groupId: z.string(),
+              workspaceId: z.string(),
+              name: z.string().optional(),
+              description: z.string().optional(),
+            };
+          } else if (opName === "delete") {
+            zodSchema = {
+              groupId: z.string(),
+              workspaceId: z.string(),
+            };
+          } else if (opName === "addMember" || opName === "removeMember") {
+            zodSchema = {
+              groupId: z.string(),
+              userId: z.string(),
+              workspaceId: z.string(),
+            };
+          }
+        } else if (resource.name === "attachment") {
+          if (opName === "upload") {
+            zodSchema = {
+              fileName: z.string(),
+              mimeType: z.string(),
+              size: z.number(),
+              pageId: z.string(),
+              workspaceId: z.string(),
+              fileContent: z.string(),
+            };
+          } else if (
+            opName === "get" ||
+            opName === "download" ||
+            opName === "delete"
+          ) {
+            zodSchema = {
+              attachmentId: z.string(),
+              workspaceId: z.string(),
+            };
+          } else if (opName === "list") {
+            zodSchema = {
+              pageId: z.string(),
+              workspaceId: z.string(),
+              page: z.number().optional(),
+              limit: z.number().optional(),
+            };
+          }
         }
 
         server.tool(
@@ -200,6 +365,14 @@ async function main() {
             logToFile(
               `Handling ${toolName} with params: ${JSON.stringify(params)}`
             );
+
+            // Remove any invalid parameters like random_string
+            if (params.random_string) {
+              const { random_string, ...validParams } = params;
+              params = validParams;
+              logToFile(`Removed random_string parameter from ${toolName}`);
+            }
+
             try {
               // Special handling for page.move operation with null parentId
               if (
@@ -250,6 +423,79 @@ async function main() {
               ) {
                 const { name, ...restParams } = params;
                 params = restParams;
+              }
+
+              // Special handling for group.addMember and group.removeMember
+              if (
+                resource.name === "group" &&
+                (opName === "addMember" || opName === "removeMember")
+              ) {
+                logToFile(
+                  `Mapping group.${opName} to group.${opName === "addMember" ? "addGroupMember" : "removeGroupMember"}`
+                );
+                const methodName =
+                  opName === "addMember"
+                    ? "group.addGroupMember"
+                    : "group.removeGroupMember";
+                const result = await makeRequest(methodName, params);
+                logToFile(`Tool ${toolName} completed successfully`);
+                return {
+                  content: [
+                    {
+                      type: "text" as const,
+                      text: JSON.stringify(result, null, 2),
+                    },
+                  ],
+                };
+              }
+
+              // Special handling for attachment.upload
+              if (resource.name === "attachment" && opName === "upload") {
+                logToFile(`Handling attachment.upload operation`);
+                const result = await makeRequest("attachment.upload", params);
+                logToFile(`Tool ${toolName} completed successfully`);
+                return {
+                  content: [
+                    {
+                      type: "text" as const,
+                      text: JSON.stringify(result, null, 2),
+                    },
+                  ],
+                };
+              }
+
+              // Special handling for comment content format
+              if (
+                resource.name === "comment" &&
+                (opName === "create" || opName === "update") &&
+                params.content
+              ) {
+                logToFile(`Normalizing comment content format for ${opName}`);
+                // If content is a string, convert it to { text: content }
+                if (typeof params.content === "string") {
+                  params.content = { text: params.content };
+                  logToFile(
+                    `Converted comment content string to object format`
+                  );
+                }
+                // If content is already a JSON string, parse it
+                else if (
+                  typeof params.content === "string" &&
+                  params.content.startsWith("{") &&
+                  params.content.endsWith("}")
+                ) {
+                  try {
+                    params.content = JSON.parse(params.content);
+                    logToFile(`Parsed JSON string comment content to object`);
+                  } catch (error) {
+                    logToFile(`Failed to parse JSON comment content: ${error}`);
+                  }
+                }
+
+                // Ensure the content is in the right format
+                logToFile(
+                  `Final comment content format: ${JSON.stringify(params.content)}`
+                );
               }
 
               const result = await makeRequest(

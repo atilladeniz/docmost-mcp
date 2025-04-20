@@ -253,5 +253,490 @@ const pageResource = {
   },
 };
 
+// User resource schemas
+const createUserSchema = z.object({
+  name: z.string().describe("Name of the user"),
+  email: z.string().describe("Email of the user"),
+  password: z.string().describe("Password for the user"),
+  role: z.string().optional().describe("Role of the user in the workspace"),
+  workspaceId: z.string().describe("ID of the workspace this user belongs to"),
+});
+
+const updateUserSchema = z.object({
+  userId: z.string().describe("ID of the user to update"),
+  workspaceId: z.string().describe("ID of the workspace this user belongs to"),
+  name: z.string().optional().describe("New name for the user"),
+  role: z.string().optional().describe("New role for the user"),
+  avatarUrl: z.string().optional().describe("New avatar URL for the user"),
+});
+
+// User resource
+const userResource = {
+  name: "user",
+  description: "Manage users in Docmost",
+  operations: {
+    list: {
+      description: "List users in a workspace",
+      handler: async (params: {
+        workspaceId: string;
+        page?: number;
+        limit?: number;
+        query?: string;
+      }) => {
+        return makeRequest(
+          "user.list",
+          z.object({
+            workspaceId: z.string().describe("ID of the workspace"),
+            page: z.number().optional().describe("Page number for pagination"),
+            limit: z.number().optional().describe("Number of items per page"),
+            query: z.string().optional().describe("Search query string"),
+          }),
+          params
+        );
+      },
+    },
+    get: {
+      description: "Get a user's details",
+      handler: async (params: { userId: string; workspaceId: string }) => {
+        return makeRequest(
+          "user.get",
+          z.object({
+            userId: z.string().describe("ID of the user to get"),
+            workspaceId: z.string().describe("ID of the workspace"),
+          }),
+          params
+        );
+      },
+    },
+    update: {
+      description: "Update a user",
+      handler: async (params: z.infer<typeof updateUserSchema>) => {
+        return makeRequest("user.update", updateUserSchema, params);
+      },
+    },
+  },
+};
+
+// Comment resource schemas
+const createCommentSchema = z.object({
+  content: z
+    .union([
+      z
+        .string()
+        .describe("Content of the comment as text (will be converted to JSON)"),
+      z
+        .object({
+          text: z.string().describe("Text content of the comment"),
+        })
+        .describe("Content of the comment as JSON object"),
+    ])
+    .describe("Content of the comment"),
+  pageId: z.string().describe("ID of the page this comment belongs to"),
+  workspaceId: z.string().describe("ID of the workspace"),
+  parentId: z
+    .string()
+    .optional()
+    .describe("ID of the parent comment, if replying to a comment"),
+});
+
+const updateCommentSchema = z.object({
+  commentId: z.string().describe("ID of the comment to update"),
+  workspaceId: z.string().describe("ID of the workspace"),
+  content: z
+    .object({
+      text: z.string().describe("Text content of the comment"),
+    })
+    .describe("New content for the comment"),
+});
+
+// Comment resource
+const commentResource = {
+  name: "comment",
+  description: "Manage comments in Docmost",
+  operations: {
+    create: {
+      description: "Create a new comment",
+      handler: async (params: z.infer<typeof createCommentSchema>) => {
+        return makeRequest("comment.create", createCommentSchema, params);
+      },
+    },
+    get: {
+      description: "Get a comment's details",
+      handler: async (params: { commentId: string; workspaceId: string }) => {
+        return makeRequest(
+          "comment.get",
+          z.object({
+            commentId: z.string().describe("ID of the comment to get"),
+            workspaceId: z.string().describe("ID of the workspace"),
+          }),
+          params
+        );
+      },
+    },
+    list: {
+      description: "List comments for a page",
+      handler: async (params: {
+        pageId: string;
+        workspaceId: string;
+        page?: number;
+        limit?: number;
+      }) => {
+        return makeRequest(
+          "comment.list",
+          z.object({
+            pageId: z.string().describe("ID of the page"),
+            workspaceId: z.string().describe("ID of the workspace"),
+            page: z.number().optional().describe("Page number for pagination"),
+            limit: z.number().optional().describe("Number of items per page"),
+          }),
+          params
+        );
+      },
+    },
+    update: {
+      description: "Update a comment",
+      handler: async (params: z.infer<typeof updateCommentSchema>) => {
+        return makeRequest("comment.update", updateCommentSchema, params);
+      },
+    },
+    delete: {
+      description: "Delete a comment",
+      handler: async (params: { commentId: string; workspaceId: string }) => {
+        return makeRequest(
+          "comment.delete",
+          z.object({
+            commentId: z.string().describe("ID of the comment to delete"),
+            workspaceId: z.string().describe("ID of the workspace"),
+          }),
+          params
+        );
+      },
+    },
+  },
+};
+
+// Workspace resource schemas
+const createWorkspaceSchema = z.object({
+  name: z.string().describe("Name of the workspace"),
+  slug: z.string().optional().describe("URL-friendly slug for the workspace"),
+  logo: z.string().optional().describe("Logo URL for the workspace"),
+});
+
+const updateWorkspaceSchema = z.object({
+  workspaceId: z.string().describe("ID of the workspace to update"),
+  name: z.string().optional().describe("New name for the workspace"),
+  slug: z.string().optional().describe("New URL-friendly slug"),
+  logo: z.string().optional().describe("New logo URL"),
+});
+
+// Workspace resource
+const workspaceResource = {
+  name: "workspace",
+  description: "Manage workspaces in Docmost",
+  operations: {
+    create: {
+      description: "Create a new workspace",
+      handler: async (params: z.infer<typeof createWorkspaceSchema>) => {
+        return makeRequest("workspace.create", createWorkspaceSchema, params);
+      },
+    },
+    get: {
+      description: "Get a workspace's details",
+      handler: async (params: { workspaceId: string }) => {
+        return makeRequest(
+          "workspace.get",
+          z.object({
+            workspaceId: z.string().describe("ID of the workspace to get"),
+          }),
+          params
+        );
+      },
+    },
+    list: {
+      description: "List workspaces",
+      handler: async (params?: { page?: number; limit?: number }) => {
+        return makeRequest(
+          "workspace.list",
+          z.object({
+            page: z.number().optional().describe("Page number for pagination"),
+            limit: z.number().optional().describe("Number of items per page"),
+          }),
+          params
+        );
+      },
+    },
+    update: {
+      description: "Update a workspace",
+      handler: async (params: z.infer<typeof updateWorkspaceSchema>) => {
+        return makeRequest("workspace.update", updateWorkspaceSchema, params);
+      },
+    },
+    delete: {
+      description: "Delete a workspace",
+      handler: async (params: { workspaceId: string }) => {
+        return makeRequest(
+          "workspace.delete",
+          z.object({
+            workspaceId: z.string().describe("ID of the workspace to delete"),
+          }),
+          params
+        );
+      },
+    },
+    addMember: {
+      description: "Add a member to a workspace",
+      handler: async (params: {
+        workspaceId: string;
+        email: string;
+        role?: string;
+      }) => {
+        return makeRequest(
+          "workspace.addMember",
+          z.object({
+            workspaceId: z.string().describe("ID of the workspace"),
+            email: z.string().describe("Email of the user to add"),
+            role: z.string().optional().describe("Role to assign to the user"),
+          }),
+          params
+        );
+      },
+    },
+    removeMember: {
+      description: "Remove a member from a workspace",
+      handler: async (params: { workspaceId: string; userId: string }) => {
+        return makeRequest(
+          "workspace.removeMember",
+          z.object({
+            workspaceId: z.string().describe("ID of the workspace"),
+            userId: z.string().describe("ID of the user to remove"),
+          }),
+          params
+        );
+      },
+    },
+  },
+};
+
+// Group resource schemas
+const createGroupSchema = z.object({
+  name: z.string().describe("Name of the group"),
+  description: z.string().optional().describe("Description of the group"),
+  workspaceId: z.string().describe("ID of the workspace this group belongs to"),
+});
+
+const updateGroupSchema = z.object({
+  groupId: z.string().describe("ID of the group to update"),
+  workspaceId: z.string().describe("ID of the workspace this group belongs to"),
+  name: z.string().optional().describe("New name for the group"),
+  description: z.string().optional().describe("New description for the group"),
+});
+
+// Group resource
+const groupResource = {
+  name: "group",
+  description: "Manage groups in Docmost",
+  operations: {
+    create: {
+      description: "Create a new group",
+      handler: async (params: z.infer<typeof createGroupSchema>) => {
+        return makeRequest("group.create", createGroupSchema, params);
+      },
+    },
+    get: {
+      description: "Get a group's details",
+      handler: async (params: { groupId: string; workspaceId: string }) => {
+        return makeRequest(
+          "group.get",
+          z.object({
+            groupId: z.string().describe("ID of the group to get"),
+            workspaceId: z.string().describe("ID of the workspace"),
+          }),
+          params
+        );
+      },
+    },
+    list: {
+      description: "List groups in a workspace",
+      handler: async (params: {
+        workspaceId: string;
+        page?: number;
+        limit?: number;
+        query?: string;
+      }) => {
+        return makeRequest(
+          "group.list",
+          z.object({
+            workspaceId: z.string().describe("ID of the workspace"),
+            page: z.number().optional().describe("Page number for pagination"),
+            limit: z.number().optional().describe("Number of items per page"),
+            query: z
+              .string()
+              .optional()
+              .describe("Search query for filtering groups"),
+          }),
+          params
+        );
+      },
+    },
+    update: {
+      description: "Update a group",
+      handler: async (params: z.infer<typeof updateGroupSchema>) => {
+        return makeRequest("group.update", updateGroupSchema, params);
+      },
+    },
+    delete: {
+      description: "Delete a group",
+      handler: async (params: { groupId: string; workspaceId: string }) => {
+        return makeRequest(
+          "group.delete",
+          z.object({
+            groupId: z.string().describe("ID of the group to delete"),
+            workspaceId: z.string().describe("ID of the workspace"),
+          }),
+          params
+        );
+      },
+    },
+    addMember: {
+      description: "Add a member to a group",
+      handler: async (params: {
+        groupId: string;
+        userId: string;
+        workspaceId: string;
+      }) => {
+        return makeRequest(
+          "group.addGroupMember",
+          z.object({
+            groupId: z.string().describe("ID of the group"),
+            userId: z.string().describe("ID of the user to add"),
+            workspaceId: z.string().describe("ID of the workspace"),
+          }),
+          params
+        );
+      },
+    },
+    removeMember: {
+      description: "Remove a member from a group",
+      handler: async (params: {
+        groupId: string;
+        userId: string;
+        workspaceId: string;
+      }) => {
+        return makeRequest(
+          "group.removeGroupMember",
+          z.object({
+            groupId: z.string().describe("ID of the group"),
+            userId: z.string().describe("ID of the user to remove"),
+            workspaceId: z.string().describe("ID of the workspace"),
+          }),
+          params
+        );
+      },
+    },
+  },
+};
+
+// Attachment resource schemas
+const uploadAttachmentSchema = z.object({
+  fileName: z.string().describe("Name of the file"),
+  mimeType: z.string().describe("MIME type of the file"),
+  size: z.number().describe("Size of the file in bytes"),
+  pageId: z.string().describe("ID of the page this attachment belongs to"),
+  workspaceId: z.string().describe("ID of the workspace"),
+  fileContent: z.string().describe("Base64-encoded content of the file"),
+});
+
+// Attachment resource
+const attachmentResource = {
+  name: "attachment",
+  description: "Manage attachments in Docmost",
+  operations: {
+    upload: {
+      description: "Upload a new attachment",
+      handler: async (params: z.infer<typeof uploadAttachmentSchema>) => {
+        return makeRequest("attachment.upload", uploadAttachmentSchema, params);
+      },
+    },
+    get: {
+      description: "Get attachment details",
+      handler: async (params: {
+        attachmentId: string;
+        workspaceId: string;
+      }) => {
+        return makeRequest(
+          "attachment.get",
+          z.object({
+            attachmentId: z.string().describe("ID of the attachment to get"),
+            workspaceId: z.string().describe("ID of the workspace"),
+          }),
+          params
+        );
+      },
+    },
+    list: {
+      description: "List attachments for a page",
+      handler: async (params: {
+        pageId: string;
+        workspaceId: string;
+        page?: number;
+        limit?: number;
+      }) => {
+        return makeRequest(
+          "attachment.list",
+          z.object({
+            pageId: z.string().describe("ID of the page"),
+            workspaceId: z.string().describe("ID of the workspace"),
+            page: z.number().optional().describe("Page number for pagination"),
+            limit: z.number().optional().describe("Number of items per page"),
+          }),
+          params
+        );
+      },
+    },
+    download: {
+      description: "Download an attachment",
+      handler: async (params: {
+        attachmentId: string;
+        workspaceId: string;
+      }) => {
+        return makeRequest(
+          "attachment.download",
+          z.object({
+            attachmentId: z
+              .string()
+              .describe("ID of the attachment to download"),
+            workspaceId: z.string().describe("ID of the workspace"),
+          }),
+          params
+        );
+      },
+    },
+    delete: {
+      description: "Delete an attachment",
+      handler: async (params: {
+        attachmentId: string;
+        workspaceId: string;
+      }) => {
+        return makeRequest(
+          "attachment.delete",
+          z.object({
+            attachmentId: z.string().describe("ID of the attachment to delete"),
+            workspaceId: z.string().describe("ID of the workspace"),
+          }),
+          params
+        );
+      },
+    },
+  },
+};
+
 // Export all resources
-export const resources = [spaceResource, pageResource];
+export const resources = [
+  spaceResource,
+  pageResource,
+  userResource,
+  commentResource,
+  workspaceResource,
+  groupResource,
+  attachmentResource,
+];
