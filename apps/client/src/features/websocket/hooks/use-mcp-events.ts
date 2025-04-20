@@ -192,7 +192,8 @@ export const useMCPEvents = () => {
     if (
       event.type === MCPEventType.CREATED ||
       event.type === MCPEventType.DELETED ||
-      event.type === MCPEventType.MOVED
+      event.type === MCPEventType.MOVED ||
+      event.type === MCPEventType.UPDATED
     ) {
       console.log(
         `%c[MCP-HANDLER] 🔄 IMMEDIATELY refetching page tree data`,
@@ -246,6 +247,143 @@ export const useMCPEvents = () => {
               );
             }
           }
+
+          // Also update the recent changes cache
+          const recentChangesData = queryClient.getQueryData([
+            "recent-changes",
+            event.spaceId,
+          ]) as any;
+
+          if (event.data && recentChangesData?.items) {
+            console.log(
+              `%c[MCP-HANDLER] 📝 Directly updating recent changes cache with new page`,
+              "background: #9C27B0; color: white; padding: 3px; border-radius: 3px;"
+            );
+
+            // Only add if not already present
+            const pageExists = recentChangesData.items.some(
+              (page: any) => page.id === event.resourceId
+            );
+
+            if (!pageExists && event.data) {
+              // Add the new page to the beginning of the list
+              recentChangesData.items = [
+                event.data,
+                ...recentChangesData.items,
+              ];
+
+              // Update total count
+              if (recentChangesData.total !== undefined) {
+                recentChangesData.total += 1;
+              }
+
+              // Update the cache directly
+              queryClient.setQueryData(
+                ["recent-changes", event.spaceId],
+                recentChangesData
+              );
+            }
+          }
+
+          // Also update the global recent changes cache
+          const globalRecentChangesData = queryClient.getQueryData([
+            "recent-changes",
+            undefined,
+          ]) as any;
+
+          if (event.data && globalRecentChangesData?.items) {
+            console.log(
+              `%c[MCP-HANDLER] 📝 Directly updating global recent changes cache with new page`,
+              "background: #9C27B0; color: white; padding: 3px; border-radius: 3px;"
+            );
+
+            // Only add if not already present
+            const pageExists = globalRecentChangesData.items.some(
+              (page: any) => page.id === event.resourceId
+            );
+
+            if (!pageExists && event.data) {
+              // Add the new page to the beginning of the list
+              globalRecentChangesData.items = [
+                event.data,
+                ...globalRecentChangesData.items,
+              ];
+
+              // Update total count
+              if (globalRecentChangesData.total !== undefined) {
+                globalRecentChangesData.total += 1;
+              }
+
+              // Update the cache directly
+              queryClient.setQueryData(
+                ["recent-changes", undefined],
+                globalRecentChangesData
+              );
+            }
+          }
+        }
+      }
+
+      // Handle updated pages - update in recent changes list
+      if (
+        event.type === MCPEventType.UPDATED &&
+        event.spaceId &&
+        event.resourceId
+      ) {
+        console.log(
+          `%c[MCP-HANDLER] 🔄 Updating page in recent changes`,
+          "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
+        );
+
+        // Update in space-specific recent changes
+        const recentChangesData = queryClient.getQueryData([
+          "recent-changes",
+          event.spaceId,
+        ]) as any;
+
+        if (event.data && recentChangesData?.items) {
+          const pageIndex = recentChangesData.items.findIndex(
+            (page: any) => page.id === event.resourceId
+          );
+
+          if (pageIndex !== -1 && event.data) {
+            // Update the page data and move it to the beginning of the list
+            recentChangesData.items.splice(pageIndex, 1);
+            recentChangesData.items = [event.data, ...recentChangesData.items];
+
+            // Update the cache directly
+            queryClient.setQueryData(
+              ["recent-changes", event.spaceId],
+              recentChangesData
+            );
+          }
+        }
+
+        // Update in global recent changes
+        const globalRecentChangesData = queryClient.getQueryData([
+          "recent-changes",
+          undefined,
+        ]) as any;
+
+        if (event.data && globalRecentChangesData?.items) {
+          const pageIndex = globalRecentChangesData.items.findIndex(
+            (page: any) => page.id === event.resourceId
+          );
+
+          if (pageIndex !== -1 && event.data) {
+            // Update the page data and move it to the beginning of the list
+            globalRecentChangesData.items.splice(pageIndex, 1);
+            globalRecentChangesData.items = [
+              event.data,
+              ...globalRecentChangesData.items,
+            ];
+
+            // Update the cache directly
+            queryClient.setQueryData(
+              ["recent-changes", undefined],
+              globalRecentChangesData
+            );
+          }
         }
       }
     }
@@ -263,6 +401,24 @@ export const useMCPEvents = () => {
     queryClient.refetchQueries({
       queryKey: ["breadcrumbs"],
     });
+
+    // Refresh recent changes queries for space home page
+    console.log(
+      `%c[MCP-HANDLER] 🔄 Refetching recent changes for space home page`,
+      "background: #2196F3; color: white; padding: 3px; border-radius: 3px;"
+    );
+
+    // Global recent changes (all spaces)
+    queryClient.refetchQueries({
+      queryKey: ["recent-changes", undefined],
+    });
+
+    // Space-specific recent changes
+    if (event.spaceId) {
+      queryClient.refetchQueries({
+        queryKey: ["recent-changes", event.spaceId],
+      });
+    }
   };
 
   // Function to handle space events
