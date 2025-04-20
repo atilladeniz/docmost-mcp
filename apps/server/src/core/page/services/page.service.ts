@@ -76,6 +76,7 @@ export class PageService {
       creatorId: userId,
       workspaceId: workspaceId,
       lastUpdatedById: userId,
+      content: createPageDto.content,
     });
 
     return createdPage;
