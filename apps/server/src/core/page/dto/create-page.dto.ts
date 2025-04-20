@@ -13,6 +13,10 @@ export class CreatePageDto {
   @IsString()
   parentPageId?: string;
 
+  @IsOptional()
+  @IsString()
+  content?: string;
+
   @IsUUID()
   spaceId: string;
 }
