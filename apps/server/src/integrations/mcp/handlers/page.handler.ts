@@ -19,6 +19,7 @@ import { PageHistoryService } from '../../../core/page/services/page-history.ser
 import { validate as isValidUUID } from 'uuid';
 import { MCPEventService } from '../services/mcp-event.service';
 import { MCPResourceType } from '../interfaces/mcp-event.interface';
+import { SpaceService } from '../../../core/space/services/space.service';
 
 /**
  * Handler for page-related MCP operations
@@ -33,6 +34,7 @@ export class PageHandler {
     private readonly spaceAbility: SpaceAbilityFactory,
     private readonly pageHistoryService: PageHistoryService,
     private readonly mcpEventService: MCPEventService,
+    private readonly spaceService: SpaceService,
   ) {}
 
   /**
@@ -161,62 +163,38 @@ export class PageHandler {
   async createPage(params: any, userId: string): Promise<any> {
     this.logger.debug(`Processing page.create operation for user ${userId}`);
 
+    if (!params.title) {
+      throw createInvalidParamsError('title is required');
+    }
+
     if (!params.spaceId) {
       throw createInvalidParamsError('spaceId is required');
     }
 
     try {
-      // Create a mock user with just the ID for permission checking
-      const user = { id: userId } as User;
-
-      // Check permissions
-      const ability = await this.spaceAbility.createForUser(
-        user,
+      // Get the space first to get the workspaceId
+      const space = await this.spaceService.getSpaceInfo(
         params.spaceId,
+        params.workspaceId,
       );
-      if (ability.cannot(SpaceCaslAction.Create, SpaceCaslSubject.Page)) {
-        throw createPermissionDeniedError(
-          'You do not have permission to create pages in this space',
-        );
+      if (!space) {
+        throw createResourceNotFoundError('Space', params.spaceId);
       }
 
-      // Create DTO for the page service
       const createPageDto = new CreatePageDto();
+      createPageDto.title = params.title;
       createPageDto.spaceId = params.spaceId;
-      createPageDto.title = params.title || 'Untitled';
-      createPageDto.icon = params.icon || '';
-      createPageDto.parentPageId = params.parentPageId || undefined;
-
-      // We need to get the workspace ID from the space
-      const workspace = await this.pageRepo.findFirstWorkspaceBySpaceId(
-        params.spaceId,
-      );
-      if (!workspace) {
-        throw createResourceNotFoundError('Workspace', 'for this space');
-      }
+      createPageDto.content = params.content || '';
+      createPageDto.parentPageId = params.parentId;
 
       // Create the page
-      const createdPage = await this.pageService.create(
+      const page = await this.pageService.create(
         userId,
-        workspace.id,
+        space.workspaceId,
         createPageDto,
       );
 
-      // Publish an event for the created page
-      this.logger.debug(`Publishing event for created page ${createdPage.id}`);
-      this.mcpEventService.createCreatedEvent(
-        MCPResourceType.PAGE,
-        createdPage.id,
-        {
-          title: createdPage.title,
-          parentPageId: createdPage.parentPageId,
-        },
-        userId,
-        workspace.id,
-        params.spaceId,
-      );
-
-      return createdPage;
+      return page;
     } catch (error: any) {
       this.logger.error(
         `Error creating page: ${error?.message || 'Unknown error'}`,
