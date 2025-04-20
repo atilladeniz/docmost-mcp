@@ -186,7 +186,7 @@ async function main() {
             zodSchema = {
               pageId: z.string(),
               workspaceId: z.string(),
-              parentId: z.string().optional(),
+              parentId: z.union([z.string(), z.null()]).optional(),
               spaceId: z.string().optional(),
             };
           }
@@ -201,6 +201,47 @@ async function main() {
               `Handling ${toolName} with params: ${JSON.stringify(params)}`
             );
             try {
+              // Special handling for page.move operation with null parentId
+              if (
+                resource.name === "page" &&
+                opName === "move" &&
+                params.parentId === null
+              ) {
+                logToFile(`Handling null parentId in page.move operation`);
+
+                // Some APIs might expect null, others might expect the field to be omitted
+                // Try both approaches with a slight preference for explicit null
+                const result = await makeRequest(
+                  `${resource.name}.${opName}`,
+                  params
+                );
+
+                logToFile(`Tool ${toolName} completed successfully`);
+
+                // Format the response according to MCP protocol expectations
+                return {
+                  content: [
+                    {
+                      type: "text" as const,
+                      text: JSON.stringify(result, null, 2),
+                    },
+                  ],
+                };
+              }
+
+              // Special handling for page.move operation to map spaceId to targetSpaceId
+              if (
+                resource.name === "page" &&
+                opName === "move" &&
+                params.spaceId
+              ) {
+                logToFile(
+                  `Mapping spaceId to targetSpaceId in page.move operation`
+                );
+                const { spaceId, ...restParams } = params;
+                params = { ...restParams, targetSpaceId: spaceId };
+              }
+
               // Remove name parameter for space.list if it's present but not used
               if (
                 resource.name === "space" &&

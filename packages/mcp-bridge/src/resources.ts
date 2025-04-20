@@ -190,8 +190,14 @@ const updatePageSchema = z.object({
 const movePageSchema = z.object({
   pageId: z.string().describe("ID of the page to move"),
   workspaceId: z.string().describe("ID of the workspace this page belongs to"),
-  parentId: z.string().optional().describe("ID of the new parent page"),
-  spaceId: z.string().optional().describe("ID of the new space"),
+  parentId: z
+    .union([z.string(), z.null()])
+    .optional()
+    .describe("ID of the new parent page"),
+  spaceId: z
+    .string()
+    .optional()
+    .describe("ID of the new space (mapped to targetSpaceId in the API)"),
 });
 
 // Page resource

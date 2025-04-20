@@ -43,3 +43,5 @@ lerna-debug.log*
 .nx
 .nx/installation
 .nx/cache
+
+.mcp-api-key
