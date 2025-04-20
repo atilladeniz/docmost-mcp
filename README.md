@@ -26,9 +26,11 @@ To get started with Docmost, please refer to our [documentation](https://docmost
 - File attachments
 - Embeds (Airtable, Loom, Miro and more)
 - Translations (10+ languages)
-- AI Integration via Model Context Protocol (MCP)
+- AI Integration via Model Context Protocol (MCP) *(HaruHunab1320 extension)*
 
-## API Integrations
+## API Integrations (HaruHunab1320 Extensions)
+
+> **Note**: The following API integrations are extensions developed by HaruHunab1320 and are not part of the official Docmost project.
 
 ### Master Control API
 
@@ -60,6 +62,8 @@ Example request:
 API documentation is available at `/api/mcp/openapi.json` when running the server. This provides a complete OpenAPI specification of all available methods and parameters.
 
 ### Model Context Protocol (MCP) Integration
+
+This extension implements a bridge between Docmost and AI assistants using the Model Context Protocol.
 
 Docmost integrates with AI assistants through the [Model Context Protocol](https://modelcontextprotocol.ai/), allowing AI models to:
 
