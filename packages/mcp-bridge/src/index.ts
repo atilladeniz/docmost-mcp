@@ -1,11 +1,43 @@
-import { McpServer } from "@modelcontextprotocol/sdk";
+#!/usr/bin/env node
+/**
+ * Docmost Model Context Protocol (MCP) Bridge
+ *
+ * This script implements an MCP server that bridges Cursor with the Docmost API.
+ */
+
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import axios from "axios";
+import { resources } from "./resources.js";
+import { makeRequest } from "./api.js";
+import { writeFileSync, existsSync, mkdirSync } from "fs";
+import { resolve, dirname } from "path";
 
-// Initialize MCP server with a name and version
+// Create a log file in the workspace root
+const logFile = resolve(process.cwd(), "mcp-bridge.log");
+function logToFile(message: string) {
+  try {
+    // Ensure the directory exists
+    const logDir = dirname(logFile);
+    if (!existsSync(logDir)) {
+      mkdirSync(logDir, { recursive: true });
+    }
+    writeFileSync(logFile, `${new Date().toISOString()} - ${message}\n`, {
+      flag: "a",
+    });
+  } catch (error) {
+    console.error("Failed to write to log file:", error);
+  }
+}
+
+// Debug mode
+const DEBUG = process.env.MCP_DEBUG === "true";
+
+// Initialize MCP server
 const server = new McpServer({
   name: "docmost",
-  version: "0.1.0",
+  version: "1.0.0",
 });
 
 // Configure server with environment variables
@@ -17,58 +49,219 @@ const config = {
   userEmail: process.env.MCP_USER_EMAIL,
 };
 
-// Create API client
-const api = axios.create({
-  baseURL: config.serverUrl,
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${config.apiKey}`,
-  },
-});
+logToFile(`Starting MCP Bridge with configuration:
+  MCP_SERVER_URL: ${config.serverUrl}
+  MCP_API_KEY: ${config.apiKey ? "***" : "not set"}
+  MCP_USER_ID: ${config.userId || "not set"}
+  MCP_WORKSPACE_ID: ${config.workspaceId || "not set"}
+  MCP_USER_EMAIL: ${config.userEmail || "not set"}
+`);
 
-// Type definitions
-interface SpaceCreateParams {
-  name: string;
-  description?: string;
+// Helper function to convert JSON Schema to Zod schema
+function jsonSchemaToZod(schema: any): z.ZodRawShape {
+  if (!schema.type || schema.type !== "object") {
+    return {};
+  }
+
+  const shape: z.ZodRawShape = {};
+  for (const [key, value] of Object.entries(schema.properties || {})) {
+    const prop = value as any;
+    switch (prop.type) {
+      case "string":
+        shape[key] = z.string();
+        break;
+      case "number":
+      case "integer":
+        shape[key] = z.number();
+        break;
+      case "boolean":
+        shape[key] = z.boolean();
+        break;
+      case "object":
+        shape[key] = z.object(jsonSchemaToZod(prop));
+        break;
+      case "array":
+        shape[key] = z.array(
+          prop.items ? z.object(jsonSchemaToZod(prop.items)) : z.any()
+        );
+        break;
+      default:
+        shape[key] = z.any();
+    }
+    if (!schema.required?.includes(key)) {
+      shape[key] = shape[key].optional();
+    }
+  }
+  return shape;
 }
 
-interface PageCreateParams {
-  spaceId: string;
-  title: string;
-  content?: string;
+async function main() {
+  try {
+    logToFile("=== Docmost MCP Bridge Starting ===");
+
+    // Register tools from resources
+    for (const resource of Object.values(resources)) {
+      logToFile(`Registering resource: ${resource.name}`);
+
+      // Register operations for this resource
+      for (const [opName, operation] of Object.entries(resource.operations)) {
+        const toolName = `${resource.name}_${opName}`;
+        logToFile(`Registering tool: ${toolName}`);
+
+        // Extract schema from the makeRequest call in the handler
+        const methodName = `${resource.name}.${opName}`;
+        logToFile(`Method name: ${methodName}`);
+
+        // Determine the appropriate schema based on the operation
+        let zodSchema: any = {};
+
+        // Handle special cases for different operations
+        if (resource.name === "space") {
+          if (opName === "list") {
+            zodSchema = {
+              workspaceId: z.string(),
+              page: z.number().optional(),
+              limit: z.number().optional(),
+              name: z.string().optional(), // Special case for space.list
+            };
+          } else if (opName === "create") {
+            zodSchema = {
+              name: z.string(),
+              description: z.string().optional(),
+              slug: z.string().optional(),
+              workspaceId: z.string(),
+            };
+          } else if (opName === "update") {
+            zodSchema = {
+              spaceId: z.string(),
+              workspaceId: z.string(),
+              name: z.string().optional(),
+              description: z.string().optional(),
+              slug: z.string().optional(),
+            };
+          } else if (opName === "delete") {
+            zodSchema = {
+              spaceId: z.string(),
+              workspaceId: z.string(),
+            };
+          }
+        } else if (resource.name === "page") {
+          if (opName === "list") {
+            zodSchema = {
+              spaceId: z.string(),
+              workspaceId: z.string(),
+              page: z.number().optional(),
+              limit: z.number().optional(),
+            };
+          } else if (opName === "create") {
+            zodSchema = {
+              title: z.string(),
+              content: z.object({
+                type: z.string(),
+                content: z.array(z.any()),
+              }),
+              spaceId: z.string(),
+              workspaceId: z.string(),
+              parentId: z.string().optional(),
+            };
+          } else if (opName === "update") {
+            zodSchema = {
+              pageId: z.string(),
+              workspaceId: z.string(),
+              title: z.string().optional(),
+              content: z
+                .object({
+                  type: z.string(),
+                  content: z.array(z.any()),
+                })
+                .optional(),
+              parentId: z.string().optional(),
+            };
+          } else if (opName === "delete") {
+            zodSchema = {
+              pageId: z.string(),
+              workspaceId: z.string(),
+            };
+          } else if (opName === "move") {
+            zodSchema = {
+              pageId: z.string(),
+              workspaceId: z.string(),
+              parentId: z.string().optional(),
+              spaceId: z.string().optional(),
+            };
+          }
+        }
+
+        server.tool(
+          toolName,
+          operation.description,
+          zodSchema,
+          async (params: Record<string, any>) => {
+            logToFile(
+              `Handling ${toolName} with params: ${JSON.stringify(params)}`
+            );
+            try {
+              // Remove name parameter for space.list if it's present but not used
+              if (
+                resource.name === "space" &&
+                opName === "list" &&
+                params.name
+              ) {
+                const { name, ...restParams } = params;
+                params = restParams;
+              }
+
+              const result = await makeRequest(
+                `${resource.name}.${opName}`,
+                params
+              );
+              logToFile(`Tool ${toolName} completed successfully`);
+
+              // Format the response according to MCP protocol expectations
+              return {
+                content: [
+                  {
+                    type: "text" as const,
+                    text: JSON.stringify(result, null, 2),
+                  },
+                ],
+              };
+            } catch (error) {
+              const errorMessage =
+                error instanceof Error ? error.message : "Unknown error";
+              logToFile(`Error in ${toolName}: ${errorMessage}`);
+
+              // Format error response in the expected format
+              return {
+                content: [
+                  {
+                    type: "text" as const,
+                    text: `Error: ${errorMessage}`,
+                  },
+                ],
+                isError: true,
+              };
+            }
+          }
+        );
+      }
+    }
+
+    // Connect to MCP
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    logToFile("MCP Bridge running successfully");
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    logToFile(`Fatal error: ${errorMessage}`);
+    console.error(`Fatal error: ${errorMessage}`);
+    process.exit(1);
+  }
 }
 
-// Register tools following the documentation example
-server.registerTool("space.create", {
-  schema: z.object({
-    name: z.string(),
-    description: z.string().optional(),
-  }),
-  handler: async (params) => {
-    const response = await api.post("/api/spaces", params);
-    return response.data;
-  },
+// Start the server
+main().catch((error) => {
+  console.error("Failed to start MCP server:", error);
+  process.exit(1);
 });
-
-server.registerTool("space.list", {
-  schema: z.object({}),
-  handler: async () => {
-    const response = await api.get("/api/spaces");
-    return response.data;
-  },
-});
-
-server.registerTool("page.create", {
-  schema: z.object({
-    spaceId: z.string(),
-    title: z.string(),
-    content: z.string().optional(),
-  }),
-  handler: async (params) => {
-    const response = await api.post("/api/pages", params);
-    return response.data;
-  },
-});
-
-// Start the server with stdio transport
-server.start("stdio");

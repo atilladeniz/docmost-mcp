@@ -1,4 +1,28 @@
 import axios from "axios";
+import { writeFileSync, existsSync, mkdirSync } from "fs";
+import { resolve, dirname } from "path";
+
+// Debug mode
+const DEBUG = process.env.MCP_DEBUG === "true";
+
+// Create a log file
+const logFile = resolve(process.cwd(), "mcp-api.log");
+function logToFile(message: string) {
+  if (!DEBUG) return;
+
+  try {
+    // Ensure the directory exists
+    const logDir = dirname(logFile);
+    if (!existsSync(logDir)) {
+      mkdirSync(logDir, { recursive: true });
+    }
+    writeFileSync(logFile, `${new Date().toISOString()} - ${message}\n`, {
+      flag: "a",
+    });
+  } catch (error) {
+    console.error("Failed to write to log file:", error);
+  }
+}
 
 const baseURL = process.env.MCP_SERVER_URL || "http://localhost:3000";
 const apiKey = process.env.MCP_API_KEY;
@@ -37,3 +61,38 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Helper function to make API requests
+export async function makeRequest(method: string, data?: unknown) {
+  try {
+    const jsonRpcRequest = {
+      jsonrpc: "2.0",
+      method,
+      params: data,
+      id: Date.now(),
+    };
+
+    if (DEBUG) {
+      logToFile(`Making request: ${JSON.stringify(jsonRpcRequest, null, 2)}`);
+    }
+
+    const response = await api({
+      method: "POST",
+      url: "/api/mcp",
+      data: jsonRpcRequest,
+    });
+
+    if (DEBUG) {
+      logToFile(`Received response: ${JSON.stringify(response.data, null, 2)}`);
+    }
+
+    return response.data.result;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const errorMsg = `API request failed: ${error.response?.data?.message || error.message}`;
+      logToFile(`Error: ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
+    throw error;
+  }
+}

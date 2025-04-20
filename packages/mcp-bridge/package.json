@@ -8,14 +8,14 @@
   "scripts": {
     "start": "node dist/index.js",
     "build": "tsc",
-    "dev": "tsc --watch",
+    "dev": "tsx watch src/index.ts",
     "test": "jest"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.1",
     "axios": "^1.7.9",
     "dotenv": "^16.5.0",
-    "zod": "^3.23.8"
+    "zod": "^3.24.3"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
