@@ -42,6 +42,24 @@ import { modals } from "@mantine/modals";
 import { useTranslation } from "react-i18next";
 import { CustomAvatar } from "@/components/ui/custom-avatar";
 import TaskFormModal from "./task-form-modal";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCorners,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { SortableTask } from "./sortable-task";
 
 // Map of status to column title
 const statusColumnMap: Record<TaskStatus, { title: string; color: string }> = {
@@ -72,6 +90,8 @@ export function ProjectBoard({ project, onBack }: ProjectBoardProps) {
   const [taskModalOpened, { open: openTaskModal, close: closeTaskModal }] =
     useDisclosure(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
 
   const { data, isLoading, refetch } = useTasksByProject({
     projectId: project.id,
@@ -82,6 +102,18 @@ export function ProjectBoard({ project, onBack }: ProjectBoardProps) {
   const createTaskMutation = useCreateTaskMutation();
   const updateTaskMutation = useUpdateTaskMutation();
   const deleteTaskMutation = useDeleteTaskMutation();
+
+  // Configure sensors for drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     refetch();
@@ -132,124 +164,64 @@ export function ProjectBoard({ project, onBack }: ProjectBoardProps) {
     });
   };
 
+  // Handle drag start
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    setActiveId(active.id as string);
+
+    // Find the active task to show in drag overlay
+    const taskId = active.id as string;
+    const foundTask = data?.items.find((task) => task.id === taskId);
+    if (foundTask) {
+      setActiveTask(foundTask);
+    }
+  };
+
+  // Handle drag end
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      setActiveId(null);
+      setActiveTask(null);
+      return;
+    }
+
+    // Extract the status from the over container ID
+    // Format of container ID is "column-{status}"
+    const containerId = over.id as string;
+
+    if (containerId.startsWith("column-")) {
+      const newStatus = containerId.replace("column-", "") as TaskStatus;
+      const taskId = active.id as string;
+      const task = data?.items.find((t) => t.id === taskId);
+
+      if (task && task.status !== newStatus) {
+        handleMoveTask(task, newStatus);
+      }
+    }
+
+    setActiveId(null);
+    setActiveTask(null);
+  };
+
   const renderTaskCard = (task: Task) => (
-    <Card key={task.id} shadow="xs" mb="sm" withBorder p="sm">
-      <Stack gap="xs">
-        <Group justify="space-between" mb={0}>
-          <UnstyledButton onClick={() => handleCompleteTask(task)}>
-            <Tooltip
-              label={
-                task.status === "done"
-                  ? t("Mark as incomplete")
-                  : t("Mark as complete")
-              }
-            >
-              <ActionIcon
-                color={task.status === "done" ? "green" : "gray"}
-                variant={task.status === "done" ? "filled" : "outline"}
-                radius="xl"
-                size="sm"
-              >
-                {task.status === "done" ? (
-                  <IconCheck size={14} />
-                ) : (
-                  <div style={{ width: 14, height: 14 }} />
-                )}
-              </ActionIcon>
-            </Tooltip>
-          </UnstyledButton>
-
-          <Menu position="bottom-end" shadow="md">
-            <Menu.Target>
-              <ActionIcon size="sm">
-                <IconDotsVertical size={14} />
-              </ActionIcon>
-            </Menu.Target>
-
-            <Menu.Dropdown>
-              <Menu.Item
-                leftSection={<IconEdit size={14} />}
-                onClick={() => handleOpenEditTaskModal(task)}
-              >
-                {t("Edit")}
-              </Menu.Item>
-
-              <Menu.Divider />
-
-              <Menu.Label>{t("Move to")}</Menu.Label>
-              {columnOrder
-                .filter((status) => status !== task.status)
-                .map((status) => (
-                  <Menu.Item
-                    key={status}
-                    leftSection={<IconArrowRight size={14} />}
-                    onClick={() => handleMoveTask(task, status)}
-                  >
-                    {statusColumnMap[status].title}
-                  </Menu.Item>
-                ))}
-
-              <Menu.Divider />
-
-              <Menu.Item
-                color="red"
-                leftSection={<IconTrash size={14} />}
-                onClick={() => handleDeleteTask(task)}
-              >
-                {t("Delete")}
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        </Group>
-
-        <Text fw={500} size="sm" lineClamp={2}>
-          {task.title}
-        </Text>
-
-        {task.description && (
-          <Text size="xs" c="dimmed" lineClamp={3}>
-            {task.description}
-          </Text>
-        )}
-
-        <Group gap="xs">
-          {task.priority && (
-            <Badge
-              size="xs"
-              color={
-                task.priority === "urgent"
-                  ? "red"
-                  : task.priority === "high"
-                    ? "orange"
-                    : task.priority === "medium"
-                      ? "blue"
-                      : "gray"
-              }
-            >
-              {task.priority}
-            </Badge>
-          )}
-
-          {task.dueDate && (
-            <Badge size="xs" color="gray">
-              {new Date(task.dueDate).toLocaleDateString()}
-            </Badge>
-          )}
-        </Group>
-
-        {task.assignee && (
-          <Group justify="flex-end">
-            <CustomAvatar user={task.assignee} size="sm" showTooltip />
-          </Group>
-        )}
-      </Stack>
-    </Card>
+    <SortableTask
+      key={task.id}
+      id={task.id}
+      task={task}
+      onEdit={() => handleOpenEditTaskModal(task)}
+      onComplete={() => handleCompleteTask(task)}
+      onDelete={() => handleDeleteTask(task)}
+      onMove={(newStatus) => handleMoveTask(task, newStatus)}
+    />
   );
 
   const renderColumn = (status: TaskStatus) => {
     const columnTasks =
       data?.items.filter((task) => task.status === status) || [];
     const columnInfo = statusColumnMap[status];
+    const columnId = `column-${status}`;
 
     return (
       <Paper
@@ -260,6 +232,8 @@ export function ProjectBoard({ project, onBack }: ProjectBoardProps) {
         w="300px"
         h="100%"
         style={{ display: "flex", flexDirection: "column" }}
+        key={columnId}
+        id={columnId}
       >
         <Group justify="space-between" mb="sm">
           <Badge color={columnInfo.color} size="lg" variant="filled">
@@ -281,7 +255,13 @@ export function ProjectBoard({ project, onBack }: ProjectBoardProps) {
         </Group>
 
         <ScrollArea h="calc(100vh - 250px)" style={{ flex: 1 }}>
-          {columnTasks.map((task) => renderTaskCard(task))}
+          <SortableContext
+            items={columnTasks.map((task) => task.id)}
+            strategy={verticalListSortingStrategy}
+            id={columnId}
+          >
+            {columnTasks.map(renderTaskCard)}
+          </SortableContext>
 
           {columnTasks.length === 0 && (
             <Box py="md">
@@ -351,9 +331,74 @@ export function ProjectBoard({ project, onBack }: ProjectBoardProps) {
         </Group>
 
         <ScrollArea h="calc(100vh - 150px)" type="auto" offsetScrollbars>
-          <Flex gap="md" align="flex-start" style={{ width: "fit-content" }}>
-            {columnOrder.map((status) => renderColumn(status))}
-          </Flex>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <Flex gap="md" align="flex-start" style={{ width: "fit-content" }}>
+              {columnOrder.map(renderColumn)}
+            </Flex>
+
+            <DragOverlay>
+              {activeId && activeTask ? (
+                <Card
+                  shadow="xs"
+                  mb="sm"
+                  withBorder
+                  p="sm"
+                  style={{ width: "280px", opacity: 0.8 }}
+                >
+                  <Stack gap="xs">
+                    <Group justify="space-between" mb={0}>
+                      <ActionIcon
+                        color={activeTask.status === "done" ? "green" : "gray"}
+                        variant={
+                          activeTask.status === "done" ? "filled" : "outline"
+                        }
+                        radius="xl"
+                        size="sm"
+                      >
+                        {activeTask.status === "done" ? (
+                          <IconCheck size={14} />
+                        ) : (
+                          <div style={{ width: 14, height: 14 }} />
+                        )}
+                      </ActionIcon>
+                    </Group>
+
+                    <Text fw={500} size="sm" lineClamp={2}>
+                      {activeTask.title}
+                    </Text>
+
+                    {activeTask.description && (
+                      <Text size="xs" c="dimmed" lineClamp={2}>
+                        {activeTask.description}
+                      </Text>
+                    )}
+
+                    {activeTask.priority && (
+                      <Badge
+                        size="xs"
+                        color={
+                          activeTask.priority === "urgent"
+                            ? "red"
+                            : activeTask.priority === "high"
+                              ? "orange"
+                              : activeTask.priority === "medium"
+                                ? "blue"
+                                : "gray"
+                        }
+                      >
+                        {activeTask.priority}
+                      </Badge>
+                    )}
+                  </Stack>
+                </Card>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         </ScrollArea>
       </Stack>
 
