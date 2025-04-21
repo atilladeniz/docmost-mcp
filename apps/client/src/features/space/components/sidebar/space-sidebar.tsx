@@ -15,6 +15,7 @@ import {
   IconPlus,
   IconSearch,
   IconSettings,
+  IconChecklist,
 } from "@tabler/icons-react";
 
 import classes from "./space-sidebar.module.css";
@@ -38,6 +39,7 @@ import PageImportModal from "@/features/page/components/page-import-modal.tsx";
 import { useTranslation } from "react-i18next";
 import { SwitchSpace } from "./switch-space";
 import ExportModal from "@/components/common/export-modal";
+import APP_ROUTE from "@/lib/app-route";
 
 export function SpaceSidebar() {
   const { t } = useTranslation();
@@ -82,7 +84,7 @@ export function SpaceSidebar() {
                 classes.menu,
                 location.pathname.toLowerCase() === getSpaceUrl(spaceSlug)
                   ? classes.activeButton
-                  : "",
+                  : ""
               )}
             >
               <div className={classes.menuItemInner}>
@@ -92,6 +94,26 @@ export function SpaceSidebar() {
                   stroke={2}
                 />
                 <span>{t("Overview")}</span>
+              </div>
+            </UnstyledButton>
+
+            <UnstyledButton
+              component={Link}
+              to={APP_ROUTE.SPACE.PROJECTS(space.id)}
+              className={clsx(
+                classes.menu,
+                location.pathname.includes(`/s/${space.id}/projects`)
+                  ? classes.activeButton
+                  : ""
+              )}
+            >
+              <div className={classes.menuItemInner}>
+                <IconChecklist
+                  size={18}
+                  className={classes.menuItemIcon}
+                  stroke={2}
+                />
+                <span>{t("Projects")}</span>
               </div>
             </UnstyledButton>
 
@@ -119,7 +141,7 @@ export function SpaceSidebar() {
 
             {spaceAbility.can(
               SpaceCaslAction.Manage,
-              SpaceCaslSubject.Page,
+              SpaceCaslSubject.Page
             ) && (
               <UnstyledButton
                 className={classes.menu}
@@ -146,7 +168,7 @@ export function SpaceSidebar() {
 
             {spaceAbility.can(
               SpaceCaslAction.Manage,
-              SpaceCaslSubject.Page,
+              SpaceCaslSubject.Page
             ) && (
               <Group gap="xs">
                 <SpaceMenu spaceId={space.id} onSpaceSettings={openSettings} />
@@ -170,7 +192,7 @@ export function SpaceSidebar() {
               spaceId={space.id}
               readOnly={spaceAbility.cannot(
                 SpaceCaslAction.Manage,
-                SpaceCaslSubject.Page,
+                SpaceCaslSubject.Page
               )}
             />
           </div>

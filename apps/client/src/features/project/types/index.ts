@@ -1,0 +1,138 @@
+import { IUser } from "@/features/user/types/user.types";
+
+export type TaskStatus =
+  | "todo"
+  | "in_progress"
+  | "in_review"
+  | "done"
+  | "blocked";
+export type TaskPriority = "low" | "medium" | "high" | "urgent";
+
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  isArchived: boolean;
+  startDate?: string;
+  endDate?: string;
+  spaceId: string;
+  workspaceId: string;
+  creatorId?: string;
+  createdAt: string;
+  updatedAt: string;
+  creator?: IUser;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  position?: string;
+  dueDate?: string;
+  isCompleted: boolean;
+  completedAt?: string;
+  estimatedTime?: number;
+  projectId?: string;
+  parentTaskId?: string;
+  pageId?: string;
+  creatorId?: string;
+  assigneeId?: string;
+  spaceId: string;
+  workspaceId: string;
+  createdAt: string;
+  updatedAt: string;
+
+  // Joined fields
+  creator?: IUser;
+  assignee?: IUser;
+  project?: {
+    id: string;
+    name: string;
+    color?: string;
+    icon?: string;
+  };
+  parent?: {
+    id: string;
+    title: string;
+    status: TaskStatus;
+  };
+  labels?: Array<{
+    id: string;
+    name: string;
+    color: string;
+  }>;
+}
+
+export interface ProjectListParams {
+  spaceId: string;
+  page?: number;
+  limit?: number;
+  includeArchived?: boolean;
+  searchTerm?: string;
+}
+
+export interface TaskListParams {
+  projectId: string;
+  page?: number;
+  limit?: number;
+  status?: TaskStatus[];
+  searchTerm?: string;
+  includeSubtasks?: boolean;
+}
+
+export interface TaskListBySpaceParams {
+  spaceId: string;
+  page?: number;
+  limit?: number;
+  status?: TaskStatus[];
+  searchTerm?: string;
+}
+
+export interface CreateProjectParams {
+  name: string;
+  description?: string;
+  spaceId: string;
+  icon?: string;
+  color?: string;
+  startDate?: Date;
+  endDate?: Date;
+}
+
+export interface UpdateProjectParams {
+  projectId: string;
+  name?: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  startDate?: Date;
+  endDate?: Date;
+}
+
+export interface CreateTaskParams {
+  title: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  dueDate?: Date;
+  projectId?: string;
+  parentTaskId?: string;
+  pageId?: string;
+  assigneeId?: string;
+  spaceId: string;
+  estimatedTime?: number;
+}
+
+export interface UpdateTaskParams {
+  taskId: string;
+  title?: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  dueDate?: Date | null;
+  assigneeId?: string | null;
+  estimatedTime?: number | null;
+}

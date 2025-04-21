@@ -1,6 +1,12 @@
 const APP_ROUTE = {
   HOME: "/home",
   FILES: "/files",
+  SPACE: {
+    HOME: (spaceSlug: string) => `/s/${spaceSlug}/home`,
+    PROJECTS: (spaceId: string) => `/s/${spaceId}/projects`,
+    PAGE: (spaceSlug: string, pageSlug: string) =>
+      `/s/${spaceSlug}/p/${pageSlug}`,
+  },
   AUTH: {
     LOGIN: "/login",
     SIGNUP: "/signup",

@@ -25,6 +25,12 @@ import { MigrationService } from '@docmost/db/services/migration.service';
 import { UserTokenRepo } from './repos/user-token/user-token.repo';
 import { BacklinkRepo } from '@docmost/db/repos/backlink/backlink.repo';
 import { MCPApiKeyRepo } from './repos/mcp-api-key/mcp-api-key.repo';
+import { WorkspaceInvitationRepo } from './repos/workspace/workspace-invitation.repo';
+import { BillingRepo } from './repos/workspace/billing.repo';
+import { AuthProviderRepo } from './repos/auth/auth-provider.repo';
+import { AuthAccountRepo } from './repos/auth/auth-account.repo';
+import { ProjectRepo } from './repos/project/project.repo';
+import { TaskRepo } from './repos/task/task.repo';
 
 // https://github.com/brianc/node-postgres/issues/811
 types.setTypeParser(types.builtins.INT8, (val) => Number(val));
@@ -76,6 +82,12 @@ types.setTypeParser(types.builtins.INT8, (val) => Number(val));
     UserTokenRepo,
     BacklinkRepo,
     MCPApiKeyRepo,
+    WorkspaceInvitationRepo,
+    BillingRepo,
+    AuthProviderRepo,
+    AuthAccountRepo,
+    ProjectRepo,
+    TaskRepo,
   ],
   exports: [
     WorkspaceRepo,
@@ -91,6 +103,12 @@ types.setTypeParser(types.builtins.INT8, (val) => Number(val));
     UserTokenRepo,
     BacklinkRepo,
     MCPApiKeyRepo,
+    WorkspaceInvitationRepo,
+    BillingRepo,
+    AuthProviderRepo,
+    AuthAccountRepo,
+    ProjectRepo,
+    TaskRepo,
   ],
 })
 export class DatabaseModule

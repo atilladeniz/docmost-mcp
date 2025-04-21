@@ -100,19 +100,44 @@ export default function SpaceTree({ spaceId, readOnly }: SpaceTreeProps) {
       const allItems = pagesData.pages.flatMap((page) => page.items);
       const treeData = buildTree(allItems);
 
+      console.log(
+        "%c[SpaceTree] Processing updated pages data",
+        "background: #2196F3; color: white; padding: 3px; border-radius: 3px;"
+      );
+
       if (data.length < 1 || data?.[0].spaceId !== spaceId) {
-        //Thoughts
-        // don't reset if there is data in state
-        // we only expect to call this once on initial load
-        // even if we decide to refetch, it should only update
-        // and append root pages instead of resetting the entire tree
-        // which looses async loaded children too
+        // Initial data load
+        console.log(
+          "%c[SpaceTree] Initial data load for space",
+          "background: #4CAF50; color: white; padding: 3px; border-radius: 3px;"
+        );
         setData(treeData);
         isDataLoaded.current = true;
         setOpenTreeNodes({});
+      } else {
+        // Handle updates to existing data
+        console.log(
+          "%c[SpaceTree] Updating existing tree data",
+          "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
+        );
+
+        // Check if we have new nodes that aren't in the current tree
+        const currentIds = new Set(data.map((node) => node.id));
+        const newNodes = treeData.filter((node) => !currentIds.has(node.id));
+
+        if (newNodes.length > 0) {
+          console.log(
+            "%c[SpaceTree] New nodes found, updating tree",
+            "background: #FF9800; color: white; padding: 3px; border-radius: 3px;",
+            newNodes
+          );
+          // Merge existing tree with new nodes
+          const updatedData = [...data, ...newNodes];
+          setData(updatedData);
+        }
       }
     }
-  }, [pagesData, hasNextPage]);
+  }, [pagesData, hasNextPage, spaceId]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -144,13 +169,13 @@ export default function SpaceTree({ spaceId, readOnly }: SpaceTreeProps) {
             flatTreeItems = [
               ...flatTreeItems,
               ...children.filter(
-                (child) => !flatTreeItems.some((item) => item.id === child.id),
+                (child) => !flatTreeItems.some((item) => item.id === child.id)
               ),
             ];
           };
 
           const fetchPromises = ancestors.map((ancestor) =>
-            fetchAndUpdateChildren(ancestor),
+            fetchAndUpdateChildren(ancestor)
           );
 
           // Wait for all fetch operations to complete
@@ -164,7 +189,7 @@ export default function SpaceTree({ spaceId, readOnly }: SpaceTreeProps) {
             const updatedTree = appendNodeChildren(
               data,
               rootChild.id,
-              rootChild.children,
+              rootChild.children
             );
             setData(updatedTree);
 
@@ -278,7 +303,7 @@ function Node({ node, style, dragHandle, tree }: NodeRendererProps<any>) {
       const updatedTreeData = appendNodeChildren(
         treeData,
         node.data.id,
-        childrenTree,
+        childrenTree
       );
 
       setTreeData(updatedTreeData);

@@ -4,7 +4,14 @@ import {
   Comments,
   Groups,
   Pages,
+  Projects,
+  ProjectViews,
   Spaces,
+  TaskDependencies,
+  TaskLabelAssignments,
+  TaskLabels,
+  Tasks,
+  TaskWatchers,
   Users,
   Workspaces,
   PageHistory as History,
@@ -117,3 +124,40 @@ export interface MCPApiKeys {
 export type InsertableMCPApiKey = Insertable<MCPApiKeys>;
 export type UpdateableMCPApiKey = Updateable<MCPApiKeys>;
 export type MCPApiKey = Selectable<McpApiKeys>;
+
+// Project
+export type Project = Selectable<Projects>;
+export type InsertableProject = Insertable<Projects>;
+export type UpdatableProject = Updateable<Omit<Projects, 'id'>>;
+
+// ProjectView
+export type ProjectView = Selectable<ProjectViews>;
+export type InsertableProjectView = Insertable<ProjectViews>;
+export type UpdatableProjectView = Updateable<Omit<ProjectViews, 'id'>>;
+
+// Task
+export type Task = Selectable<Tasks>;
+export type InsertableTask = Insertable<Tasks>;
+export type UpdatableTask = Updateable<Omit<Tasks, 'id'>>;
+
+// TaskDependency
+export type TaskDependency = Selectable<TaskDependencies>;
+export type InsertableTaskDependency = Insertable<TaskDependencies>;
+export type UpdatableTaskDependency = Updateable<Omit<TaskDependencies, 'id'>>;
+
+// TaskLabel
+export type TaskLabel = Selectable<TaskLabels>;
+export type InsertableTaskLabel = Insertable<TaskLabels>;
+export type UpdatableTaskLabel = Updateable<Omit<TaskLabels, 'id'>>;
+
+// TaskLabelAssignment
+export type TaskLabelAssignment = Selectable<TaskLabelAssignments>;
+export type InsertableTaskLabelAssignment = Insertable<TaskLabelAssignments>;
+export type UpdatableTaskLabelAssignment = Updateable<
+  Omit<TaskLabelAssignments, 'id'>
+>;
+
+// TaskWatcher
+export type TaskWatcher = Selectable<TaskWatchers>;
+export type InsertableTaskWatcher = Insertable<TaskWatchers>;
+export type UpdatableTaskWatcher = Updateable<Omit<TaskWatchers, 'id'>>;

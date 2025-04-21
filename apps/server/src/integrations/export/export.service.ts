@@ -76,9 +76,30 @@ export class ExportService {
       </html>`;
     }
 
-    if (format === ExportFormat.Markdown) { 
-      const newPageHtml = pageHtml.replace(/<colgroup[^>]*>[\s\S]*?<\/colgroup>/gmi, '');
+    if (format === ExportFormat.Markdown) {
+      const newPageHtml = pageHtml.replace(
+        /<colgroup[^>]*>[\s\S]*?<\/colgroup>/gim,
+        '',
+      );
       return turndown(newPageHtml);
+    }
+
+    if (format === ExportFormat.PDF) {
+      // For PDF, we'll use the same HTML output and handle PDF conversion on the client
+      return `<!DOCTYPE html>
+      <html>
+        <head>
+         <title>${getPageTitle(page.title)}</title>
+         <style>
+           body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+           img { max-width: 100%; height: auto; }
+           table { border-collapse: collapse; width: 100%; }
+           th, td { border: 1px solid #ddd; padding: 8px; }
+           th { background-color: #f2f2f2; }
+         </style>
+        </head>
+        <body>${pageHtml}</body>
+      </html>`;
     }
 
     return;
@@ -193,7 +214,8 @@ export class ExportService {
 
         if (includeAttachments) {
           await this.zipAttachments(updatedJsonContent, page.spaceId, folder);
-          updatedJsonContent = updateAttachmentUrlsToLocalPaths(updatedJsonContent);
+          updatedJsonContent =
+            updateAttachmentUrlsToLocalPaths(updatedJsonContent);
         }
 
         const pageTitle = getPageTitle(page.title);
@@ -260,14 +282,7 @@ export class ExportService {
 
     const pages = await this.db
       .selectFrom('pages')
-      .select([
-        'id',
-        'slugId',
-        'title',
-        'creatorId',
-        'spaceId',
-        'workspaceId',
-      ])
+      .select(['id', 'slugId', 'title', 'creatorId', 'spaceId', 'workspaceId'])
       .select((eb) => this.pageRepo.withSpace(eb))
       .where('id', 'in', pageMentionIds)
       .where('workspaceId', '=', workspaceId)

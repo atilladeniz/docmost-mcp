@@ -25,6 +25,7 @@ import { sanitize } from 'sanitize-filename-ts';
 import { getExportExtension } from './utils';
 import { getMimeType } from '../../common/helpers';
 import * as path from 'path';
+import { ExportFormat } from './dto/export-dto';
 
 @Controller()
 export class ExportController {
@@ -82,8 +83,13 @@ export class ExportController {
       true,
     );
 
+    let contentType = getMimeType(fileExt);
+    if (dto.format === ExportFormat.PDF) {
+      contentType = 'application/pdf';
+    }
+
     res.headers({
-      'Content-Type': getMimeType(fileExt),
+      'Content-Type': contentType,
       'Content-Disposition':
         'attachment; filename="' + encodeURIComponent(fileName) + '"',
     });

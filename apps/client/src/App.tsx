@@ -29,6 +29,7 @@ import { useRedirectToCloudSelect } from "@/ee/hooks/use-redirect-to-cloud-selec
 import AttachmentsPage from "@/features/attachment/pages/attachments-page.tsx";
 import { useMCPEvents } from "@/features/websocket/hooks/use-mcp-events";
 import NavigationTestPage from "@/features/websocket/pages/navigation-test-page.tsx";
+import { ProjectManagementPage } from "@/features/project/pages/project-management-page.tsx";
 
 export default function App() {
   const { t } = useTranslation();
@@ -63,6 +64,10 @@ export default function App() {
           <Route path={"/home"} element={<Home />} />
           <Route path={"/s/:spaceSlug/home"} element={<SpaceHome />} />
           <Route path={"/s/:spaceSlug/p/:pageSlug"} element={<Page />} />
+          <Route
+            path={"/s/:spaceId/projects"}
+            element={<ProjectManagementPage />}
+          />
           <Route path={"/files"} element={<AttachmentsPage />} />
 
           <Route

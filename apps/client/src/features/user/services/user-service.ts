@@ -1,5 +1,6 @@
 import api from "@/lib/api-client";
 import { ICurrentUser, IUser } from "@/features/user/types/user.types";
+import { IPagination } from "@/lib/types";
 
 export async function getMyInfo(): Promise<ICurrentUser> {
   const req = await api.post<ICurrentUser>("/users/me");
@@ -22,4 +23,13 @@ export async function uploadAvatar(file: File): Promise<any> {
     },
   });
   return req;
+}
+
+export async function getWorkspaceUsers(params: {
+  query?: string;
+  page?: number;
+  limit?: number;
+}): Promise<IPagination<IUser>> {
+  const req = await api.post<IPagination<IUser>>("/workspace/members", params);
+  return req.data;
 }

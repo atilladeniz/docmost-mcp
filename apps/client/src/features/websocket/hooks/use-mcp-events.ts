@@ -178,6 +178,24 @@ export const useMCPEvents = () => {
       exact: false,
     });
 
+    // Specifically invalidate sidebar-pages queries to force tree update
+    console.log(
+      `%c[MCP-HANDLER] 🔄 IMMEDIATELY invalidating sidebar-pages queries`,
+      "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
+    );
+
+    queryClient.invalidateQueries({
+      queryKey: ["sidebar-pages"],
+      exact: false,
+    });
+
+    // Force refetch all sidebar-pages queries
+    queryClient.refetchQueries({
+      queryKey: ["sidebar-pages"],
+      type: "all",
+      exact: false,
+    });
+
     if (event.resourceId) {
       // Handle specific page
       console.log(
@@ -208,6 +226,16 @@ export const useMCPEvents = () => {
         queryKey: ["spacePages", event.spaceId],
       });
 
+      // Specifically invalidate and refetch sidebar-pages for this space
+      queryClient.invalidateQueries({
+        queryKey: ["sidebar-pages", { spaceId: event.spaceId }],
+      });
+
+      queryClient.refetchQueries({
+        queryKey: ["sidebar-pages", { spaceId: event.spaceId }],
+        type: "all",
+      });
+
       // Also refetch the space itself (may need to update page counts)
       queryClient.refetchQueries({
         queryKey: ["space", event.spaceId],
@@ -230,6 +258,29 @@ export const useMCPEvents = () => {
       queryClient.refetchQueries({
         queryKey: ["pageTree"],
       });
+
+      // CRITICAL FIX: Refetch root-sidebar-pages used by the sidebar navigation tree
+      if (event.spaceId) {
+        console.log(
+          `%c[MCP-HANDLER] 🔄 IMMEDIATELY refetching root-sidebar-pages for space ${event.spaceId}`,
+          "background: #FF9800; color: white; padding: 3px; border-radius: 3px; font-weight: bold;"
+        );
+
+        // This is the key query used by the SpaceTree component that isn't being refreshed
+        queryClient.refetchQueries({
+          queryKey: ["root-sidebar-pages", event.spaceId],
+          type: "all",
+        });
+
+        // Also invalidate the tree data atom to force a re-render
+        if (treeData && treeData.length > 0) {
+          console.log(
+            `%c[MCP-HANDLER] 🧹 Invalidating tree data atom to force sidebar refresh`,
+            "background: #4CAF50; color: white; padding: 3px; border-radius: 3px; font-weight: bold;"
+          );
+          setTreeData([...treeData]);
+        }
+      }
 
       // For created pages, use a special approach
       if (event.type === MCPEventType.CREATED) {

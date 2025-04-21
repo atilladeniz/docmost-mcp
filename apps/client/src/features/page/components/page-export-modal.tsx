@@ -19,10 +19,11 @@ export default function PageExportModal({
 }: PageExportModalProps) {
   const { t } = useTranslation();
   const [format, setFormat] = useState<ExportFormat>(ExportFormat.Markdown);
+  const [includeChildren, setIncludeChildren] = useState<boolean>(false);
 
   const handleExport = async () => {
     try {
-      await exportPage({ pageId: pageId, format });
+      await exportPage({ pageId: pageId, format, includeChildren });
       onClose();
     } catch (err) {
       notifications.show({
@@ -65,8 +66,21 @@ export default function PageExportModal({
             <div>
               <Text size="md">{t("Include subpages")}</Text>
             </div>
-            <Switch defaultChecked />
+            <Switch
+              onChange={(event) =>
+                setIncludeChildren(event.currentTarget.checked)
+              }
+              checked={includeChildren}
+            />
           </Group>
+
+          {format === ExportFormat.PDF && includeChildren && (
+            <Text size="xs" c="dimmed" mt="xs">
+              {t(
+                "Note: When exporting multiple pages to PDF, a ZIP file will be downloaded containing HTML files that can be viewed in your browser and saved as PDFs individually."
+              )}
+            </Text>
+          )}
 
           <Group justify="center" mt="md">
             <Button onClick={onClose} variant="default">
@@ -92,6 +106,7 @@ function ExportFormatSelection({ format, onChange }: ExportFormatSelection) {
       data={[
         { value: "markdown", label: "Markdown" },
         { value: "html", label: "HTML" },
+        { value: "pdf", label: "PDF" },
       ]}
       defaultValue={format}
       onChange={onChange}

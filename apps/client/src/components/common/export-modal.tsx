@@ -96,6 +96,14 @@ export default function ExportModal({
                   checked={includeChildren}
                 />
               </Group>
+
+              {format === ExportFormat.PDF && includeChildren && (
+                <Text size="xs" c="dimmed" mt="xs">
+                  {t(
+                    "Note: When exporting multiple pages to PDF, a ZIP file will be downloaded containing HTML files that can be viewed in your browser and saved as PDFs individually."
+                  )}
+                </Text>
+              )}
             </>
           )}
 
@@ -141,6 +149,7 @@ function ExportFormatSelection({ format, onChange }: ExportFormatSelection) {
       data={[
         { value: "markdown", label: "Markdown" },
         { value: "html", label: "HTML" },
+        { value: "pdf", label: "PDF" },
       ]}
       defaultValue={format}
       onChange={onChange}
