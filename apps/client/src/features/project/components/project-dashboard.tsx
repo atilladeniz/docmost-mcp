@@ -15,6 +15,7 @@ import {
   Flex,
   Divider,
   rem,
+  Progress,
 } from "@mantine/core";
 import { useTasksBySpace } from "../hooks/use-tasks";
 import { useProjects } from "../hooks/use-projects";
@@ -29,6 +30,10 @@ import {
   IconClipboard,
   IconProgress,
   IconUser,
+  IconUsers,
+  IconChartBar,
+  IconListCheck,
+  IconAlarm,
 } from "@tabler/icons-react";
 
 interface ProjectDashboardProps {
@@ -42,549 +47,507 @@ export function ProjectDashboard({
 }: ProjectDashboardProps) {
   const { t } = useTranslation();
   const theme = useMantineTheme();
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    null
+  );
 
-  const { data: projectsData, isLoading: projectsLoading } = useProjects({
+  const { data: projectsData, isLoading: isProjectsLoading } = useProjects({
     spaceId,
-    includeArchived: false,
   });
 
-  const { data: tasksData, isLoading: tasksLoading } = useTasksBySpace({
+  const { data: tasksData, isLoading: isTasksLoading } = useTasksBySpace({
     spaceId,
   });
 
   const projects = projectsData?.items || [];
-  const tasks = tasksData?.items || [];
+  const allTasks = tasksData?.items || [];
 
-  const isLoading = projectsLoading || tasksLoading;
+  // Aggregate tasks by project
+  const tasksByProject = useMemo(() => {
+    const taskMap = new Map<string, Task[]>();
 
-  // Project statistics
-  const totalProjects = projects.length;
-  const activeProjects = projects.filter(
-    (project) => !project.isArchived
-  ).length;
-
-  // Task statistics
-  const tasksByStatus = useMemo(() => {
-    const result: Record<TaskStatus, Task[]> = {
-      todo: [],
-      in_progress: [],
-      in_review: [],
-      done: [],
-      blocked: [],
-    };
-
-    tasks.forEach((task) => {
-      result[task.status].push(task);
-    });
-
-    return result;
-  }, [tasks]);
-
-  const tasksByPriority = useMemo(() => {
-    const result: Record<TaskPriority, Task[]> = {
-      low: [],
-      medium: [],
-      high: [],
-      urgent: [],
-    };
-
-    tasks.forEach((task) => {
-      if (task.priority) {
-        result[task.priority].push(task);
+    allTasks.forEach((task) => {
+      if (!taskMap.has(task.projectId)) {
+        taskMap.set(task.projectId, []);
       }
+      taskMap.get(task.projectId)?.push(task);
     });
 
-    return result;
-  }, [tasks]);
+    return taskMap;
+  }, [allTasks]);
 
-  // Calculate completion rates
-  const completionRate = useMemo(() => {
-    if (tasks.length === 0) return 0;
-    return Math.round((tasksByStatus.done.length / tasks.length) * 100);
-  }, [tasks, tasksByStatus]);
+  // Calculate task statistics
+  const taskStats = useMemo(() => {
+    const totalTasks = allTasks.length;
+    const completedTasks = allTasks.filter(
+      (task) => task.status === "done"
+    ).length;
+    const inProgressTasks = allTasks.filter(
+      (task) => task.status === "in_progress"
+    ).length;
+    const blockedTasks = allTasks.filter(
+      (task) => task.status === "blocked"
+    ).length;
 
-  // Find upcoming tasks (due in the next 7 days)
-  const upcomingTasks = useMemo(() => {
+    const highPriorityTasks = allTasks.filter(
+      (task) => task.priority === "high" || task.priority === "urgent"
+    ).length;
+    const tasksWithDueDate = allTasks.filter((task) => task.dueDate).length;
+
+    // Calculate due soon tasks (due within 7 days)
     const now = new Date();
-    const nextWeek = new Date();
-    nextWeek.setDate(now.getDate() + 7);
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(now.getDate() + 7);
 
-    return tasks
-      .filter((task) => {
-        if (!task.dueDate) return false;
-        const dueDate = new Date(task.dueDate);
-        return dueDate >= now && dueDate <= nextWeek && task.status !== "done";
-      })
-      .sort((a, b) => {
-        return new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime();
-      });
-  }, [tasks]);
+    const dueSoonTasks = allTasks.filter((task) => {
+      if (!task.dueDate) return false;
+      const dueDate = new Date(task.dueDate);
+      return (
+        dueDate > now && dueDate <= sevenDaysFromNow && task.status !== "done"
+      );
+    });
 
-  // Find most active project (with most tasks)
+    // Calculate overdue tasks
+    const overdueTasks = allTasks.filter((task) => {
+      if (!task.dueDate) return false;
+      const dueDate = new Date(task.dueDate);
+      return dueDate < now && task.status !== "done";
+    });
+
+    const completionRate =
+      totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+
+    return {
+      totalTasks,
+      completedTasks,
+      inProgressTasks,
+      blockedTasks,
+      highPriorityTasks,
+      dueSoonTasks: dueSoonTasks.length,
+      overdueTasks: overdueTasks.length,
+      tasksWithDueDate,
+      completionRate,
+    };
+  }, [allTasks]);
+
   const projectWithMostTasks = useMemo(() => {
-    const projectTaskCount: Record<string, number> = {};
+    if (projects.length === 0) return null;
 
-    tasks.forEach((task) => {
-      if (task.projectId) {
-        projectTaskCount[task.projectId] =
-          (projectTaskCount[task.projectId] || 0) + 1;
+    let maxTaskCount = 0;
+    let projectWithMax: Project | null = null;
+
+    projects.forEach((project) => {
+      const taskCount = tasksByProject.get(project.id)?.length || 0;
+      if (taskCount > maxTaskCount) {
+        maxTaskCount = taskCount;
+        projectWithMax = project;
       }
     });
 
-    let maxCount = 0;
-    let maxProjectId = null;
+    return {
+      project: projectWithMax,
+      taskCount: maxTaskCount,
+    };
+  }, [projects, tasksByProject]);
 
-    for (const [projectId, count] of Object.entries(projectTaskCount)) {
-      if (count > maxCount) {
-        maxCount = count;
-        maxProjectId = projectId;
-      }
-    }
+  // Get project completion rates
+  const projectCompletionRates = useMemo(() => {
+    return projects
+      .map((project) => {
+        const projectTasks = tasksByProject.get(project.id) || [];
+        const totalCount = projectTasks.length;
+        const completedCount = projectTasks.filter(
+          (task) => task.status === "done"
+        ).length;
+        const completionRate =
+          totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
-    return projects.find((p) => p.id === maxProjectId);
-  }, [tasks, projects]);
+        return {
+          project,
+          totalCount,
+          completedCount,
+          completionRate,
+        };
+      })
+      .sort((a, b) => b.totalCount - a.totalCount);
+  }, [projects, tasksByProject]);
 
   return (
-    <Stack>
-      <Title order={2}>{t("Project Dashboard")}</Title>
+    <Stack spacing="xl">
+      <Title order={2} mb="md">
+        {t("Project Dashboard")}
+      </Title>
 
-      {/* Summary Cards */}
-      <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }}>
-        <Paper withBorder p="md" radius="md">
-          <Group justify="space-between">
-            <Text size="xs" c="dimmed" fw={700} tt="uppercase">
-              {t("Total Projects")}
-            </Text>
-            <IconClipboard
-              size="1.5rem"
-              stroke={1.5}
-              color={theme.colors.blue[6]}
-            />
-          </Group>
-          <Text fw={700} size="xl" mt="md">
-            {totalProjects}
-          </Text>
-          <Text size="xs" c="dimmed" mt={7}>
-            {t("{count} active", { count: activeProjects })}
-          </Text>
-        </Paper>
-
-        <Paper withBorder p="md" radius="md">
+      {/* Summary cards */}
+      <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
+        <Card withBorder p="md" radius="md">
           <Group justify="space-between">
             <Text size="xs" c="dimmed" fw={700} tt="uppercase">
               {t("Total Tasks")}
             </Text>
-            <IconCheckbox
-              size="1.5rem"
-              stroke={1.5}
-              color={theme.colors.indigo[6]}
-            />
+            <IconClipboard size={20} color={theme.colors.blue[6]} />
           </Group>
-          <Text fw={700} size="xl" mt="md">
-            {tasks.length}
+          <Group justify="space-between" mt="xs">
+            <Text size="xl" fw={700}>
+              {taskStats.totalTasks}
+            </Text>
+            <Badge color="blue" variant="light">
+              {projects.length} {t("Projects")}
+            </Badge>
+          </Group>
+          <Text size="xs" c="dimmed" mt="md">
+            <span>
+              {taskStats.completedTasks} {t("completed")}
+            </span>
+            <span> • </span>
+            <span>
+              {taskStats.inProgressTasks} {t("in progress")}
+            </span>
           </Text>
-          <Text size="xs" c="dimmed" mt={7}>
-            {t("{count} completed", { count: tasksByStatus.done.length })}
-          </Text>
-        </Paper>
+        </Card>
 
-        <Paper withBorder p="md" radius="md">
+        <Card withBorder p="md" radius="md">
           <Group justify="space-between">
             <Text size="xs" c="dimmed" fw={700} tt="uppercase">
               {t("Completion Rate")}
             </Text>
-            <IconCheck
-              size="1.5rem"
-              stroke={1.5}
-              color={theme.colors.teal[6]}
+            <IconCheckbox size={20} color={theme.colors.green[6]} />
+          </Group>
+          <Group justify="space-between" mt="xs" wrap="nowrap">
+            <Text size="xl" fw={700}>
+              {taskStats.completionRate.toFixed(0)}%
+            </Text>
+            <RingProgress
+              size={50}
+              roundCaps
+              thickness={4}
+              sections={[
+                {
+                  value: taskStats.completionRate,
+                  color: theme.colors.green[6],
+                },
+              ]}
             />
           </Group>
-          <Text fw={700} size="xl" mt="md">
-            {completionRate}%
-          </Text>
-          <Text size="xs" c="dimmed" mt={7}>
-            {t("of all tasks")}
-          </Text>
-        </Paper>
+          <Progress
+            value={taskStats.completionRate}
+            color="green"
+            size="sm"
+            mt="md"
+          />
+        </Card>
 
-        <Paper withBorder p="md" radius="md">
+        <Card withBorder p="md" radius="md">
           <Group justify="space-between">
             <Text size="xs" c="dimmed" fw={700} tt="uppercase">
-              {t("Urgent Tasks")}
+              {t("Priority Tasks")}
             </Text>
-            <IconAlertCircle
-              size="1.5rem"
-              stroke={1.5}
-              color={theme.colors.red[6]}
-            />
+            <IconAlertCircle size={20} color={theme.colors.orange[6]} />
           </Group>
-          <Text fw={700} size="xl" mt="md">
-            {tasksByPriority.urgent.length}
+          <Group justify="space-between" mt="xs">
+            <Text size="xl" fw={700}>
+              {taskStats.highPriorityTasks}
+            </Text>
+            <Badge color="orange" variant="light">
+              {taskStats.highPriorityTasks > 0
+                ? t("Needs Attention")
+                : t("All Clear")}
+            </Badge>
+          </Group>
+          <Text size="xs" c="dimmed" mt="md">
+            <span>
+              {taskStats.dueSoonTasks} {t("due soon")}
+            </span>
+            <span> • </span>
+            <span>
+              {taskStats.overdueTasks} {t("overdue")}
+            </span>
           </Text>
-          <Text size="xs" c="dimmed" mt={7}>
-            {t("need attention")}
+        </Card>
+
+        <Card withBorder p="md" radius="md">
+          <Group justify="space-between">
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+              {t("Blocked Tasks")}
+            </Text>
+            <IconProgress size={20} color={theme.colors.red[6]} />
+          </Group>
+          <Group justify="space-between" mt="xs">
+            <Text size="xl" fw={700}>
+              {taskStats.blockedTasks}
+            </Text>
+            <Badge
+              color={taskStats.blockedTasks > 0 ? "red" : "green"}
+              variant="light"
+            >
+              {taskStats.blockedTasks > 0
+                ? t("Action Required")
+                : t("No Blockers")}
+            </Badge>
+          </Group>
+          <Text size="xs" c="dimmed" mt="md">
+            {taskStats.blockedTasks > 0
+              ? t("Items requiring intervention")
+              : t("All tasks are unblocked")}
           </Text>
-        </Paper>
+        </Card>
       </SimpleGrid>
 
-      {/* Task Status Distribution */}
-      <Grid gutter="md">
-        <Grid.Col span={{ base: 12, lg: 6 }}>
+      {/* Project status */}
+      <Grid>
+        <Grid.Col span={{ base: 12, md: 7 }}>
           <Paper withBorder p="md" radius="md">
-            <Title order={4} mb="md">
-              {t("Task Status Distribution")}
+            <Title order={3} size="h4" mb="md">
+              {t("Project Status")}
             </Title>
-            <Group wrap="nowrap" gap="xl">
-              <RingProgress
-                size={160}
-                thickness={16}
-                roundCaps
-                sections={[
-                  {
-                    value:
-                      (tasksByStatus.todo.length / Math.max(tasks.length, 1)) *
-                      100,
-                    color: theme.colors.gray[6],
-                  },
-                  {
-                    value:
-                      (tasksByStatus.in_progress.length /
-                        Math.max(tasks.length, 1)) *
-                      100,
-                    color: theme.colors.blue[6],
-                  },
-                  {
-                    value:
-                      (tasksByStatus.in_review.length /
-                        Math.max(tasks.length, 1)) *
-                      100,
-                    color: theme.colors.indigo[6],
-                  },
-                  {
-                    value:
-                      (tasksByStatus.done.length / Math.max(tasks.length, 1)) *
-                      100,
-                    color: theme.colors.green[6],
-                  },
-                  {
-                    value:
-                      (tasksByStatus.blocked.length /
-                        Math.max(tasks.length, 1)) *
-                      100,
-                    color: theme.colors.red[6],
-                  },
-                ]}
-                label={
-                  <div style={{ textAlign: "center" }}>
-                    <Text fw={700} size="xl" ta="center">
-                      {tasks.length}
-                    </Text>
-                    <Text size="xs" c="dimmed" ta="center">
-                      {t("Total")}
-                    </Text>
-                  </div>
-                }
-              />
-              <Stack gap="xs">
-                <Group gap="xs">
-                  <Box
-                    w={16}
-                    h={16}
-                    bg={theme.colors.gray[6]}
-                    style={{ borderRadius: "4px" }}
-                  />
-                  <Text size="sm">
-                    {t("To Do")}: {tasksByStatus.todo.length}
-                  </Text>
-                </Group>
-                <Group gap="xs">
-                  <Box
-                    w={16}
-                    h={16}
-                    bg={theme.colors.blue[6]}
-                    style={{ borderRadius: "4px" }}
-                  />
-                  <Text size="sm">
-                    {t("In Progress")}: {tasksByStatus.in_progress.length}
-                  </Text>
-                </Group>
-                <Group gap="xs">
-                  <Box
-                    w={16}
-                    h={16}
-                    bg={theme.colors.indigo[6]}
-                    style={{ borderRadius: "4px" }}
-                  />
-                  <Text size="sm">
-                    {t("In Review")}: {tasksByStatus.in_review.length}
-                  </Text>
-                </Group>
-                <Group gap="xs">
-                  <Box
-                    w={16}
-                    h={16}
-                    bg={theme.colors.green[6]}
-                    style={{ borderRadius: "4px" }}
-                  />
-                  <Text size="sm">
-                    {t("Done")}: {tasksByStatus.done.length}
-                  </Text>
-                </Group>
-                <Group gap="xs">
-                  <Box
-                    w={16}
-                    h={16}
-                    bg={theme.colors.red[6]}
-                    style={{ borderRadius: "4px" }}
-                  />
-                  <Text size="sm">
-                    {t("Blocked")}: {tasksByStatus.blocked.length}
-                  </Text>
-                </Group>
-              </Stack>
-            </Group>
+            <Stack>
+              {projectCompletionRates
+                .slice(0, 5)
+                .map(
+                  ({ project, totalCount, completedCount, completionRate }) => (
+                    <Box key={project.id}>
+                      <Group justify="space-between" mb={5}>
+                        <Text size="sm" fw={500}>
+                          {project.name}
+                        </Text>
+                        <Group gap={5}>
+                          <Text size="xs" c="dimmed">
+                            {completedCount}/{totalCount}
+                          </Text>
+                          <Text
+                            size="xs"
+                            fw={700}
+                            c={
+                              completionRate >= 70
+                                ? "green"
+                                : completionRate >= 30
+                                  ? "orange"
+                                  : "red"
+                            }
+                          >
+                            {completionRate.toFixed(0)}%
+                          </Text>
+                        </Group>
+                      </Group>
+                      <Progress
+                        value={completionRate}
+                        color={
+                          completionRate >= 70
+                            ? "green"
+                            : completionRate >= 30
+                              ? "orange"
+                              : "red"
+                        }
+                        size="sm"
+                        radius="xl"
+                        mb="md"
+                      />
+                    </Box>
+                  )
+                )}
+
+              {projectCompletionRates.length === 0 && (
+                <Text color="dimmed" size="sm" ta="center" py="md">
+                  {t("No projects available")}
+                </Text>
+              )}
+            </Stack>
           </Paper>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, lg: 6 }}>
-          <Paper withBorder p="md" radius="md">
-            <Title order={4} mb="md">
-              {t("Priority Breakdown")}
+        <Grid.Col span={{ base: 12, md: 5 }}>
+          <Paper withBorder p="md" radius="md" h="100%">
+            <Title order={3} size="h4" mb="md">
+              {t("Task Distribution")}
             </Title>
-            <Group wrap="nowrap" gap="xl">
-              <RingProgress
-                size={160}
-                thickness={16}
-                roundCaps
-                sections={[
-                  {
-                    value:
-                      (tasksByPriority.low.length / Math.max(tasks.length, 1)) *
-                      100,
-                    color: theme.colors.gray[6],
-                  },
-                  {
-                    value:
-                      (tasksByPriority.medium.length /
-                        Math.max(tasks.length, 1)) *
-                      100,
-                    color: theme.colors.blue[6],
-                  },
-                  {
-                    value:
-                      (tasksByPriority.high.length /
-                        Math.max(tasks.length, 1)) *
-                      100,
-                    color: theme.colors.orange[6],
-                  },
-                  {
-                    value:
-                      (tasksByPriority.urgent.length /
-                        Math.max(tasks.length, 1)) *
-                      100,
-                    color: theme.colors.red[6],
-                  },
-                ]}
-                label={
-                  <div style={{ textAlign: "center" }}>
-                    <Text fw={700} size="xl" ta="center">
-                      {tasks.length}
-                    </Text>
-                    <Text size="xs" c="dimmed" ta="center">
-                      {t("Total")}
-                    </Text>
-                  </div>
-                }
-              />
-              <Stack gap="xs">
-                <Group gap="xs">
+
+            <Stack gap="xs">
+              <Group justify="space-between">
+                <Group>
                   <Box
                     w={16}
                     h={16}
-                    bg={theme.colors.gray[6]}
-                    style={{ borderRadius: "4px" }}
+                    bg={theme.colors.blue[5]}
+                    style={{ borderRadius: "50%" }}
                   />
-                  <Text size="sm">
-                    {t("Low")}: {tasksByPriority.low.length}
-                  </Text>
+                  <Text size="sm">{t("To Do")}</Text>
                 </Group>
-                <Group gap="xs">
+                <Text size="sm" fw={500}>
+                  {allTasks.filter((t) => t.status === "todo").length}
+                </Text>
+              </Group>
+
+              <Group justify="space-between">
+                <Group>
                   <Box
                     w={16}
                     h={16}
-                    bg={theme.colors.blue[6]}
-                    style={{ borderRadius: "4px" }}
+                    bg={theme.colors.indigo[5]}
+                    style={{ borderRadius: "50%" }}
                   />
-                  <Text size="sm">
-                    {t("Medium")}: {tasksByPriority.medium.length}
-                  </Text>
+                  <Text size="sm">{t("In Progress")}</Text>
                 </Group>
-                <Group gap="xs">
+                <Text size="sm" fw={500}>
+                  {allTasks.filter((t) => t.status === "in_progress").length}
+                </Text>
+              </Group>
+
+              <Group justify="space-between">
+                <Group>
                   <Box
                     w={16}
                     h={16}
-                    bg={theme.colors.orange[6]}
-                    style={{ borderRadius: "4px" }}
+                    bg={theme.colors.violet[5]}
+                    style={{ borderRadius: "50%" }}
                   />
-                  <Text size="sm">
-                    {t("High")}: {tasksByPriority.high.length}
-                  </Text>
+                  <Text size="sm">{t("In Review")}</Text>
                 </Group>
-                <Group gap="xs">
+                <Text size="sm" fw={500}>
+                  {allTasks.filter((t) => t.status === "in_review").length}
+                </Text>
+              </Group>
+
+              <Group justify="space-between">
+                <Group>
                   <Box
                     w={16}
                     h={16}
-                    bg={theme.colors.red[6]}
-                    style={{ borderRadius: "4px" }}
+                    bg={theme.colors.green[5]}
+                    style={{ borderRadius: "50%" }}
                   />
-                  <Text size="sm">
-                    {t("Urgent")}: {tasksByPriority.urgent.length}
-                  </Text>
+                  <Text size="sm">{t("Done")}</Text>
                 </Group>
-              </Stack>
+                <Text size="sm" fw={500}>
+                  {allTasks.filter((t) => t.status === "done").length}
+                </Text>
+              </Group>
+
+              <Group justify="space-between">
+                <Group>
+                  <Box
+                    w={16}
+                    h={16}
+                    bg={theme.colors.red[5]}
+                    style={{ borderRadius: "50%" }}
+                  />
+                  <Text size="sm">{t("Blocked")}</Text>
+                </Group>
+                <Text size="sm" fw={500}>
+                  {allTasks.filter((t) => t.status === "blocked").length}
+                </Text>
+              </Group>
+            </Stack>
+
+            <Divider my="md" />
+
+            <Group justify="space-between">
+              <Text size="sm" fw={500}>
+                {t("Total")}
+              </Text>
+              <Text size="sm" fw={700}>
+                {allTasks.length}
+              </Text>
             </Group>
           </Paper>
         </Grid.Col>
       </Grid>
 
-      {/* Upcoming Deadlines and Project Highlights */}
-      <Grid gutter="md">
-        <Grid.Col span={{ base: 12, lg: 8 }}>
-          <Paper withBorder p="md" radius="md">
-            <Title order={4} mb="md">
-              {t("Upcoming Deadlines")}
-            </Title>
-            {upcomingTasks.length > 0 ? (
-              <Stack gap="sm">
-                {upcomingTasks.slice(0, 5).map((task) => (
-                  <Paper key={task.id} withBorder p="sm" radius="sm">
-                    <Group justify="space-between">
-                      <Stack gap={4}>
-                        <Text fw={500}>{task.title}</Text>
-                        <Group gap="xs">
-                          <Badge
-                            size="sm"
-                            color={
-                              task.priority === "urgent"
-                                ? "red"
-                                : task.priority === "high"
-                                  ? "orange"
-                                  : task.priority === "medium"
-                                    ? "blue"
-                                    : "gray"
-                            }
-                          >
-                            {task.priority}
-                          </Badge>
-                          <Badge
-                            size="sm"
-                            color={
-                              task.status === "blocked"
-                                ? "red"
-                                : task.status === "in_progress"
-                                  ? "blue"
-                                  : task.status === "in_review"
-                                    ? "indigo"
-                                    : task.status === "done"
-                                      ? "green"
-                                      : "gray"
-                            }
-                          >
-                            {task.status}
-                          </Badge>
-                        </Group>
-                      </Stack>
-                      <Group gap="xs">
-                        <IconCalendarTime size={16} />
-                        <Text size="sm" c="dimmed">
-                          {new Date(
-                            task.dueDate as string
-                          ).toLocaleDateString()}
+      {/* Upcoming deadlines */}
+      <Paper withBorder p="md" radius="md">
+        <Title order={3} size="h4" mb="md">
+          {t("Upcoming Deadlines")}
+        </Title>
+
+        <Stack>
+          {allTasks
+            .filter((task) => task.dueDate && task.status !== "done")
+            .sort(
+              (a, b) =>
+                new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime()
+            )
+            .slice(0, 5)
+            .map((task) => {
+              const dueDate = new Date(task.dueDate!);
+              const now = new Date();
+              const isOverdue = dueDate < now;
+              const isDueSoon =
+                !isOverdue &&
+                dueDate.getTime() - now.getTime() < 7 * 24 * 60 * 60 * 1000;
+
+              // Find the project this task belongs to
+              const project = projects.find((p) => p.id === task.projectId);
+
+              return (
+                <Card key={task.id} withBorder p="sm" radius="md">
+                  <Group justify="space-between" wrap="nowrap">
+                    <Box>
+                      <Group>
+                        <IconAlarm
+                          size={16}
+                          color={
+                            isOverdue
+                              ? theme.colors.red[6]
+                              : isDueSoon
+                                ? theme.colors.orange[6]
+                                : theme.colors.gray[6]
+                          }
+                        />
+                        <Text size="sm" fw={500}>
+                          {task.title}
                         </Text>
                       </Group>
-                    </Group>
-                  </Paper>
-                ))}
-                {upcomingTasks.length > 5 && (
-                  <Text ta="center" size="sm" c="dimmed">
-                    {t("and {count} more tasks", {
-                      count: upcomingTasks.length - 5,
-                    })}
-                  </Text>
-                )}
-              </Stack>
-            ) : (
-              <Text ta="center" c="dimmed">
-                {t("No upcoming deadlines")}
-              </Text>
-            )}
-          </Paper>
-        </Grid.Col>
 
-        <Grid.Col span={{ base: 12, lg: 4 }}>
-          {projectWithMostTasks ? (
-            <Paper withBorder p="md" radius="md" h="100%">
-              <Title order={4} mb="md">
-                {t("Most Active Project")}
-              </Title>
-              <Card withBorder radius="md" p="md">
-                <Group mb="xs">
-                  {projectWithMostTasks.icon && (
-                    <Text size="xl" span>
-                      {projectWithMostTasks.icon}
-                    </Text>
-                  )}
-                  <Text fw={500}>{projectWithMostTasks.name}</Text>
-                </Group>
+                      {project && (
+                        <Text size="xs" c="dimmed" ml={20}>
+                          {project.name}
+                        </Text>
+                      )}
+                    </Box>
 
-                {projectWithMostTasks.description && (
-                  <Text size="sm" lineClamp={2} mb="sm" c="dimmed">
-                    {projectWithMostTasks.description}
-                  </Text>
-                )}
+                    <Badge
+                      color={isOverdue ? "red" : isDueSoon ? "orange" : "blue"}
+                      variant="light"
+                    >
+                      {isOverdue
+                        ? t("Overdue")
+                        : isDueSoon
+                          ? t("Due Soon")
+                          : t("Upcoming")}
+                    </Badge>
+                  </Group>
 
-                <Divider my="sm" />
+                  <Group justify="space-between" mt="xs">
+                    <Badge
+                      size="sm"
+                      color={
+                        task.priority === "urgent"
+                          ? "red"
+                          : task.priority === "high"
+                            ? "orange"
+                            : task.priority === "medium"
+                              ? "blue"
+                              : "gray"
+                      }
+                    >
+                      {task.priority}
+                    </Badge>
 
-                <Stack gap="xs">
-                  <Group gap="xs">
-                    <IconCheckbox size={16} />
-                    <Text size="sm">
-                      {
-                        tasks.filter(
-                          (t) => t.projectId === projectWithMostTasks.id
-                        ).length
-                      }{" "}
-                      {t("tasks")}
+                    <Text size="xs">
+                      {t("Due")}: {dueDate.toLocaleDateString()}
                     </Text>
                   </Group>
-                  <Group gap="xs">
-                    <IconCheck size={16} />
-                    <Text size="sm">
-                      {
-                        tasks.filter(
-                          (t) =>
-                            t.projectId === projectWithMostTasks.id &&
-                            t.status === "done"
-                        ).length
-                      }{" "}
-                      {t("completed")}
-                    </Text>
-                  </Group>
-                </Stack>
-              </Card>
-            </Paper>
-          ) : (
-            <Paper withBorder p="md" radius="md" h="100%">
-              <Title order={4} mb="md">
-                {t("Project Highlight")}
-              </Title>
-              <Text ta="center" c="dimmed">
-                {t("No project data available")}
-              </Text>
-            </Paper>
+                </Card>
+              );
+            })}
+
+          {allTasks.filter((task) => task.dueDate && task.status !== "done")
+            .length === 0 && (
+            <Text color="dimmed" size="sm" ta="center" py="md">
+              {t("No upcoming deadlines")}
+            </Text>
           )}
-        </Grid.Col>
-      </Grid>
+        </Stack>
+      </Paper>
     </Stack>
   );
 }

@@ -1,417 +1,729 @@
-import { useEffect, useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
+  Box,
   Button,
-  Card,
   Group,
   Text,
   Title,
   Stack,
-  Badge,
-  Menu,
-  ActionIcon,
-  Tooltip,
-  TextInput,
-  Loader,
-  Flex,
-  Box,
-  UnstyledButton,
-  ScrollArea,
   Paper,
+  Flex,
+  Badge,
+  ActionIcon,
+  Menu,
+  Loader,
+  SegmentedControl,
+  MultiSelect,
+  Select,
 } from "@mantine/core";
 import {
+  IconArrowLeft,
   IconPlus,
-  IconDotsVertical,
-  IconCheck,
-  IconArrowAutofitRight,
-  IconTrash,
-  IconEdit,
-  IconArrowRight,
-  IconSearch,
   IconFilter,
-  IconX,
+  IconLayoutColumns,
+  IconLayoutRows,
 } from "@tabler/icons-react";
-import { Project, Task, TaskStatus } from "../types";
-import {
-  useTasksByProject,
-  useCreateTaskMutation,
-  useUpdateTaskMutation,
-  useDeleteTaskMutation,
-} from "../hooks/use-tasks";
-import { useDisclosure } from "@mantine/hooks";
-import { modals } from "@mantine/modals";
-import { useTranslation } from "react-i18next";
-import { CustomAvatar } from "@/components/ui/custom-avatar";
-import TaskFormModal from "./task-form-modal";
+import { useTasksByProject } from "../hooks/use-tasks";
+import { Project, Task, TaskPriority, TaskStatus } from "../types";
+import { TaskCard } from "./task-card";
 import {
   DndContext,
-  DragEndEvent,
   DragOverlay,
-  DragStartEvent,
   KeyboardSensor,
   PointerSensor,
-  closestCorners,
   useSensor,
   useSensors,
+  closestCorners,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
-  sortableKeyboardCoordinates,
+  rectSortingStrategy,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { useDisclosure } from "@mantine/hooks";
+import TaskFormModal from "./task-form-modal";
+import { useUpdateTaskMutation } from "../hooks/use-tasks";
+import { useTranslation } from "react-i18next";
 import { SortableTask } from "./sortable-task";
-
-// Map of status to column title
-const statusColumnMap: Record<TaskStatus, { title: string; color: string }> = {
-  todo: { title: "To Do", color: "gray" },
-  in_progress: { title: "In Progress", color: "blue" },
-  in_review: { title: "In Review", color: "indigo" },
-  done: { title: "Done", color: "green" },
-  blocked: { title: "Blocked", color: "red" },
-};
-
-// Order of columns in the board
-const columnOrder: TaskStatus[] = [
-  "todo",
-  "in_progress",
-  "in_review",
-  "done",
-  "blocked",
-];
+import { useWorkspaceUsers } from "@/features/user/hooks/use-workspace-users";
 
 interface ProjectBoardProps {
   project: Project;
   onBack: () => void;
 }
 
+type ViewMode = "kanban" | "swimlane";
+type GroupBy = "status" | "assignee" | "priority";
+
 export function ProjectBoard({ project, onBack }: ProjectBoardProps) {
   const { t } = useTranslation();
+  const [viewMode, setViewMode] = useState<ViewMode>("kanban");
+  const [groupBy, setGroupBy] = useState<GroupBy>("status");
+  const [statusFilter, setStatusFilter] = useState<TaskStatus[]>([]);
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriority[]>([]);
+  const [assigneeFilter, setAssigneeFilter] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [taskModalOpened, { open: openTaskModal, close: closeTaskModal }] =
-    useDisclosure(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [activeDragData, setActiveDragData] = useState<Task | null>(null);
 
-  const { data, isLoading, refetch } = useTasksByProject({
+  const [isFormOpen, { open: openForm, close: closeForm }] =
+    useDisclosure(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  const updateTaskMutation = useUpdateTaskMutation();
+
+  const { data: tasksData, isLoading: isTasksLoading } = useTasksByProject({
     projectId: project.id,
-    includeSubtasks: true,
-    searchTerm: searchTerm || undefined,
   });
 
-  const createTaskMutation = useCreateTaskMutation();
-  const updateTaskMutation = useUpdateTaskMutation();
-  const deleteTaskMutation = useDeleteTaskMutation();
+  const { data: usersData } = useWorkspaceUsers({
+    workspaceId: project.workspaceId,
+  });
 
-  // Configure sensors for drag and drop
+  const users = usersData?.items || [];
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 5,
       },
     }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(KeyboardSensor)
   );
 
-  useEffect(() => {
-    refetch();
-  }, [project.id, refetch]);
+  const tasks = useMemo(() => {
+    if (!tasksData) return [];
+    let filtered = [...tasksData.items];
 
-  const handleOpenCreateTaskModal = () => {
-    setEditingTask(null);
-    openTaskModal();
-  };
+    // Apply filters
+    if (statusFilter.length > 0) {
+      filtered = filtered.filter((task) => statusFilter.includes(task.status));
+    }
 
-  const handleOpenEditTaskModal = (task: Task) => {
-    setEditingTask(task);
-    openTaskModal();
-  };
+    if (priorityFilter.length > 0) {
+      filtered = filtered.filter(
+        (task) => task.priority && priorityFilter.includes(task.priority)
+      );
+    }
 
-  const handleCloseTaskModal = () => {
-    closeTaskModal();
-    setEditingTask(null);
-  };
+    if (assigneeFilter.length > 0) {
+      filtered = filtered.filter(
+        (task) => task.assigneeId && assigneeFilter.includes(task.assigneeId)
+      );
+    }
 
-  const handleMoveTask = (task: Task, newStatus: TaskStatus) => {
-    updateTaskMutation.mutate({
-      taskId: task.id,
-      status: newStatus,
+    if (searchTerm) {
+      const lowerSearchTerm = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (task) =>
+          task.title.toLowerCase().includes(lowerSearchTerm) ||
+          (task.description &&
+            task.description.toLowerCase().includes(lowerSearchTerm))
+      );
+    }
+
+    return filtered;
+  }, [tasksData, statusFilter, priorityFilter, assigneeFilter, searchTerm]);
+
+  const statusGroups = useMemo(() => {
+    const groups: Record<TaskStatus, Task[]> = {
+      todo: [],
+      in_progress: [],
+      in_review: [],
+      done: [],
+      blocked: [],
+    };
+
+    tasks.forEach((task) => {
+      groups[task.status].push(task);
     });
-  };
 
-  const handleCompleteTask = (task: Task) => {
-    updateTaskMutation.mutate({
-      taskId: task.id,
-      status: task.status === "done" ? "todo" : "done",
+    return groups;
+  }, [tasks]);
+
+  const priorityGroups = useMemo(() => {
+    const groups: Record<TaskPriority, Task[]> = {
+      low: [],
+      medium: [],
+      high: [],
+      urgent: [],
+    };
+
+    tasks.forEach((task) => {
+      if (task.priority) {
+        groups[task.priority].push(task);
+      } else {
+        groups.medium.push(task);
+      }
     });
-  };
 
-  const handleDeleteTask = (task: Task) => {
-    modals.openConfirmModal({
-      title: t("Delete task"),
-      children: (
-        <Text size="sm">
-          {t('Are you sure you want to delete task "{title}"?', {
-            title: task.title,
-          })}
-        </Text>
-      ),
-      labels: { confirm: t("Delete"), cancel: t("Cancel") },
-      confirmProps: { color: "red" },
-      onConfirm: () => deleteTaskMutation.mutate(task.id),
+    return groups;
+  }, [tasks]);
+
+  const assigneeGroups = useMemo(() => {
+    const groups: Record<string, Task[]> = { unassigned: [] };
+
+    tasks.forEach((task) => {
+      if (!task.assigneeId) {
+        groups.unassigned.push(task);
+      } else {
+        if (!groups[task.assigneeId]) {
+          groups[task.assigneeId] = [];
+        }
+        groups[task.assigneeId].push(task);
+      }
     });
-  };
 
-  // Handle drag start
+    return groups;
+  }, [tasks]);
+
+  const getAssigneeName = useCallback(
+    (assigneeId: string | null) => {
+      if (!assigneeId) return t("Unassigned");
+      const user = users.find((u) => u.id === assigneeId);
+      return user ? user.name : t("Unknown User");
+    },
+    [users, t]
+  );
+
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     setActiveId(active.id as string);
-
-    // Find the active task to show in drag overlay
-    const taskId = active.id as string;
-    const foundTask = data?.items.find((task) => task.id === taskId);
-    if (foundTask) {
-      setActiveTask(foundTask);
+    const draggedTask = tasks.find((task) => task.id === active.id);
+    if (draggedTask) {
+      setActiveDragData(draggedTask);
     }
   };
 
-  // Handle drag end
+  const handleDragOver = (event: DragOverEvent) => {
+    // Optional: Add visual indicators for valid drop targets
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveId(null);
+    setActiveDragData(null);
 
-    if (!over || active.id === over.id) {
-      setActiveId(null);
-      setActiveTask(null);
-      return;
-    }
+    if (!over) return;
 
-    // Extract the status from the over container ID
-    // Format of container ID is "column-{status}"
-    const containerId = over.id as string;
+    const activeId = active.id as string;
+    const overId = over.id as string;
 
-    if (containerId.startsWith("column-")) {
-      const newStatus = containerId.replace("column-", "") as TaskStatus;
-      const taskId = active.id as string;
-      const task = data?.items.find((t) => t.id === taskId);
+    if (activeId === overId) return;
 
+    // Handle drops into status containers
+    if (overId.startsWith("status-")) {
+      const newStatus = overId.replace("status-", "") as TaskStatus;
+      const task = tasks.find((t) => t.id === activeId);
       if (task && task.status !== newStatus) {
-        handleMoveTask(task, newStatus);
+        updateTaskMutation.mutate({
+          taskId: task.id,
+          status: newStatus,
+        });
       }
     }
-
-    setActiveId(null);
-    setActiveTask(null);
+    // Handle drops into priority containers
+    else if (overId.startsWith("priority-")) {
+      const newPriority = overId.replace("priority-", "") as TaskPriority;
+      const task = tasks.find((t) => t.id === activeId);
+      if (task && task.priority !== newPriority) {
+        updateTaskMutation.mutate({
+          taskId: task.id,
+          priority: newPriority,
+        });
+      }
+    }
+    // Handle drops into assignee containers
+    else if (overId.startsWith("assignee-")) {
+      const newAssigneeId = overId.replace("assignee-", "");
+      const task = tasks.find((t) => t.id === activeId);
+      if (
+        task &&
+        task.assigneeId !==
+          (newAssigneeId === "unassigned" ? null : newAssigneeId)
+      ) {
+        updateTaskMutation.mutate({
+          taskId: task.id,
+          assigneeId: newAssigneeId === "unassigned" ? null : newAssigneeId,
+        });
+      }
+    }
   };
 
-  const renderTaskCard = (task: Task) => (
-    <SortableTask
-      key={task.id}
-      id={task.id}
-      task={task}
-      onEdit={() => handleOpenEditTaskModal(task)}
-      onComplete={() => handleCompleteTask(task)}
-      onDelete={() => handleDeleteTask(task)}
-      onMove={(newStatus) => handleMoveTask(task, newStatus)}
-    />
-  );
-
-  const renderColumn = (status: TaskStatus) => {
-    const columnTasks =
-      data?.items.filter((task) => task.status === status) || [];
-    const columnInfo = statusColumnMap[status];
-    const columnId = `column-${status}`;
-
-    return (
-      <Paper
-        withBorder
-        p="xs"
-        radius="md"
-        shadow="xs"
-        w="300px"
-        h="100%"
-        style={{ display: "flex", flexDirection: "column" }}
-        key={columnId}
-        id={columnId}
-      >
-        <Group justify="space-between" mb="sm">
-          <Badge color={columnInfo.color} size="lg" variant="filled">
-            {columnInfo.title} ({columnTasks.length})
-          </Badge>
-
-          <Tooltip label={t("Add task to this column")}>
-            <ActionIcon
-              variant="light"
-              onClick={() => {
-                setEditingTask({ status } as Task);
-                openTaskModal();
-              }}
-              color={columnInfo.color}
-            >
-              <IconPlus size={14} />
-            </ActionIcon>
-          </Tooltip>
-        </Group>
-
-        <ScrollArea h="calc(100vh - 250px)" style={{ flex: 1 }}>
-          <SortableContext
-            items={columnTasks.map((task) => task.id)}
-            strategy={verticalListSortingStrategy}
-            id={columnId}
-          >
-            {columnTasks.map(renderTaskCard)}
-          </SortableContext>
-
-          {columnTasks.length === 0 && (
-            <Box py="md">
-              <Text ta="center" c="dimmed" size="sm">
-                {t("No tasks")}
-              </Text>
-            </Box>
-          )}
-        </ScrollArea>
-      </Paper>
-    );
+  const handleCreateTask = (status: TaskStatus) => {
+    setSelectedTask(null);
+    openForm();
   };
 
-  if (isLoading) {
-    return (
-      <Flex justify="center" align="center" h="200px">
-        <Loader />
-      </Flex>
-    );
-  }
+  const handleEditTask = (task: Task) => {
+    setSelectedTask(task);
+    openForm();
+  };
 
-  return (
-    <>
-      <Stack gap="md">
-        <Group justify="space-between">
-          <Group gap="xs">
-            <UnstyledButton onClick={onBack}>
-              <ActionIcon variant="subtle" color="gray">
-                <IconArrowAutofitRight
-                  size={18}
-                  style={{ transform: "rotate(180deg)" }}
-                />
-              </ActionIcon>
-            </UnstyledButton>
-            <Title order={3}>
-              {project.icon && (
-                <span style={{ marginRight: 8 }}>{project.icon}</span>
-              )}
-              {project.name}
-            </Title>
-            {project.isArchived && <Badge color="gray">{t("Archived")}</Badge>}
-          </Group>
+  const statusOptions = [
+    { value: "todo", label: t("To Do") },
+    { value: "in_progress", label: t("In Progress") },
+    { value: "in_review", label: t("In Review") },
+    { value: "done", label: t("Done") },
+    { value: "blocked", label: t("Blocked") },
+  ];
 
-          <Group>
-            <TextInput
-              placeholder={t("Search tasks...")}
-              leftSection={<IconSearch size={16} />}
-              rightSection={
-                searchTerm ? (
-                  <ActionIcon size="sm" onClick={() => setSearchTerm("")}>
-                    <IconX size={14} />
-                  </ActionIcon>
-                ) : undefined
+  const priorityOptions = [
+    { value: "low", label: t("Low") },
+    { value: "medium", label: t("Medium") },
+    { value: "high", label: t("High") },
+    { value: "urgent", label: t("Urgent") },
+  ];
+
+  const assigneeOptions = useMemo(() => {
+    return users.map((user) => ({
+      value: user.id,
+      label: user.name,
+      image: user.avatarUrl,
+    }));
+  }, [users]);
+
+  const renderFilters = () => (
+    <Group mb="md">
+      <Menu position="bottom-start">
+        <Menu.Target>
+          <Button leftSection={<IconFilter size={16} />} variant="light">
+            {t("Filters")}
+          </Button>
+        </Menu.Target>
+        <Menu.Dropdown w={250}>
+          <Menu.Label>{t("Status")}</Menu.Label>
+          <Box p="xs">
+            <MultiSelect
+              data={statusOptions}
+              value={statusFilter}
+              onChange={(value: string[]) =>
+                setStatusFilter(value as TaskStatus[])
               }
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.currentTarget.value)}
-              size="sm"
-              w="200px"
+              placeholder={t("Filter by status")}
+              size="xs"
+              clearable
             />
-            <Button
-              leftSection={<IconPlus size={16} />}
-              onClick={handleOpenCreateTaskModal}
-            >
-              {t("New Task")}
-            </Button>
-          </Group>
-        </Group>
+          </Box>
 
-        <ScrollArea h="calc(100vh - 150px)" type="auto" offsetScrollbars>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCorners}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <Flex gap="md" align="flex-start" style={{ width: "fit-content" }}>
-              {columnOrder.map(renderColumn)}
-            </Flex>
+          <Menu.Divider />
 
-            <DragOverlay>
-              {activeId && activeTask ? (
-                <Card
-                  shadow="xs"
-                  mb="sm"
-                  withBorder
-                  p="sm"
-                  style={{ width: "280px", opacity: 0.8 }}
-                >
-                  <Stack gap="xs">
-                    <Group justify="space-between" mb={0}>
-                      <ActionIcon
-                        color={activeTask.status === "done" ? "green" : "gray"}
-                        variant={
-                          activeTask.status === "done" ? "filled" : "outline"
-                        }
-                        radius="xl"
-                        size="sm"
-                      >
-                        {activeTask.status === "done" ? (
-                          <IconCheck size={14} />
-                        ) : (
-                          <div style={{ width: 14, height: 14 }} />
-                        )}
-                      </ActionIcon>
-                    </Group>
+          <Menu.Label>{t("Priority")}</Menu.Label>
+          <Box p="xs">
+            <MultiSelect
+              data={priorityOptions}
+              value={priorityFilter}
+              onChange={(value: string[]) =>
+                setPriorityFilter(value as TaskPriority[])
+              }
+              placeholder={t("Filter by priority")}
+              size="xs"
+              clearable
+            />
+          </Box>
 
-                    <Text fw={500} size="sm" lineClamp={2}>
-                      {activeTask.title}
-                    </Text>
+          <Menu.Divider />
 
-                    {activeTask.description && (
-                      <Text size="xs" c="dimmed" lineClamp={2}>
-                        {activeTask.description}
-                      </Text>
-                    )}
+          <Menu.Label>{t("Assignee")}</Menu.Label>
+          <Box p="xs">
+            <MultiSelect
+              data={assigneeOptions}
+              value={assigneeFilter}
+              onChange={(value: string[]) => setAssigneeFilter(value)}
+              placeholder={t("Filter by assignee")}
+              size="xs"
+              clearable
+            />
+          </Box>
+        </Menu.Dropdown>
+      </Menu>
 
-                    {activeTask.priority && (
-                      <Badge
-                        size="xs"
-                        color={
-                          activeTask.priority === "urgent"
-                            ? "red"
-                            : activeTask.priority === "high"
-                              ? "orange"
-                              : activeTask.priority === "medium"
-                                ? "blue"
-                                : "gray"
-                        }
-                      >
-                        {activeTask.priority}
-                      </Badge>
-                    )}
-                  </Stack>
-                </Card>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
-        </ScrollArea>
-      </Stack>
+      <SegmentedControl
+        value={viewMode}
+        onChange={(value) => setViewMode(value as ViewMode)}
+        data={[
+          {
+            value: "kanban",
+            label: (
+              <Group gap={5}>
+                <IconLayoutColumns size={16} />
+                <span>{t("Kanban")}</span>
+              </Group>
+            ),
+          },
+          {
+            value: "swimlane",
+            label: (
+              <Group gap={5}>
+                <IconLayoutRows size={16} />
+                <span>{t("Swimlanes")}</span>
+              </Group>
+            ),
+          },
+        ]}
+      />
 
-      {/* Task Create/Edit Modal */}
-      {taskModalOpened && (
-        <TaskFormModal
-          opened={taskModalOpened}
-          onClose={handleCloseTaskModal}
-          projectId={project.id}
-          spaceId={project.spaceId}
-          task={editingTask}
+      {viewMode === "swimlane" && (
+        <Select
+          value={groupBy}
+          onChange={(value) => setGroupBy(value as GroupBy)}
+          data={[
+            { value: "status", label: t("Group by Status") },
+            { value: "assignee", label: t("Group by Assignee") },
+            { value: "priority", label: t("Group by Priority") },
+          ]}
+          size="sm"
         />
       )}
-    </>
+    </Group>
+  );
+
+  const renderKanbanBoard = () => (
+    <Flex
+      gap="md"
+      wrap="nowrap"
+      style={{ overflowX: "auto", padding: "0 0 16px 0" }}
+    >
+      {Object.entries(statusGroups).map(([status, statusTasks]) => (
+        <Box key={status} style={{ minWidth: 280 }}>
+          <Paper
+            id={`status-${status}`}
+            withBorder
+            p="md"
+            style={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <Group justify="space-between" mb="sm">
+              <Badge size="lg" variant="light">
+                {t(
+                  status === "todo"
+                    ? "To Do"
+                    : status === "in_progress"
+                      ? "In Progress"
+                      : status === "in_review"
+                        ? "In Review"
+                        : status === "done"
+                          ? "Done"
+                          : "Blocked"
+                )}
+              </Badge>
+              <Text size="sm" c="dimmed">
+                {statusTasks.length}
+              </Text>
+            </Group>
+
+            <Stack gap="xs" style={{ flex: 1, minHeight: 200 }}>
+              <SortableContext
+                items={statusTasks.map((task) => task.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {statusTasks.map((task) => (
+                  <SortableTask
+                    key={task.id}
+                    id={task.id}
+                    task={task}
+                    onClick={() => handleEditTask(task)}
+                    users={users}
+                  />
+                ))}
+              </SortableContext>
+            </Stack>
+
+            <Button
+              leftSection={<IconPlus size={16} />}
+              variant="subtle"
+              fullWidth
+              mt="md"
+              onClick={() => handleCreateTask(status as TaskStatus)}
+            >
+              {t("Add Task")}
+            </Button>
+          </Paper>
+        </Box>
+      ))}
+    </Flex>
+  );
+
+  const renderSwimlanesByStatus = () => (
+    <Stack>
+      {Object.entries(statusGroups).map(([status, statusTasks]) => (
+        <Paper key={status} withBorder p="md">
+          <Group justify="space-between" mb="md">
+            <Badge size="lg" variant="light">
+              {t(
+                status === "todo"
+                  ? "To Do"
+                  : status === "in_progress"
+                    ? "In Progress"
+                    : status === "in_review"
+                      ? "In Review"
+                      : status === "done"
+                        ? "Done"
+                        : "Blocked"
+              )}
+            </Badge>
+            <Group>
+              <Text size="sm" c="dimmed">
+                {statusTasks.length}
+              </Text>
+              <Button
+                leftSection={<IconPlus size={16} />}
+                variant="subtle"
+                size="xs"
+                onClick={() => handleCreateTask(status as TaskStatus)}
+              >
+                {t("Add Task")}
+              </Button>
+            </Group>
+          </Group>
+
+          <Box
+            id={`status-${status}`}
+            style={{
+              minHeight: statusTasks.length > 0 ? "auto" : 80,
+              backgroundColor: "#f9f9f9",
+              borderRadius: 8,
+              padding: 8,
+            }}
+          >
+            <SortableContext
+              items={statusTasks.map((task) => task.id)}
+              strategy={rectSortingStrategy}
+            >
+              <Flex gap="md" wrap="wrap">
+                {statusTasks.map((task) => (
+                  <Box key={task.id} style={{ width: 250 }}>
+                    <SortableTask
+                      id={task.id}
+                      task={task}
+                      onClick={() => handleEditTask(task)}
+                      users={users}
+                    />
+                  </Box>
+                ))}
+                {statusTasks.length === 0 && (
+                  <Text size="sm" c="dimmed" ta="center" w="100%" py="sm">
+                    {t("No tasks")}
+                  </Text>
+                )}
+              </Flex>
+            </SortableContext>
+          </Box>
+        </Paper>
+      ))}
+    </Stack>
+  );
+
+  const renderSwimlanesByAssignee = () => (
+    <Stack>
+      {Object.entries(assigneeGroups).map(([assigneeId, assigneeTasks]) => (
+        <Paper key={assigneeId} withBorder p="md">
+          <Group justify="space-between" mb="md">
+            <Group>
+              <Badge size="lg" variant="light">
+                {getAssigneeName(
+                  assigneeId === "unassigned" ? null : assigneeId
+                )}
+              </Badge>
+            </Group>
+            <Group>
+              <Text size="sm" c="dimmed">
+                {assigneeTasks.length}
+              </Text>
+              <Button
+                leftSection={<IconPlus size={16} />}
+                variant="subtle"
+                size="xs"
+                onClick={() => handleCreateTask("todo")}
+              >
+                {t("Add Task")}
+              </Button>
+            </Group>
+          </Group>
+
+          <Box
+            id={`assignee-${assigneeId}`}
+            style={{
+              minHeight: assigneeTasks.length > 0 ? "auto" : 80,
+              backgroundColor: "#f9f9f9",
+              borderRadius: 8,
+              padding: 8,
+            }}
+          >
+            <SortableContext
+              items={assigneeTasks.map((task) => task.id)}
+              strategy={rectSortingStrategy}
+            >
+              <Flex gap="md" wrap="wrap">
+                {assigneeTasks.map((task) => (
+                  <Box key={task.id} style={{ width: 250 }}>
+                    <SortableTask
+                      id={task.id}
+                      task={task}
+                      onClick={() => handleEditTask(task)}
+                      users={users}
+                    />
+                  </Box>
+                ))}
+                {assigneeTasks.length === 0 && (
+                  <Text size="sm" c="dimmed" ta="center" w="100%" py="sm">
+                    {t("No tasks")}
+                  </Text>
+                )}
+              </Flex>
+            </SortableContext>
+          </Box>
+        </Paper>
+      ))}
+    </Stack>
+  );
+
+  const renderSwimlanesByPriority = () => (
+    <Stack>
+      {Object.entries(priorityGroups).map(([priority, priorityTasks]) => (
+        <Paper key={priority} withBorder p="md">
+          <Group justify="space-between" mb="md">
+            <Badge
+              size="lg"
+              variant="light"
+              color={
+                priority === "urgent"
+                  ? "red"
+                  : priority === "high"
+                    ? "orange"
+                    : priority === "medium"
+                      ? "blue"
+                      : "gray"
+              }
+            >
+              {t(priority.charAt(0).toUpperCase() + priority.slice(1))}
+            </Badge>
+            <Group>
+              <Text size="sm" c="dimmed">
+                {priorityTasks.length}
+              </Text>
+              <Button
+                leftSection={<IconPlus size={16} />}
+                variant="subtle"
+                size="xs"
+                onClick={() => handleCreateTask("todo")}
+              >
+                {t("Add Task")}
+              </Button>
+            </Group>
+          </Group>
+
+          <Box
+            id={`priority-${priority}`}
+            style={{
+              minHeight: priorityTasks.length > 0 ? "auto" : 80,
+              backgroundColor: "#f9f9f9",
+              borderRadius: 8,
+              padding: 8,
+            }}
+          >
+            <SortableContext
+              items={priorityTasks.map((task) => task.id)}
+              strategy={rectSortingStrategy}
+            >
+              <Flex gap="md" wrap="wrap">
+                {priorityTasks.map((task) => (
+                  <Box key={task.id} style={{ width: 250 }}>
+                    <SortableTask
+                      id={task.id}
+                      task={task}
+                      onClick={() => handleEditTask(task)}
+                      users={users}
+                    />
+                  </Box>
+                ))}
+                {priorityTasks.length === 0 && (
+                  <Text size="sm" c="dimmed" ta="center" w="100%" py="sm">
+                    {t("No tasks")}
+                  </Text>
+                )}
+              </Flex>
+            </SortableContext>
+          </Box>
+        </Paper>
+      ))}
+    </Stack>
+  );
+
+  const renderContent = () => {
+    if (isTasksLoading) {
+      return (
+        <Flex justify="center" align="center" h={300}>
+          <Loader />
+        </Flex>
+      );
+    }
+
+    if (viewMode === "kanban") {
+      return renderKanbanBoard();
+    }
+
+    if (viewMode === "swimlane") {
+      if (groupBy === "status") return renderSwimlanesByStatus();
+      if (groupBy === "assignee") return renderSwimlanesByAssignee();
+      if (groupBy === "priority") return renderSwimlanesByPriority();
+    }
+  };
+
+  return (
+    <Box>
+      <Group justify="space-between" mb="md">
+        <Group>
+          <ActionIcon variant="subtle" onClick={onBack}>
+            <IconArrowLeft />
+          </ActionIcon>
+          <Title order={3}>{project.name}</Title>
+        </Group>
+        <Button
+          leftSection={<IconPlus size={16} />}
+          onClick={() => handleCreateTask("todo")}
+        >
+          {t("New Task")}
+        </Button>
+      </Group>
+
+      {renderFilters()}
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        modifiers={[]}
+      >
+        {renderContent()}
+
+        <DragOverlay>
+          {activeId && activeDragData ? (
+            <TaskCard
+              task={activeDragData}
+              onClick={() => {}}
+              isDragging={true}
+              users={users}
+            />
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      <TaskFormModal
+        opened={isFormOpen}
+        onClose={closeForm}
+        projectId={project.id}
+        spaceId={project.spaceId}
+        task={selectedTask}
+      />
+    </Box>
   );
 }

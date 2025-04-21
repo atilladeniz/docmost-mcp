@@ -29,6 +29,7 @@ export async function getWorkspaceUsers(params: {
   query?: string;
   page?: number;
   limit?: number;
+  workspaceId?: string;
 }): Promise<IPagination<IUser>> {
   const req = await api.post<IPagination<IUser>>("/workspace/members", params);
   return req.data;
