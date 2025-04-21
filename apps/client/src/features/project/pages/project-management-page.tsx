@@ -16,6 +16,7 @@ import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useCurrentSpace } from "@/features/space/hooks/use-current-space";
 import { useCurrentWorkspace } from "@/features/workspace/hooks/use-current-workspace";
+import { ProjectDashboard } from "../components/project-dashboard";
 
 export function ProjectManagementPage() {
   const { t } = useTranslation();
@@ -23,6 +24,7 @@ export function ProjectManagementPage() {
   const { data: spaceData } = useCurrentSpace();
   const { data: workspaceData } = useCurrentWorkspace();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [showDashboard, setShowDashboard] = useState(true);
 
   if (!spaceId || !spaceData || !workspaceData) {
     return (
@@ -34,10 +36,15 @@ export function ProjectManagementPage() {
 
   const handleSelectProject = (project: Project) => {
     setSelectedProject(project);
+    setShowDashboard(false);
   };
 
   const handleBackToProjects = () => {
     setSelectedProject(null);
+  };
+
+  const handleToggleDashboard = () => {
+    setShowDashboard(!showDashboard);
   };
 
   const renderBreadcrumbs = () => {
@@ -49,6 +56,10 @@ export function ProjectManagementPage() {
 
     if (selectedProject) {
       items.push({ title: selectedProject.name, href: "#" });
+    } else if (!showDashboard) {
+      items.push({ title: t("All Projects"), href: "#" });
+    } else {
+      items.push({ title: t("Dashboard"), href: "#" });
     }
 
     return (
@@ -58,8 +69,20 @@ export function ProjectManagementPage() {
             key={index}
             href={item.href}
             onClick={(e) => {
-              if (index === items.length - 1) {
-                e.preventDefault();
+              e.preventDefault();
+              if (index === items.length - 1 && item.title === t("Dashboard")) {
+                // Don't do anything if we're already on the dashboard
+              } else if (
+                index === items.length - 1 &&
+                item.title === t("All Projects")
+              ) {
+                setShowDashboard(true);
+              } else if (
+                index === items.length - 2 &&
+                items[items.length - 1].title !== t("Dashboard")
+              ) {
+                setSelectedProject(null);
+                setShowDashboard(false);
               }
             }}
           >
@@ -80,11 +103,17 @@ export function ProjectManagementPage() {
             project={selectedProject}
             onBack={handleBackToProjects}
           />
+        ) : showDashboard ? (
+          <ProjectDashboard
+            spaceId={spaceId}
+            onSelectProject={handleSelectProject}
+          />
         ) : (
           <ProjectList
             spaceId={spaceId}
             workspaceId={workspaceData.id}
             onSelectProject={handleSelectProject}
+            onShowDashboard={() => setShowDashboard(true)}
           />
         )}
       </Paper>

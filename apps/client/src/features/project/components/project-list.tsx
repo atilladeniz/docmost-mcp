@@ -23,6 +23,7 @@ import {
   IconSearch,
   IconPlus,
   IconArchiveOff,
+  IconLayoutDashboard,
 } from "@tabler/icons-react";
 import {
   useProjects,
@@ -39,12 +40,14 @@ interface ProjectListProps {
   spaceId: string;
   workspaceId: string;
   onSelectProject: (project: Project) => void;
+  onShowDashboard?: () => void;
 }
 
 export function ProjectList({
   spaceId,
   workspaceId,
   onSelectProject,
+  onShowDashboard,
 }: ProjectListProps) {
   const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
@@ -116,12 +119,23 @@ export function ProjectList({
       <Stack gap="md">
         <Group justify="space-between">
           <Title order={3}>{t("Projects")}</Title>
-          <Button
-            leftSection={<IconPlus size={16} />}
-            onClick={openCreateModal}
-          >
-            {t("New Project")}
-          </Button>
+          <Group>
+            {onShowDashboard && (
+              <Button
+                leftSection={<IconLayoutDashboard size={16} />}
+                variant="light"
+                onClick={onShowDashboard}
+              >
+                {t("Dashboard")}
+              </Button>
+            )}
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={openCreateModal}
+            >
+              {t("New Project")}
+            </Button>
+          </Group>
         </Group>
 
         <Group>
