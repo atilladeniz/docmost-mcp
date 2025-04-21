@@ -8,6 +8,33 @@ export type TaskStatus =
   | "blocked";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 
+// Label colors supported by the system
+export type LabelColor =
+  | "red"
+  | "pink"
+  | "grape"
+  | "violet"
+  | "indigo"
+  | "blue"
+  | "cyan"
+  | "teal"
+  | "green"
+  | "lime"
+  | "yellow"
+  | "orange"
+  | "gray";
+
+export interface Label {
+  id: string;
+  name: string;
+  color: LabelColor;
+  projectId: string;
+  spaceId: string;
+  workspaceId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -60,11 +87,7 @@ export interface Task {
     title: string;
     status: TaskStatus;
   };
-  labels?: Array<{
-    id: string;
-    name: string;
-    color: string;
-  }>;
+  labels?: Label[];
 }
 
 export interface ProjectListParams {
@@ -135,4 +158,27 @@ export interface UpdateTaskParams {
   dueDate?: Date | null;
   assigneeId?: string | null;
   estimatedTime?: number | null;
+}
+
+export interface CreateLabelParams {
+  name: string;
+  color: LabelColor;
+  projectId: string;
+  spaceId: string;
+}
+
+export interface UpdateLabelParams {
+  labelId: string;
+  name?: string;
+  color?: LabelColor;
+}
+
+export interface AssignLabelToTaskParams {
+  taskId: string;
+  labelId: string;
+}
+
+export interface RemoveLabelFromTaskParams {
+  taskId: string;
+  labelId: string;
 }
