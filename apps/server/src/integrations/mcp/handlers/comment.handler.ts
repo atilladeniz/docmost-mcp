@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CommentService } from '../../../core/comment/comment.service';
-import { CommentRepo } from '@docmost/db/repos/comment/comment.repo';
-import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { CommentRepo } from '../../../database/repos/comment/comment.repo';
+import { PageRepo } from '../../../database/repos/page/page.repo';
 import { WorkspaceService } from '../../../core/workspace/services/workspace.service';
 import { UserService } from '../../../core/user/user.service';
 import { User } from '@docmost/db/types/entity.types';

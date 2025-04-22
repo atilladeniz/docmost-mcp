@@ -16,6 +16,8 @@ import { GroupModule } from './group/group.module';
 import { CaslModule } from './casl/casl.module';
 import { DomainMiddleware } from '../common/middlewares/domain.middleware';
 import { ProjectModule } from './project/project.module';
+import { DatabaseModule } from '../database/database.module';
+import { EnvironmentModule } from '../integrations/environment/environment.module';
 
 const modules = [
   UserModule,
@@ -32,7 +34,7 @@ const modules = [
 ];
 
 @Module({
-  imports: [...modules],
+  imports: [...modules, DatabaseModule, EnvironmentModule],
   controllers: [],
   providers: [],
   exports: [...modules],

@@ -56,7 +56,7 @@ Docmost currently supports basic task management through the editor with the fol
 - [x] Add due date and reminder functionality
 - [x] Implement task conversion from document content
 
-### Phase 3: UI Components (🔄 In Progress)
+### Phase 3: UI Components (✅ Completed)
 - [x] Project management page component
 - [x] Create project list view with filtering options
 - [x] Implement project creation and editing modals
@@ -64,8 +64,8 @@ Docmost currently supports basic task management through the editor with the fol
 - [x] Create task detail modal
 - [x] Implement task assignment UI
 - [x] Add date pickers for deadlines
-- [ ] Create project overview dashboard
-- [ ] Implement drag and drop for tasks
+- [x] Implement drag and drop for tasks
+- [x] Create project overview dashboard
 
 ### Phase 4: Integration (⏳ Not Started)
 - [ ] Connect task lists in documents with task database
@@ -121,8 +121,28 @@ Docmost currently supports basic task management through the editor with the fol
 - Created user service with getWorkspaceUsers functionality for member listing
 - Set up proper routing for project management views in the application
 
+**2024-04-22**: Implemented drag-and-drop functionality for tasks:
+- Added @dnd-kit libraries for accessible drag and drop capabilities
+- Created SortableTask component for draggable task cards
+- Implemented column-to-column task movement via drag and drop
+- Added visual feedback during dragging with task preview overlay
+- Maintained task card functionality while making them draggable
+- Integrated drag-and-drop actions with the existing task update mutation
+- Ensured the UI provides clear visual cues for drag source and drop targets
+- Maintained accessibility by supporting both pointer and keyboard interactions
+
+**2024-04-22**: Created project dashboard with statistics and analytics:
+- Designed an intuitive overview dashboard as the entry point to project management
+- Implemented task distribution charts by status and priority using RingProgress components
+- Added key metrics including completion rates, total projects, and task counts
+- Created an upcoming deadlines section showing tasks due in the next 7 days
+- Added project highlight section featuring the most active project
+- Integrated the dashboard with the existing project management navigation
+- Ensured responsive design for all screen sizes
+- Used memoization for efficient data processing and rendering
+
 **Next Steps**: 
-1. Implement drag and drop functionality for tasks between status columns
-2. Create a project overview dashboard with task statistics
-3. Implement task synchronization between document task lists and the task database
-4. Add notifications for task assignments and deadline reminders 
+1. Implement task synchronization between document task lists and the task database
+2. Add notifications for task assignments and deadline reminders
+3. Enhance Kanban board with additional filtering and sorting options
+4. Create task mentions in documents 

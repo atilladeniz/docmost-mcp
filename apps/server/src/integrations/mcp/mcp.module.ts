@@ -32,6 +32,7 @@ import { MCPApiKeyGuard } from './guards/mcp-api-key.guard';
 import { MCPAuthGuard } from './guards/mcp-auth.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { EnvironmentModule } from '../../integrations/environment/environment.module';
+import { DatabaseModule } from '../../database/database.module';
 
 /**
  * Machine Control Protocol (MCP) Module
@@ -52,6 +53,7 @@ import { EnvironmentModule } from '../../integrations/environment/environment.mo
     CaslModule,
     TokenModule,
     EnvironmentModule,
+    DatabaseModule,
     EventEmitterModule.forRoot(),
   ],
   controllers: [MCPController, ApiKeyController],

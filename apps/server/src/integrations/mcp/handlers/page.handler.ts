@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PageService } from '../../../core/page/services/page.service';
-import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { PageRepo } from '../../../database/repos/page/page.repo';
 import SpaceAbilityFactory from '../../../core/casl/abilities/space-ability.factory';
 import {
   SpaceCaslAction,

@@ -3,11 +3,12 @@ import { HealthController } from './health.controller';
 import { TerminusModule } from '@nestjs/terminus';
 import { PostgresHealthIndicator } from './postgres.health';
 import { RedisHealthIndicator } from './redis.health';
+import { DatabaseModule } from '../../database/database.module';
 
 @Global()
 @Module({
   controllers: [HealthController],
   providers: [PostgresHealthIndicator, RedisHealthIndicator],
-  imports: [TerminusModule],
+  imports: [TerminusModule, DatabaseModule],
 })
 export class HealthModule {}

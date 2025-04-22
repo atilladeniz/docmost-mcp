@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { CreatePageDto } from '../dto/create-page.dto';
 import { UpdatePageDto } from '../dto/update-page.dto';
-import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { PageRepo } from '../../../database/repos/page/page.repo';
 import { Page } from '@docmost/db/types/entity.types';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import {
@@ -20,7 +20,7 @@ import { ExpressionBuilder } from 'kysely';
 import { DB } from '@docmost/db/types/db';
 import { generateSlugId } from '../../../common/helpers';
 import { executeTx } from '@docmost/db/utils';
-import { AttachmentRepo } from '@docmost/db/repos/attachment/attachment.repo';
+import { AttachmentRepo } from '../../../database/repos/attachment/attachment.repo';
 
 @Injectable()
 export class PageService {

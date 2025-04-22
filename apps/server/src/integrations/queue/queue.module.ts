@@ -4,10 +4,12 @@ import { EnvironmentService } from '../environment/environment.service';
 import { createRetryStrategy, parseRedisUrl } from '../../common/helpers';
 import { QueueName } from './constants';
 import { BacklinksProcessor } from './processors/backlinks.processor';
+import { DatabaseModule } from '../../database/database.module';
 
 @Global()
 @Module({
   imports: [
+    DatabaseModule,
     BullModule.forRootAsync({
       useFactory: (environmentService: EnvironmentService) => {
         const redisConfig = parseRedisUrl(environmentService.getRedisUrl());

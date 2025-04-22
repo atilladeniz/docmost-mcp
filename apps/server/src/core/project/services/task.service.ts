@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { TaskRepo } from '../../../database/repos/task/task.repo';
 import { ProjectRepo } from '../../../database/repos/project/project.repo';
 import { SpaceRepo } from '../../../database/repos/space/space.repo';
@@ -105,10 +105,10 @@ export class TaskService {
       estimatedTime?: number;
     },
   ): Promise<Task> {
-    // Verify the space exists and belongs to the workspace
-    const space = await this.spaceRepo.findById(data.spaceId);
-    if (!space || space.workspaceId !== workspaceId) {
-      throw new Error('Space not found or does not belong to the workspace');
+    // Check if space exists
+    const space = await this.spaceRepo.findById(data.spaceId, workspaceId);
+    if (!space) {
+      throw new NotFoundException(`Space with id ${data.spaceId} not found`);
     }
 
     // Verify project if provided
@@ -208,7 +208,12 @@ export class TaskService {
         return this.taskRepo.markCompleted(taskId);
       } else if (
         task.status === TaskStatus.DONE &&
-        data.status !== TaskStatus.DONE
+        [
+          TaskStatus.TODO,
+          TaskStatus.IN_PROGRESS,
+          TaskStatus.IN_REVIEW,
+          TaskStatus.BLOCKED,
+        ].includes(data.status)
       ) {
         return this.taskRepo.markIncomplete(taskId);
       } else {

@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { CreateSpaceDto } from '../dto/create-space.dto';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
-import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
+import { SpaceRepo } from '../../../database/repos/space/space.repo';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { Space, User } from '@docmost/db/types/entity.types';
 import { PaginationResult } from '@docmost/db/pagination/pagination';
@@ -136,7 +136,15 @@ export class SpaceService {
       pagination,
     );
 
-    return spaces;
+    return {
+      items: spaces.data,
+      meta: {
+        limit: spaces.pagination.limit,
+        page: spaces.pagination.page,
+        hasNextPage: spaces.pagination.page < spaces.pagination.totalPages,
+        hasPrevPage: spaces.pagination.page > 1,
+      },
+    };
   }
 
   async deleteSpace(spaceId: string, workspaceId: string): Promise<void> {
