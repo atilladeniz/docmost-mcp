@@ -1,26 +1,26 @@
 import { Injectable } from '@nestjs/common';
-import { InjectKysely } from 'nestjs-kysely';
-import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
-import { dbOrTx } from '@docmost/db/utils';
+import { InjectKysely } from '../../../lib/kysely/nestjs-kysely';
+import { Kysely, Transaction } from 'kysely';
+import { dbOrTx } from '../../utils';
 import {
   InsertableSpace,
   Space,
   UpdatableSpace,
-} from '@docmost/db/types/entity.types';
+} from '../../types/entity.types';
 import { ExpressionBuilder, sql } from 'kysely';
-import { PaginationOptions } from '../../pagination/pagination-options';
-import { executeWithPagination } from '@docmost/db/pagination/pagination';
-import { DB } from '@docmost/db/types/db';
+import { PaginationOptions } from '../../../lib/pagination/pagination-options';
+import { paginate } from '../../../lib/pagination/paginate';
+import { DB } from '../../types/db';
 import { validate as isValidUUID } from 'uuid';
 
 @Injectable()
 export class SpaceRepo {
-  constructor(@InjectKysely() private readonly db: KyselyDB) {}
+  constructor(@InjectKysely() private readonly db: Kysely<DB>) {}
 
   async findById(
     spaceId: string,
     workspaceId: string,
-    opts?: { includeMemberCount?: boolean; trx?: KyselyTransaction },
+    opts?: { includeMemberCount?: boolean; trx?: Transaction<DB> },
   ): Promise<Space> {
     const db = dbOrTx(this.db, opts?.trx);
 
@@ -55,7 +55,7 @@ export class SpaceRepo {
   async slugExists(
     slug: string,
     workspaceId: string,
-    trx?: KyselyTransaction,
+    trx?: Transaction<DB>,
   ): Promise<boolean> {
     const db = dbOrTx(this.db, trx);
     let { count } = await db
@@ -72,7 +72,7 @@ export class SpaceRepo {
     updatableSpace: UpdatableSpace,
     spaceId: string,
     workspaceId: string,
-    trx?: KyselyTransaction,
+    trx?: Transaction<DB>,
   ) {
     const db = dbOrTx(this.db, trx);
     return db
@@ -86,7 +86,7 @@ export class SpaceRepo {
 
   async insertSpace(
     insertableSpace: InsertableSpace,
-    trx?: KyselyTransaction,
+    trx?: Transaction<DB>,
   ): Promise<Space> {
     const db = dbOrTx(this.db, trx);
     return db
@@ -118,12 +118,7 @@ export class SpaceRepo {
       );
     }
 
-    const result = executeWithPagination(query, {
-      page: pagination.page,
-      perPage: pagination.limit,
-    });
-
-    return result;
+    return paginate(query, pagination);
   }
 
   withMemberCount(eb: ExpressionBuilder<DB, 'spaces'>) {

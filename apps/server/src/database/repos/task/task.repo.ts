@@ -1,13 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { InjectKysely } from '@docmost/nestjs-kysely';
-import { Kysely, Transaction as KyselyTransaction } from 'kysely';
-import { DB } from '../../types/db';
+import { InjectKysely } from '../../../lib/kysely/nestjs-kysely';
+import { Kysely, Transaction } from 'kysely';
+import { DB, TaskStatus } from '../../types/db';
 import { InsertableTask, Task, UpdatableTask } from '../../types/entity.types';
 import { dbOrTx } from '../../utils';
-import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
-import { Paginated } from '@docmost/db/pagination/paginated';
-import { paginate } from '@docmost/db/pagination/paginate';
-import { TaskStatus } from '../../types/db';
+import { PaginationOptions } from '../../../lib/pagination/pagination-options';
+import { Paginated } from '../../../lib/pagination/paginated';
+import { paginate } from '../../../lib/pagination/paginate';
 
 @Injectable()
 export class TaskRepo {
@@ -23,7 +22,7 @@ export class TaskRepo {
       includeLabels?: boolean;
       includeWatchers?: boolean;
     },
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Task | undefined> {
     let query = dbOrTx(this.db, trx)
       .selectFrom('tasks')
@@ -59,18 +58,17 @@ export class TaskRepo {
         .select([
           'projects.id as project_id',
           'projects.name as project_name',
-          'projects.color as project_color',
           'projects.icon as project_icon',
+          'projects.color as project_color',
         ]);
     }
 
     if (options?.includeParentTask) {
       query = query
-        .leftJoin('tasks as parent', 'parent.id', 'tasks.parentTaskId')
+        .leftJoin('tasks as parentTask', 'parentTask.id', 'tasks.parentTaskId')
         .select([
-          'parent.id as parent_id',
-          'parent.title as parent_title',
-          'parent.status as parent_status',
+          'parentTask.id as parent_task_id',
+          'parentTask.title as parent_task_title',
         ]);
     }
 
@@ -116,7 +114,7 @@ export class TaskRepo {
       includeCreator?: boolean;
       includeAssignee?: boolean;
     },
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Paginated<Task>> {
     let query = dbOrTx(this.db, trx)
       .selectFrom('tasks')
@@ -124,9 +122,13 @@ export class TaskRepo {
       .where('tasks.projectId', '=', projectId)
       .where('tasks.deletedAt', 'is', null);
 
-    // Filter by top-level tasks (no parent) if not including subtasks
     if (!options?.includeSubtasks) {
-      query = query.where('tasks.parentTaskId', 'is', null);
+      query = query.where((eb) =>
+        eb.or([
+          eb('tasks.parentTaskId', 'is', null),
+          eb('tasks.parentTaskId', '=', ''),
+        ]),
+      );
     }
 
     if (options?.status && options.status.length > 0) {
@@ -174,7 +176,7 @@ export class TaskRepo {
       includeCreator?: boolean;
       includeAssignee?: boolean;
     },
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Paginated<Task>> {
     let query = dbOrTx(this.db, trx)
       .selectFrom('tasks')
@@ -217,7 +219,7 @@ export class TaskRepo {
       includeAssignee?: boolean;
       includeProject?: boolean;
     },
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Paginated<Task>> {
     let query = dbOrTx(this.db, trx)
       .selectFrom('tasks')
@@ -284,7 +286,7 @@ export class TaskRepo {
       includeProject?: boolean;
       workspaceId?: string;
     },
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Paginated<Task>> {
     let query = dbOrTx(this.db, trx)
       .selectFrom('tasks')
@@ -334,10 +336,7 @@ export class TaskRepo {
     return paginate(query, pagination);
   }
 
-  async create(
-    taskData: InsertableTask,
-    trx?: KyselyTransaction<DB>,
-  ): Promise<Task> {
+  async create(taskData: InsertableTask, trx?: Transaction<DB>): Promise<Task> {
     const task = await dbOrTx(this.db, trx)
       .insertInto('tasks')
       .values(taskData)
@@ -350,7 +349,7 @@ export class TaskRepo {
   async update(
     taskId: string,
     updateData: UpdatableTask,
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Task | undefined> {
     const task = await dbOrTx(this.db, trx)
       .updateTable('tasks')
@@ -363,7 +362,7 @@ export class TaskRepo {
     return task as Task | undefined;
   }
 
-  async softDelete(taskId: string, trx?: KyselyTransaction<DB>): Promise<void> {
+  async softDelete(taskId: string, trx?: Transaction<DB>): Promise<void> {
     await dbOrTx(this.db, trx)
       .updateTable('tasks')
       .set({ deletedAt: new Date(), updatedAt: new Date() })
@@ -372,10 +371,7 @@ export class TaskRepo {
       .execute();
   }
 
-  async forceDelete(
-    taskId: string,
-    trx?: KyselyTransaction<DB>,
-  ): Promise<void> {
+  async forceDelete(taskId: string, trx?: Transaction<DB>): Promise<void> {
     await dbOrTx(this.db, trx)
       .deleteFrom('tasks')
       .where('id', '=', taskId)
@@ -384,14 +380,14 @@ export class TaskRepo {
 
   async markCompleted(
     taskId: string,
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Task | undefined> {
     const task = await dbOrTx(this.db, trx)
       .updateTable('tasks')
       .set({
+        status: 'done',
         isCompleted: true,
         completedAt: new Date(),
-        status: 'done',
         updatedAt: new Date(),
       })
       .where('id', '=', taskId)
@@ -404,14 +400,14 @@ export class TaskRepo {
 
   async markIncomplete(
     taskId: string,
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Task | undefined> {
     const task = await dbOrTx(this.db, trx)
       .updateTable('tasks')
       .set({
+        status: 'todo',
         isCompleted: false,
         completedAt: null,
-        status: 'todo',
         updatedAt: new Date(),
       })
       .where('id', '=', taskId)
@@ -425,26 +421,14 @@ export class TaskRepo {
   async updateTaskStatus(
     taskId: string,
     status: TaskStatus,
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Task | undefined> {
-    const updates: Partial<Task> = {
-      status,
-      updatedAt: new Date(),
-    };
-
-    // If status is 'done', mark as completed
-    if (status === 'done') {
-      updates.isCompleted = true;
-      updates.completedAt = new Date();
-    } else if (status !== 'done' && status !== 'blocked') {
-      // If moving from done to another status (except blocked), mark as incomplete
-      updates.isCompleted = false;
-      updates.completedAt = null;
-    }
-
     const task = await dbOrTx(this.db, trx)
       .updateTable('tasks')
-      .set(updates)
+      .set({
+        status,
+        updatedAt: new Date(),
+      })
       .where('id', '=', taskId)
       .where('deletedAt', 'is', null)
       .returningAll()

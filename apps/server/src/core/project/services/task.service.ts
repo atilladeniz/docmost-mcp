@@ -8,9 +8,9 @@ import {
   Task,
   UpdatableTask,
 } from '../../../database/types/entity.types';
-import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
-import { Paginated } from '@docmost/db/pagination/paginated';
-import { TaskStatus, TaskPriority } from '../../../database/types/db';
+import { PaginationOptions } from '../../../lib/pagination/pagination-options';
+import { Paginated } from '../../../lib/pagination/paginated';
+import { TaskStatus, TaskPriority } from '../constants/task-enums';
 
 @Injectable()
 export class TaskService {
@@ -156,8 +156,8 @@ export class TaskService {
     const taskData: InsertableTask = {
       title: data.title,
       description: data.description,
-      status: data.status || 'todo',
-      priority: data.priority || 'medium',
+      status: data.status || TaskStatus.TODO,
+      priority: data.priority || TaskPriority.MEDIUM,
       dueDate: data.dueDate,
       projectId: data.projectId,
       parentTaskId: data.parentTaskId,
@@ -166,8 +166,8 @@ export class TaskService {
       creatorId: userId,
       spaceId: data.spaceId,
       workspaceId,
-      isCompleted: data.status === 'done',
-      completedAt: data.status === 'done' ? new Date() : null,
+      isCompleted: data.status === TaskStatus.DONE,
+      completedAt: data.status === TaskStatus.DONE ? new Date() : null,
       estimatedTime: data.estimatedTime,
     };
 
@@ -204,9 +204,12 @@ export class TaskService {
 
     // Handle status changes specially to manage completion state
     if (data.status && data.status !== task.status) {
-      if (data.status === 'done') {
+      if (data.status === TaskStatus.DONE) {
         return this.taskRepo.markCompleted(taskId);
-      } else if (task.status === 'done' && data.status !== 'done') {
+      } else if (
+        task.status === TaskStatus.DONE &&
+        data.status !== TaskStatus.DONE
+      ) {
         return this.taskRepo.markIncomplete(taskId);
       } else {
         return this.taskRepo.updateTaskStatus(taskId, data.status);

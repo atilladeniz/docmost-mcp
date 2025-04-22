@@ -11,7 +11,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { TaskPriority, TaskStatus } from '../../../database/types/db';
+import { TaskPriority, TaskStatus } from '../constants/task-enums';
 import { PaginationOptionsDto } from '../../../common/dto/pagination-options.dto';
 
 export class TaskIdDto {

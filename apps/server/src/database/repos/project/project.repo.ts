@@ -1,27 +1,27 @@
-import { Injectable } from '@nestjs/common';
-import { InjectKysely } from '@docmost/nestjs-kysely';
-import { Kysely, Transaction as KyselyTransaction } from 'kysely';
+import { Injectable, Inject } from '@nestjs/common';
+import { KYSELY } from '../../../lib/kysely/nestjs-kysely';
 import { DB } from '../../types/db';
+import { Kysely, Transaction } from 'kysely';
 import {
   InsertableProject,
   Project,
   UpdatableProject,
 } from '../../types/entity.types';
 import { dbOrTx } from '../../utils';
-import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
-import { Paginated } from '@docmost/db/pagination/paginated';
-import { paginate } from '@docmost/db/pagination/paginate';
+import { PaginationOptions } from '../../../lib/pagination/pagination-options';
+import { Paginated } from '../../../lib/pagination/paginated';
+import { paginate } from '../../../lib/pagination/paginate';
 
 @Injectable()
 export class ProjectRepo {
-  constructor(@InjectKysely() private readonly db: Kysely<DB>) {}
+  constructor(@Inject(KYSELY) private readonly db: Kysely<DB>) {}
 
   async findById(
     projectId: string,
     options?: {
       includeCreator?: boolean;
     },
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Project | undefined> {
     let query = dbOrTx(this.db, trx)
       .selectFrom('projects')
@@ -52,7 +52,7 @@ export class ProjectRepo {
       includeCreator?: boolean;
       searchTerm?: string;
     },
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Paginated<Project>> {
     let query = dbOrTx(this.db, trx)
       .selectFrom('projects')
@@ -95,7 +95,7 @@ export class ProjectRepo {
       includeCreator?: boolean;
       searchTerm?: string;
     },
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Paginated<Project>> {
     let query = dbOrTx(this.db, trx)
       .selectFrom('projects')
@@ -132,7 +132,7 @@ export class ProjectRepo {
 
   async create(
     projectData: InsertableProject,
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Project> {
     const project = await dbOrTx(this.db, trx)
       .insertInto('projects')
@@ -146,7 +146,7 @@ export class ProjectRepo {
   async update(
     projectId: string,
     updateData: UpdatableProject,
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Project | undefined> {
     const project = await dbOrTx(this.db, trx)
       .updateTable('projects')
@@ -159,10 +159,7 @@ export class ProjectRepo {
     return project as Project | undefined;
   }
 
-  async softDelete(
-    projectId: string,
-    trx?: KyselyTransaction<DB>,
-  ): Promise<void> {
+  async softDelete(projectId: string, trx?: Transaction<DB>): Promise<void> {
     await dbOrTx(this.db, trx)
       .updateTable('projects')
       .set({ deletedAt: new Date(), updatedAt: new Date() })
@@ -171,10 +168,7 @@ export class ProjectRepo {
       .execute();
   }
 
-  async forceDelete(
-    projectId: string,
-    trx?: KyselyTransaction<DB>,
-  ): Promise<void> {
+  async forceDelete(projectId: string, trx?: Transaction<DB>): Promise<void> {
     await dbOrTx(this.db, trx)
       .deleteFrom('projects')
       .where('id', '=', projectId)
@@ -183,7 +177,7 @@ export class ProjectRepo {
 
   async archive(
     projectId: string,
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Project | undefined> {
     const project = await dbOrTx(this.db, trx)
       .updateTable('projects')
@@ -198,7 +192,7 @@ export class ProjectRepo {
 
   async unarchive(
     projectId: string,
-    trx?: KyselyTransaction<DB>,
+    trx?: Transaction<DB>,
   ): Promise<Project | undefined> {
     const project = await dbOrTx(this.db, trx)
       .updateTable('projects')

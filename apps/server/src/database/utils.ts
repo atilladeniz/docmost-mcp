@@ -1,4 +1,5 @@
-import { KyselyDB, KyselyTransaction } from './types/kysely.types';
+import { Kysely, Transaction } from 'kysely';
+import { DB } from './types/db';
 
 /*
  * Executes a transaction or a callback using the provided database instance.
@@ -6,9 +7,9 @@ import { KyselyDB, KyselyTransaction } from './types/kysely.types';
  * Otherwise, it starts a new transaction using the provided database instance and executes the callback within that transaction.
  */
 export async function executeTx<T>(
-  db: KyselyDB,
-  callback: (trx: KyselyTransaction) => Promise<T>,
-  existingTrx?: KyselyTransaction,
+  db: Kysely<DB>,
+  callback: (trx: Transaction<DB>) => Promise<T>,
+  existingTrx?: Transaction<DB>,
 ): Promise<T> {
   if (existingTrx) {
     return await callback(existingTrx); // Execute callback with existing transaction
@@ -22,9 +23,9 @@ export async function executeTx<T>(
  * or the normal database instance.
  */
 export function dbOrTx(
-  db: KyselyDB,
-  existingTrx?: KyselyTransaction,
-): KyselyDB | KyselyTransaction {
+  db: Kysely<DB>,
+  existingTrx?: Transaction<DB>,
+): Kysely<DB> | Transaction<DB> {
   if (existingTrx) {
     return existingTrx; // Use existing transaction
   } else {

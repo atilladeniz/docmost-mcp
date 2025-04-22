@@ -7,8 +7,8 @@ import {
   Project,
   UpdatableProject,
 } from '../../../database/types/entity.types';
-import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
-import { Paginated } from '@docmost/db/pagination/paginated';
+import { PaginationOptions } from '../../../lib/pagination/pagination-options';
+import { Paginated } from '../../../lib/pagination/paginated';
 
 @Injectable()
 export class ProjectService {
@@ -64,7 +64,7 @@ export class ProjectService {
     },
   ): Promise<Project> {
     // Verify the space exists and belongs to the workspace
-    const space = await this.spaceRepo.findById(data.spaceId);
+    const space = await this.spaceRepo.findById(data.spaceId, workspaceId);
     if (!space || space.workspaceId !== workspaceId) {
       throw new Error('Space not found or does not belong to the workspace');
     }
