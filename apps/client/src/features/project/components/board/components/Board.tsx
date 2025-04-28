@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Flex, Stack, Box, Text } from "@mantine/core";
+import { Flex, Stack, Box, Text, Loader } from "@mantine/core";
 import {
   DndContext,
   DragOverlay,
@@ -12,6 +12,8 @@ import { BoardHeader } from "./BoardHeader";
 import { BoardControls } from "./BoardControls";
 import { BoardColumn } from "./BoardColumn";
 import { BoardSwimlane } from "./BoardSwimlane";
+import { BoardList } from "./BoardList";
+import { BoardTimeline } from "./BoardTimeline";
 import {
   useFilteredTasks,
   useGroupedTasks,
@@ -146,75 +148,66 @@ function BoardContent() {
   // Render the appropriate view based on viewMode
   const renderContent = () => {
     if (isTasksLoading || isUsersLoading) {
-      return <Text>Loading...</Text>;
+      return (
+        <Box ta="center" py="xl">
+          <Loader size="lg" />
+          <Text mt="md">Loading tasks...</Text>
+        </Box>
+      );
     }
 
-    if (viewMode === "kanban") {
-      return renderKanbanBoard();
-    } else if (viewMode === "swimlane") {
-      return renderSwimlanes();
+    switch (viewMode) {
+      case "kanban":
+        return renderKanbanBoard();
+      case "swimlane":
+        return renderSwimlanes();
+      case "list":
+        return (
+          <BoardList tasks={tasks} users={users} onEditTask={handleEditTask} />
+        );
+      case "timeline":
+        return (
+          <BoardTimeline
+            tasks={tasks}
+            users={users}
+            onEditTask={handleEditTask}
+          />
+        );
+      default:
+        return (
+          <Text ta="center" size="lg" py="xl">
+            Unknown view mode
+          </Text>
+        );
     }
-
-    return <Text>Other view modes not yet implemented</Text>;
   };
 
   // Render Kanban board view
-  const renderKanbanBoard = () => (
-    <Flex
-      gap="md"
-      wrap="nowrap"
-      style={{ overflowX: "auto", padding: "0 0 16px 0" }}
-    >
-      {Object.entries(groupedTasks).map(([status, statusTasks]) => (
-        <BoardColumn
-          key={status}
-          status={status as any}
-          tasks={statusTasks as Task[]}
-          users={users}
-          onCreateTask={handleCreateTask}
-          onEditTask={handleEditTask}
-        />
-      ))}
-    </Flex>
-  );
-
-  // Render Swimlanes view
-  const renderSwimlanes = () => (
-    <Stack>
-      {Object.entries(groupedTasks).map(([groupKey, groupTasks]) => (
-        <BoardSwimlane
-          key={groupKey}
-          id={groupKey}
-          title={getLabelForGroupKey(groupKey, groupBy)}
-          tasks={groupTasks as Task[]}
-          users={users}
-          onCreateTask={handleCreateTask}
-          onEditTask={handleEditTask}
-          containerId={`${groupBy}-${groupKey}`}
-        />
-      ))}
-    </Stack>
-  );
-
-  // Helper to get label for group keys
-  const getLabelForGroupKey = (key: string, groupType: string) => {
-    // This would need to be implemented based on your application's needs
-    return key; // Placeholder
-  };
-
-  return (
-    <Box>
-      <BoardHeader onToggleFilters={toggleFilters} />
-
-      <BoardControls isVisible={isFiltersVisible} />
-
+  const renderKanbanBoard = () => {
+    // We wrap kanban board with DndContext
+    return (
       <DndContext
         sensors={[]} // You'll need to set up sensors properly
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        {renderContent()}
+        <Flex
+          gap="md"
+          wrap="nowrap"
+          style={{ overflowX: "auto", padding: "0 0 16px 0" }}
+        >
+          {Object.entries(groupedTasks).map(([status, statusTasks]) => (
+            <BoardColumn
+              key={status}
+              status={status as any}
+              tasks={statusTasks as Task[]}
+              users={users}
+              onCreateTask={handleCreateTask}
+              onEditTask={handleEditTask}
+            />
+          ))}
+        </Flex>
 
         <DragOverlay>
           {activeId && activeDragData ? (
@@ -228,6 +221,62 @@ function BoardContent() {
           ) : null}
         </DragOverlay>
       </DndContext>
+    );
+  };
+
+  // Render Swimlanes view
+  const renderSwimlanes = () => {
+    // We wrap swimlanes with DndContext
+    return (
+      <DndContext
+        sensors={[]} // You'll need to set up sensors properly
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <Stack>
+          {Object.entries(groupedTasks).map(([groupKey, groupTasks]) => (
+            <BoardSwimlane
+              key={groupKey}
+              id={groupKey}
+              title={getLabelForGroupKey(groupKey, groupBy)}
+              tasks={groupTasks as Task[]}
+              users={users}
+              onCreateTask={handleCreateTask}
+              onEditTask={handleEditTask}
+              containerId={`${groupBy}-${groupKey}`}
+            />
+          ))}
+        </Stack>
+
+        <DragOverlay>
+          {activeId && activeDragData ? (
+            <TaskCard
+              task={activeDragData}
+              users={users}
+              onClick={() => {
+                /* Drag overlay doesn't need click handler */
+              }}
+            />
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    );
+  };
+
+  // Helper to get label for group keys
+  const getLabelForGroupKey = (key: string, groupType: string) => {
+    // This would need to be implemented based on your application's needs
+    return key; // Placeholder
+  };
+
+  return (
+    <Box>
+      <BoardHeader onToggleFilters={toggleFilters} />
+
+      <BoardControls isVisible={isFiltersVisible} />
+
+      {renderContent()}
 
       {/* Task form modal would go here */}
     </Box>
