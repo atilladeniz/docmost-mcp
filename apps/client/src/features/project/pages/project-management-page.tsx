@@ -8,6 +8,7 @@ import {
   Text,
   Breadcrumbs,
   Anchor,
+  Button,
 } from "@mantine/core";
 import { ProjectList } from "../components/project-list";
 import { ProjectBoard } from "../components/project-board";
@@ -25,6 +26,12 @@ export function ProjectManagementPage() {
   const { data: workspaceData } = useCurrentWorkspace();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showDashboard, setShowDashboard] = useState(true);
+
+  // Debug logging
+  console.log("ProjectManagementPage - spaceId:", spaceId);
+  console.log("ProjectManagementPage - spaceData:", spaceData);
+  console.log("ProjectManagementPage - workspaceData:", workspaceData);
+  console.log("ProjectManagementPage - showDashboard:", showDashboard);
 
   if (!spaceId || !spaceData || !workspaceData) {
     return (
@@ -97,25 +104,30 @@ export function ProjectManagementPage() {
     <Container size="xl" my="xl">
       {renderBreadcrumbs()}
 
+      {/* Debug buttons for testing */}
+      <Group mb="md">
+        <Button
+          variant={showDashboard ? "filled" : "outline"}
+          onClick={() => setShowDashboard(true)}
+        >
+          Show Dashboard
+        </Button>
+        <Button
+          variant={!showDashboard && !selectedProject ? "filled" : "outline"}
+          onClick={() => {
+            setSelectedProject(null);
+            setShowDashboard(false);
+          }}
+        >
+          Show Project List
+        </Button>
+      </Group>
+
       <Paper p="md" withBorder>
-        {selectedProject ? (
-          <ProjectBoard
-            project={selectedProject}
-            onBack={handleBackToProjects}
-          />
-        ) : showDashboard ? (
-          <ProjectDashboard
-            spaceId={spaceId}
-            onSelectProject={handleSelectProject}
-          />
-        ) : (
-          <ProjectList
-            spaceId={spaceId}
-            workspaceId={workspaceData.id}
-            onSelectProject={handleSelectProject}
-            onShowDashboard={() => setShowDashboard(true)}
-          />
-        )}
+        <ProjectDashboard
+          spaceId={spaceId}
+          onSelectProject={handleSelectProject}
+        />
       </Paper>
     </Container>
   );

@@ -47,7 +47,7 @@ export class MCPSchemaService implements OnModuleInit {
   private async loadSchemas() {
     try {
       // Adjust the path to where your schema file is located
-      const schemaPath = join(process.cwd(), 'mcp-method-schemas.json');
+      const schemaPath = join(process.cwd(), '../../mcp-method-schemas.json');
       const schemaContent = await readFile(schemaPath, 'utf8');
       const schemaData = JSON.parse(schemaContent);
 

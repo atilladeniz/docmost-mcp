@@ -100,7 +100,11 @@ export function ProjectList({
       ),
       labels: { confirm: t("Delete"), cancel: t("Cancel") },
       confirmProps: { color: "red" },
-      onConfirm: () => deleteProjectMutation.mutate(project.id),
+      onConfirm: () =>
+        deleteProjectMutation.mutate({
+          projectId: project.id,
+          projectName: project.name,
+        }),
     });
   };
 

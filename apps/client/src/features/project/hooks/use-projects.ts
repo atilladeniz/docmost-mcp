@@ -10,18 +10,25 @@ import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
 
 const PROJECTS_QUERY_KEY = "projects";
+const PROJECT_QUERY_KEY = "project";
 
 export function useProjects(params: ProjectListParams) {
   return useQuery({
     queryKey: [PROJECTS_QUERY_KEY, params],
-    queryFn: () => projectService.listProjects(params),
+    queryFn: async () => {
+      console.log("Fetching projects with params:", params);
+      const result = await projectService.listProjects(params);
+      console.log("Projects fetched:", result);
+      return result;
+    },
+    enabled: !!params.spaceId,
   });
 }
 
-export function useProject(projectId: string | undefined) {
+export function useProject(projectId: string) {
   return useQuery({
-    queryKey: [PROJECTS_QUERY_KEY, projectId],
-    queryFn: () => projectService.getProjectById(projectId as string),
+    queryKey: [PROJECT_QUERY_KEY, projectId],
+    queryFn: () => projectService.getProjectById(projectId),
     enabled: !!projectId,
   });
 }
@@ -31,19 +38,39 @@ export function useCreateProjectMutation() {
   const { t } = useTranslation();
 
   return useMutation({
-    mutationFn: (params: CreateProjectParams) =>
-      projectService.createProject(params),
+    mutationFn: async (params: CreateProjectParams) => {
+      console.log("Creating project with params:", params);
+      const result = await projectService.createProject(params);
+      console.log("Project created:", result);
+      return result;
+    },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: [PROJECTS_QUERY_KEY] });
+      const queryParams = { spaceId: variables.spaceId };
+      console.log(
+        "Project creation successful, invalidating queries with key:",
+        [PROJECTS_QUERY_KEY, queryParams]
+      );
+
+      queryClient.invalidateQueries({
+        queryKey: [PROJECTS_QUERY_KEY, queryParams],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: [PROJECTS_QUERY_KEY],
+      });
+
+      const projectName = data?.name || variables.name || "";
+
       notifications.show({
         title: t("Project created"),
-        message: t('Project "{name}" has been created successfully', {
-          name: variables.name,
+        message: t("Project {{name}} has been created", {
+          name: projectName,
         }),
         color: "green",
       });
     },
     onError: (error) => {
+      console.error("Project creation error:", error);
       notifications.show({
         title: t("Error"),
         message: t("Failed to create project"),
@@ -62,12 +89,17 @@ export function useUpdateProjectMutation() {
       projectService.updateProject(params),
     onSuccess: (data) => {
       queryClient.invalidateQueries({
-        queryKey: [PROJECTS_QUERY_KEY, data.id],
+        queryKey: [PROJECT_QUERY_KEY, data.id],
       });
-      queryClient.invalidateQueries({ queryKey: [PROJECTS_QUERY_KEY] });
+      queryClient.invalidateQueries({
+        queryKey: [PROJECTS_QUERY_KEY, { spaceId: data.spaceId }],
+      });
+
+      const projectName = data?.name || "";
+
       notifications.show({
         title: t("Project updated"),
-        message: t("Project has been updated successfully"),
+        message: t("Project {{name}} has been updated", { name: projectName }),
         color: "green",
       });
     },
@@ -75,30 +107,6 @@ export function useUpdateProjectMutation() {
       notifications.show({
         title: t("Error"),
         message: t("Failed to update project"),
-        color: "red",
-      });
-    },
-  });
-}
-
-export function useDeleteProjectMutation() {
-  const queryClient = useQueryClient();
-  const { t } = useTranslation();
-
-  return useMutation({
-    mutationFn: (projectId: string) => projectService.deleteProject(projectId),
-    onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: [PROJECTS_QUERY_KEY] });
-      notifications.show({
-        title: t("Project deleted"),
-        message: t("Project has been deleted successfully"),
-        color: "green",
-      });
-    },
-    onError: (error) => {
-      notifications.show({
-        title: t("Error"),
-        message: t("Failed to delete project"),
         color: "red",
       });
     },
@@ -117,25 +125,70 @@ export function useArchiveProjectMutation() {
       projectId: string;
       isArchived: boolean;
     }) => projectService.archiveProject(projectId, isArchived),
-    onSuccess: (data, variables) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({
-        queryKey: [PROJECTS_QUERY_KEY, variables.projectId],
+        queryKey: [PROJECT_QUERY_KEY, data.id],
       });
-      queryClient.invalidateQueries({ queryKey: [PROJECTS_QUERY_KEY] });
+      queryClient.invalidateQueries({
+        queryKey: [PROJECTS_QUERY_KEY, { spaceId: data.spaceId }],
+      });
+
+      const projectName = data?.name || "";
+
       notifications.show({
-        title: variables.isArchived
+        title: data.isArchived
           ? t("Project archived")
           : t("Project unarchived"),
-        message: variables.isArchived
-          ? t("Project has been archived successfully")
-          : t("Project has been unarchived successfully"),
+        message: data.isArchived
+          ? t("Project {{name}} has been archived", { name: projectName })
+          : t("Project {{name}} has been unarchived", { name: projectName }),
         color: "green",
       });
     },
     onError: (error) => {
       notifications.show({
         title: t("Error"),
-        message: t("Failed to update project"),
+        message: t("Failed to archive/unarchive project"),
+        color: "red",
+      });
+    },
+  });
+}
+
+export function useDeleteProjectMutation() {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      projectName,
+    }: {
+      projectId: string;
+      projectName?: string;
+    }) => projectService.deleteProject(projectId),
+    onSuccess: (_, variables) => {
+      queryClient.removeQueries({
+        queryKey: [PROJECT_QUERY_KEY, variables.projectId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PROJECTS_QUERY_KEY],
+      });
+
+      const name = variables.projectName || "";
+
+      notifications.show({
+        title: t("Project deleted"),
+        message: name
+          ? t("Project {{name}} has been deleted", { name })
+          : t("Project has been deleted"),
+        color: "green",
+      });
+    },
+    onError: (error) => {
+      notifications.show({
+        title: t("Error"),
+        message: t("Failed to delete project"),
         color: "red",
       });
     },

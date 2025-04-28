@@ -84,7 +84,7 @@ export function useUpdateTaskMutation() {
 
   return useMutation({
     mutationFn: (params: UpdateTaskParams) => projectService.updateTask(params),
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       // Invalidate specific task
       queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY, data.id] });
 
@@ -100,9 +100,15 @@ export function useUpdateTaskMutation() {
         });
       }
 
+      const taskTitle = data.title || variables.title || "";
+
       notifications.show({
         title: t("Task updated"),
-        message: t("Task has been updated successfully"),
+        message: taskTitle
+          ? t('Task "{title}" has been updated successfully', {
+              title: taskTitle,
+            })
+          : t("Task has been updated successfully"),
         color: "green",
       });
     },
@@ -121,16 +127,26 @@ export function useDeleteTaskMutation() {
   const { t } = useTranslation();
 
   return useMutation({
-    mutationFn: (taskId: string) => projectService.deleteTask(taskId),
-    onSuccess: (data, variables, context) => {
+    mutationFn: ({
+      taskId,
+      taskTitle,
+    }: {
+      taskId: string;
+      taskTitle?: string;
+    }) => projectService.deleteTask(taskId),
+    onSuccess: (data, variables) => {
       // Since we don't know the task's project or space ID at this point,
       // invalidate all task-related queries
       queryClient.invalidateQueries({ queryKey: [PROJECT_TASKS_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: [SPACE_TASKS_QUERY_KEY] });
 
+      const title = variables.taskTitle || "";
+
       notifications.show({
         title: t("Task deleted"),
-        message: t("Task has been deleted successfully"),
+        message: title
+          ? t('Task "{title}" has been deleted successfully', { title })
+          : t("Task has been deleted successfully"),
         color: "green",
       });
     },

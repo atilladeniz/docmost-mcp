@@ -22,9 +22,14 @@ export const projectService = {
     return data;
   },
 
-  async listProjects(params: ProjectListParams): Promise<IPagination<Project>> {
-    const { data } = await api.post(`${PROJECTS_ENDPOINT}/list`, params);
-    return data;
+  async listProjects(params: ProjectListParams): Promise<any> {
+    const response = await api.post(`${PROJECTS_ENDPOINT}/list`, params);
+    console.log("API response structure:", {
+      fullResponse: response,
+      data: response.data,
+      keys: Object.keys(response.data),
+    });
+    return response.data;
   },
 
   async createProject(params: CreateProjectParams): Promise<Project> {
