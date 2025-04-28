@@ -30,6 +30,7 @@ import AttachmentsPage from "@/features/attachment/pages/attachments-page.tsx";
 import { useMCPEvents } from "@/features/websocket/hooks/use-mcp-events";
 import NavigationTestPage from "@/features/websocket/pages/navigation-test-page.tsx";
 import { ProjectManagementPage } from "@/features/project/pages/project-management-page.tsx";
+import { TasksPage } from "@/features/project/pages/tasks-page.tsx";
 
 export default function App() {
   const { t } = useTranslation();
@@ -67,6 +68,15 @@ export default function App() {
           <Route
             path={"/s/:spaceId/projects"}
             element={<ProjectManagementPage />}
+          />
+          <Route
+            path={"/spaces/:spaceId/projects"}
+            element={<ProjectManagementPage />}
+          />
+          <Route path={"/spaces/:spaceId/tasks"} element={<TasksPage />} />
+          <Route
+            path={"/spaces/:spaceId/projects/:projectId/tasks"}
+            element={<TasksPage />}
           />
           <Route path={"/files"} element={<AttachmentsPage />} />
 

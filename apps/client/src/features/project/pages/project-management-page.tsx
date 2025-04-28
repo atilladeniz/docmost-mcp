@@ -38,6 +38,7 @@ export function ProjectManagementPage() {
     taskStats,
     projectWithMostTasks,
     projectCompletionRates,
+    taskDistributionByOwner,
     isLoading,
   } = useDashboardData({ spaceId });
 
@@ -153,6 +154,7 @@ export function ProjectManagementPage() {
             <DashboardMetrics
               taskStats={taskStats}
               projectCount={projects.length}
+              spaceId={spaceId}
             />
           </Box>
           <Box mt="xl">
@@ -160,6 +162,7 @@ export function ProjectManagementPage() {
               projectCompletionRates={projectCompletionRates}
               projectWithMostTasks={projectWithMostTasks}
               taskStats={taskStats}
+              taskDistributionByOwner={taskDistributionByOwner || []}
             />
           </Box>
         </Box>

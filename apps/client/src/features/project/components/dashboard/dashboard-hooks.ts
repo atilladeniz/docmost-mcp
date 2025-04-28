@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import { useTasksBySpace } from "../../hooks/use-tasks";
 import { useProjects } from "../../hooks/use-projects";
 import { Project, Task } from "../../types";
+import { useWorkspaceUsers } from "@/features/user/hooks/use-workspace-users";
+import { useCurrentWorkspace } from "@/features/workspace/hooks/use-current-workspace";
 
 /**
  * Hook to fetch and organize dashboard data
@@ -16,6 +18,15 @@ export function useDashboardData({ spaceId }: { spaceId: string }) {
   const { data: tasksData, isLoading: isTasksLoading } = useTasksBySpace({
     spaceId,
   });
+
+  // Get workspace users
+  const { data: workspace } = useCurrentWorkspace();
+  const workspaceId = workspace?.id || "";
+  const { data: usersData, isLoading: isUsersLoading } = useWorkspaceUsers({
+    workspaceId,
+    enabled: !!workspaceId,
+  });
+  const users = usersData?.items || [];
 
   // Handle both possible structures from the API
   const projects = useMemo(() => {
@@ -102,6 +113,80 @@ export function useDashboardData({ spaceId }: { spaceId: string }) {
     };
   }, [allTasks]);
 
+  // Get task distribution by assignee/owner
+  const taskDistributionByOwner = useMemo(() => {
+    // Initialize a map to track task counts and completion rates by user
+    const userTaskMap = new Map<
+      string,
+      {
+        userId: string;
+        name: string;
+        avatarUrl: string | null;
+        totalTasks: number;
+        completedTasks: number;
+        completionRate: number;
+      }
+    >();
+
+    // Add "Unassigned" entry
+    userTaskMap.set("unassigned", {
+      userId: "unassigned",
+      name: "Unassigned",
+      avatarUrl: null,
+      totalTasks: 0,
+      completedTasks: 0,
+      completionRate: 0,
+    });
+
+    // Count tasks per assignee
+    allTasks.forEach((task) => {
+      const assigneeId = task.assigneeId || "unassigned";
+
+      if (!userTaskMap.has(assigneeId) && assigneeId !== "unassigned") {
+        const user = users.find((u) => u.id === assigneeId);
+        if (user) {
+          userTaskMap.set(assigneeId, {
+            userId: user.id,
+            name: user.name || user.email.split("@")[0],
+            avatarUrl: user.avatarUrl,
+            totalTasks: 0,
+            completedTasks: 0,
+            completionRate: 0,
+          });
+        } else {
+          // If user not found in workspace users, create generic entry
+          userTaskMap.set(assigneeId, {
+            userId: assigneeId,
+            name: "Unknown User",
+            avatarUrl: null,
+            totalTasks: 0,
+            completedTasks: 0,
+            completionRate: 0,
+          });
+        }
+      }
+
+      // Update counts
+      const userData = userTaskMap.get(assigneeId)!;
+      userData.totalTasks += 1;
+
+      if (task.status === "done") {
+        userData.completedTasks += 1;
+      }
+
+      // Update completion rate
+      userData.completionRate =
+        userData.totalTasks > 0
+          ? (userData.completedTasks / userData.totalTasks) * 100
+          : 0;
+    });
+
+    // Convert to array and sort by task count (descending)
+    return Array.from(userTaskMap.values())
+      .filter((data) => data.totalTasks > 0)
+      .sort((a, b) => b.totalTasks - a.totalTasks);
+  }, [allTasks, users]);
+
   // Get project with most tasks
   const projectWithMostTasks = useMemo(() => {
     if (projects.length === 0) return null;
@@ -150,8 +235,9 @@ export function useDashboardData({ spaceId }: { spaceId: string }) {
     allTasks,
     tasksByProject,
     taskStats,
+    taskDistributionByOwner,
     projectWithMostTasks,
     projectCompletionRates,
-    isLoading: isProjectsLoading || isTasksLoading,
+    isLoading: isProjectsLoading || isTasksLoading || isUsersLoading,
   };
 }

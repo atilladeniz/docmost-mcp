@@ -29,6 +29,7 @@ export function Dashboard({ spaceId, onSelectProject }: DashboardProps) {
     taskStats,
     projectWithMostTasks,
     projectCompletionRates,
+    taskDistributionByOwner,
     isLoading,
   } = useDashboardData({ spaceId });
 
@@ -79,6 +80,7 @@ export function Dashboard({ spaceId, onSelectProject }: DashboardProps) {
           <DashboardMetrics
             taskStats={taskStats}
             projectCount={projects.length}
+            spaceId={spaceId}
           />
 
           {/* Project metrics and charts */}
@@ -86,6 +88,7 @@ export function Dashboard({ spaceId, onSelectProject }: DashboardProps) {
             projectCompletionRates={projectCompletionRates}
             projectWithMostTasks={projectWithMostTasks}
             taskStats={taskStats}
+            taskDistributionByOwner={taskDistributionByOwner}
           />
         </Stack>
       </Box>

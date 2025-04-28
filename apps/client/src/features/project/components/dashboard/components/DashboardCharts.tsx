@@ -10,6 +10,7 @@ import {
   Title,
   Badge,
   useMantineTheme,
+  Avatar,
 } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { Project } from "../../../types";
@@ -38,16 +39,27 @@ interface TaskStats {
   completionRate: number;
 }
 
+interface TaskOwnerDistribution {
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  totalTasks: number;
+  completedTasks: number;
+  completionRate: number;
+}
+
 interface DashboardChartsProps {
   projectCompletionRates: ProjectCompletion[];
   projectWithMostTasks: MostActiveProject | null;
   taskStats: TaskStats;
+  taskDistributionByOwner: TaskOwnerDistribution[];
 }
 
 export function DashboardCharts({
   projectCompletionRates,
   projectWithMostTasks,
   taskStats,
+  taskDistributionByOwner,
 }: DashboardChartsProps) {
   const { t } = useTranslation();
   const theme = useMantineTheme();
@@ -143,6 +155,59 @@ export function DashboardCharts({
           </Card>
         </Grid.Col>
       </Grid>
+
+      {/* Task distribution by owner */}
+      <Card withBorder p="md" radius="md" mt="md">
+        <Text fw={500} size="lg" mb="md">
+          {t("Task Distribution by Owner")}
+        </Text>
+        {taskDistributionByOwner.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            {t("No task distribution data to display")}
+          </Text>
+        ) : (
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+            {taskDistributionByOwner.slice(0, 6).map((owner) => (
+              <div key={owner.userId}>
+                <Group mb="xs">
+                  <Avatar
+                    src={owner.avatarUrl}
+                    radius="xl"
+                    size="sm"
+                    color={owner.userId === "unassigned" ? "gray" : undefined}
+                  >
+                    {owner.name.charAt(0).toUpperCase()}
+                  </Avatar>
+                  <div style={{ flex: 1 }}>
+                    <Group justify="space-between">
+                      <Text size="sm" fw={500} lineClamp={1}>
+                        {owner.name}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {owner.completedTasks}/{owner.totalTasks} {t("tasks")}
+                      </Text>
+                    </Group>
+                    <Progress
+                      value={owner.completionRate}
+                      size="sm"
+                      mt={5}
+                      color={
+                        owner.completionRate > 75
+                          ? "green"
+                          : owner.completionRate > 50
+                            ? "cyan"
+                            : owner.completionRate > 25
+                              ? "yellow"
+                              : "red"
+                      }
+                    />
+                  </div>
+                </Group>
+              </div>
+            ))}
+          </SimpleGrid>
+        )}
+      </Card>
 
       {/* Task distribution */}
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md" mt="md">
@@ -287,8 +352,8 @@ export function DashboardCharts({
                   {
                     value:
                       ((taskStats.tasksWithDueDate -
-                        taskStats.overdueTasks -
-                        taskStats.dueSoonTasks) /
+                        taskStats.dueSoonTasks -
+                        taskStats.overdueTasks) /
                         taskStats.tasksWithDueDate) *
                         100 || 0,
                     color: theme.colors.green[6],
@@ -297,8 +362,8 @@ export function DashboardCharts({
                 label={
                   <Text fw={700} ta="center" size="lg">
                     {taskStats.tasksWithDueDate -
-                      taskStats.overdueTasks -
-                      taskStats.dueSoonTasks}
+                      taskStats.dueSoonTasks -
+                      taskStats.overdueTasks}
                   </Text>
                 }
               />
