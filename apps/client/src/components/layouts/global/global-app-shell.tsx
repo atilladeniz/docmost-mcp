@@ -1,6 +1,6 @@
 import { AppShell, Container } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import SettingsSidebar from "@/components/settings/settings-sidebar.tsx";
 import { useAtom } from "jotai";
 import {
@@ -10,6 +10,7 @@ import {
   sidebarWidthAtom,
 } from "@/components/layouts/global/hooks/atoms/sidebar-atom.ts";
 import { SpaceSidebar } from "@/features/space/components/sidebar/space-sidebar.tsx";
+import { ProjectSidebar } from "@/features/project/components/project-sidebar";
 import { AppHeader } from "@/components/layouts/global/app-header.tsx";
 import Aside from "@/components/layouts/global/aside.tsx";
 import classes from "./app-shell.module.css";
@@ -27,6 +28,7 @@ export default function GlobalAppShell({
   const [sidebarWidth, setSidebarWidth] = useAtom(sidebarWidthAtom);
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef(null);
+  const navigate = useNavigate();
 
   const startResizing = React.useCallback((mouseDownEvent) => {
     mouseDownEvent.preventDefault();
@@ -54,7 +56,7 @@ export default function GlobalAppShell({
         setSidebarWidth(newWidth);
       }
     },
-    [isResizing],
+    [isResizing]
   );
 
   useEffect(() => {
@@ -70,6 +72,7 @@ export default function GlobalAppShell({
   const location = useLocation();
   const isSettingsRoute = location.pathname.startsWith("/settings");
   const isSpaceRoute = location.pathname.startsWith("/s/");
+  const isProjectRoute = location.pathname.includes("/projects");
   const isHomeRoute = location.pathname.startsWith("/home");
   const isPageRoute = location.pathname.includes("/p/");
 
@@ -105,7 +108,17 @@ export default function GlobalAppShell({
           ref={sidebarRef}
         >
           <div className={classes.resizeHandle} onMouseDown={startResizing} />
-          {isSpaceRoute && <SpaceSidebar />}
+          {isSpaceRoute && !isProjectRoute && <SpaceSidebar />}
+          {isProjectRoute && (
+            <ProjectSidebar
+              spaceId={location.pathname.split("/")[2]}
+              onSelectProject={(project) => {
+                navigate(
+                  `/spaces/${location.pathname.split("/")[2]}/projects?projectId=${project.id}`
+                );
+              }}
+            />
+          )}
           {isSettingsRoute && <SettingsSidebar />}
         </AppShell.Navbar>
       )}

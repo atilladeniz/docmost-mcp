@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Container,
@@ -9,15 +9,20 @@ import {
   Breadcrumbs,
   Anchor,
   Button,
+  Flex,
 } from "@mantine/core";
 import { ProjectList } from "../components/project-list";
 import { ProjectBoard } from "../components/project-board";
 import { Project } from "../types";
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useCurrentSpace } from "@/features/space/hooks/use-current-space";
 import { useCurrentWorkspace } from "@/features/workspace/hooks/use-current-workspace";
-import { ProjectDashboard } from "../components/project-dashboard";
+import { Dashboard } from "../components/dashboard/components/Dashboard";
+import { DashboardMetrics } from "../components/dashboard/components/DashboardMetrics";
+import { DashboardCharts } from "../components/dashboard/components/DashboardCharts";
+import { useDashboardData } from "../components/dashboard/dashboard-hooks";
+import { DashboardHeader } from "../components/dashboard/components/DashboardHeader";
 
 export function ProjectManagementPage() {
   const { t } = useTranslation();
@@ -26,6 +31,28 @@ export function ProjectManagementPage() {
   const { data: workspaceData } = useCurrentWorkspace();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showDashboard, setShowDashboard] = useState(true);
+  const location = useLocation();
+
+  const {
+    projects,
+    taskStats,
+    projectWithMostTasks,
+    projectCompletionRates,
+    isLoading,
+  } = useDashboardData({ spaceId });
+
+  // Monitor URL for project ID
+  useEffect(() => {
+    const projectId = new URLSearchParams(location.search).get("projectId");
+    if (projectId) {
+      // Find project in projects list
+      const project = projects.find((p) => p.id === projectId);
+      if (project) {
+        setSelectedProject(project);
+        setShowDashboard(false);
+      }
+    }
+  }, [location.search, projects]);
 
   // Debug logging
   console.log("ProjectManagementPage - spaceId:", spaceId);
@@ -100,35 +127,62 @@ export function ProjectManagementPage() {
     );
   };
 
+  const renderContent = () => {
+    if (selectedProject) {
+      return (
+        <Box>
+          <Group justify="space-between" mb="md">
+            <Title order={3}>{selectedProject.name}</Title>
+            <Button onClick={handleBackToProjects}>
+              {t("Back to Projects")}
+            </Button>
+          </Group>
+          <ProjectBoard
+            project={selectedProject}
+            onBack={handleBackToProjects}
+          />
+        </Box>
+      );
+    }
+
+    if (showDashboard) {
+      return (
+        <Box p="md">
+          <DashboardHeader onCreateProject={() => {}} />
+          <Box mt="xl">
+            <DashboardMetrics
+              taskStats={taskStats}
+              projectCount={projects.length}
+            />
+          </Box>
+          <Box mt="xl">
+            <DashboardCharts
+              projectCompletionRates={projectCompletionRates}
+              projectWithMostTasks={projectWithMostTasks}
+              taskStats={taskStats}
+            />
+          </Box>
+        </Box>
+      );
+    }
+
+    return (
+      <ProjectList
+        spaceId={spaceId}
+        workspaceId={workspaceData.id}
+        onSelectProject={handleSelectProject}
+        onShowDashboard={() => setShowDashboard(true)}
+      />
+    );
+  };
+
   return (
-    <Container size="xl" my="xl">
-      {renderBreadcrumbs()}
+    <>
+      <Container size="xl" my="xl">
+        {renderBreadcrumbs()}
 
-      {/* Debug buttons for testing */}
-      <Group mb="md">
-        <Button
-          variant={showDashboard ? "filled" : "outline"}
-          onClick={() => setShowDashboard(true)}
-        >
-          Show Dashboard
-        </Button>
-        <Button
-          variant={!showDashboard && !selectedProject ? "filled" : "outline"}
-          onClick={() => {
-            setSelectedProject(null);
-            setShowDashboard(false);
-          }}
-        >
-          Show Project List
-        </Button>
-      </Group>
-
-      <Paper p="md" withBorder>
-        <ProjectDashboard
-          spaceId={spaceId}
-          onSelectProject={handleSelectProject}
-        />
-      </Paper>
-    </Container>
+        {renderContent()}
+      </Container>
+    </>
   );
 }
