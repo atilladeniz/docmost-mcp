@@ -69,18 +69,23 @@ export function BoardList({ tasks, users, onEditTask }: BoardListProps) {
   const renderDueDate = (dueDate?: string) => {
     if (!dueDate) return null;
 
-    const date = new Date(dueDate);
-    const now = new Date();
-    const isOverdue = date < now;
+    try {
+      const date = new Date(dueDate);
+      const now = new Date();
+      const isOverdue = date < now;
 
-    return (
-      <Group gap={5}>
-        <IconCalendar size={14} color={isOverdue ? "red" : "gray"} />
-        <Text size="sm" c={isOverdue ? "red" : "dimmed"}>
-          {dueDate ? formatDate(new Date(dueDate)) : ""}
-        </Text>
-      </Group>
-    );
+      return (
+        <Group gap={5}>
+          <IconCalendar size={14} color={isOverdue ? "red" : "gray"} />
+          <Text size="sm" c={isOverdue ? "red" : "dimmed"}>
+            {formatDate(date)}
+          </Text>
+        </Group>
+      );
+    } catch (error) {
+      console.error("Error parsing date:", error);
+      return null;
+    }
   };
 
   // Render assignee
