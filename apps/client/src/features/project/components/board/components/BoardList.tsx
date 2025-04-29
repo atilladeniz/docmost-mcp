@@ -9,6 +9,9 @@ import {
   Menu,
   Box,
   Card,
+  Button,
+  Stack,
+  UnstyledButton,
 } from "@mantine/core";
 import {
   IconCalendar,
@@ -17,33 +20,41 @@ import {
   IconDotsVertical,
   IconTag,
   IconAlertCircle,
+  IconPlus,
+  IconChevronRight,
 } from "@tabler/icons-react";
 import { Task } from "../../../types";
+import { IUser } from "@/features/user/types/user.types";
 import { useTranslation } from "react-i18next";
 import { formatDate } from "@/lib/utils/format-utils";
+import dayjs from "dayjs";
 
 interface BoardListProps {
   tasks: Task[];
-  users: any[];
+  users: IUser[];
   onEditTask: (task: Task) => void;
+  onCreateTask?: () => void;
 }
 
-export function BoardList({ tasks, users, onEditTask }: BoardListProps) {
+export function BoardList({
+  tasks,
+  users,
+  onEditTask,
+  onCreateTask,
+}: BoardListProps) {
   const { t } = useTranslation();
 
   // Map status to color
   const getStatusColor = (status: string) => {
     switch (status) {
       case "todo":
-        return "gray";
-      case "in_progress":
         return "blue";
-      case "in_review":
-        return "indigo";
-      case "done":
-        return "green";
+      case "in_progress":
+        return "yellow";
       case "blocked":
         return "red";
+      case "completed":
+        return "green";
       default:
         return "gray";
     }
@@ -52,208 +63,137 @@ export function BoardList({ tasks, users, onEditTask }: BoardListProps) {
   // Map priority to color
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "urgent":
-        return "red";
       case "high":
-        return "orange";
+        return "red";
       case "medium":
-        return "blue";
+        return "orange";
       case "low":
-        return "gray";
+        return "blue";
       default:
         return "gray";
     }
   };
 
   // Handle due date display
-  const renderDueDate = (dueDate?: string) => {
-    if (!dueDate) return null;
-
-    try {
-      const date = new Date(dueDate);
-      const now = new Date();
-      const isOverdue = date < now;
-
-      return (
-        <Group gap={5}>
-          <IconCalendar size={14} color={isOverdue ? "red" : "gray"} />
-          <Text size="sm" c={isOverdue ? "red" : "dimmed"}>
-            {formatDate(date)}
-          </Text>
+  const renderDueDate = (task: Task) => {
+    if (!task.dueDate) return null;
+    return (
+      <Tooltip label="Due date">
+        <Group gap="xs">
+          <IconCalendar size={16} />
+          <Text size="sm">{formatDate(new Date(task.dueDate))}</Text>
         </Group>
-      );
-    } catch (error) {
-      console.error("Error parsing date:", error);
-      return null;
-    }
+      </Tooltip>
+    );
   };
 
   // Render assignee
-  const renderAssignee = (assigneeId?: string) => {
-    if (!assigneeId)
-      return (
-        <Text size="sm" c="dimmed">
-          —
-        </Text>
-      );
-
-    const assignee = users.find((user) => user.id === assigneeId);
-    if (!assignee)
-      return (
-        <Text size="sm" c="dimmed">
-          —
-        </Text>
-      );
+  const renderAssignee = (task: Task) => {
+    if (!task.assigneeId) return null;
+    const assignee = users.find((user) => user.id === task.assigneeId);
+    if (!assignee) return null;
 
     return (
-      <Group gap="xs">
+      <Tooltip label={`Assigned to ${assignee.name}`}>
         <Avatar
           src={assignee.avatarUrl}
+          alt={assignee.name}
           size="sm"
           radius="xl"
-          alt={assignee.name}
-        >
-          {assignee.name?.charAt(0).toUpperCase()}
-        </Avatar>
-        <Text size="sm">{assignee.name}</Text>
-      </Group>
+        />
+      </Tooltip>
     );
   };
 
   // Render priority
-  const renderPriority = (priority?: string) => {
-    if (!priority)
-      return (
-        <Text size="sm" c="dimmed">
-          —
-        </Text>
-      );
-
+  const renderPriority = (task: Task) => {
+    if (!task.priority) return null;
     return (
-      <Badge color={getPriorityColor(priority)} variant="light">
-        {priority.charAt(0).toUpperCase() + priority.slice(1)}
-      </Badge>
+      <Tooltip label={`Priority: ${task.priority}`}>
+        <Badge color={getPriorityColor(task.priority)}>{task.priority}</Badge>
+      </Tooltip>
     );
   };
 
   // Render labels
-  const renderLabels = (labels?: any[]) => {
-    if (!labels || labels.length === 0)
-      return (
-        <Text size="sm" c="dimmed">
-          —
-        </Text>
-      );
-
+  const renderLabels = (task: Task) => {
+    if (!task.labels || task.labels.length === 0) return null;
     return (
-      <Group gap={5}>
-        {labels.slice(0, 2).map((label) => (
-          <Badge
-            key={label.id}
-            color={label.color || "gray"}
-            variant="dot"
-            size="sm"
-          >
+      <Group gap="xs">
+        {task.labels.map((label) => (
+          <Badge key={label.id} size="sm">
             {label.name}
           </Badge>
         ))}
-        {labels.length > 2 && (
-          <Tooltip
-            label={labels
-              .slice(2)
-              .map((l) => l.name)
-              .join(", ")}
-            position="top"
-          >
-            <Badge color="gray" variant="light" size="sm">
-              +{labels.length - 2}
-            </Badge>
-          </Tooltip>
-        )}
       </Group>
     );
   };
 
   // Render actions
-  const renderActions = (task: Task) => (
-    <Menu position="bottom-end" shadow="md">
-      <Menu.Target>
-        <ActionIcon variant="subtle" size="sm">
-          <IconDotsVertical size={16} />
-        </ActionIcon>
-      </Menu.Target>
-      <Menu.Dropdown>
-        <Menu.Item
-          leftSection={<IconEdit size={16} />}
-          onClick={() => onEditTask(task)}
-        >
-          {t("Edit")}
-        </Menu.Item>
-        <Menu.Item leftSection={<IconTrash size={16} />} color="red">
-          {t("Delete")}
-        </Menu.Item>
-      </Menu.Dropdown>
-    </Menu>
-  );
+  const renderActions = (task: Task) => {
+    return (
+      <ActionIcon size="sm" variant="transparent">
+        <IconChevronRight size={16} />
+      </ActionIcon>
+    );
+  };
+
+  // Sort tasks by priority (high to low)
+  const sortedTasks = [...tasks].sort((a, b) => {
+    const priorityOrder = { high: 0, medium: 1, low: 2, none: 3 };
+    return priorityOrder[a.priority] - priorityOrder[b.priority];
+  });
 
   return (
-    <Card withBorder p={0}>
-      <Box style={{ overflowX: "auto" }}>
-        <Table
-          striped
-          highlightOnHover
-          horizontalSpacing="md"
-          verticalSpacing="sm"
-        >
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t("Title")}</Table.Th>
-              <Table.Th>{t("Status")}</Table.Th>
-              <Table.Th>{t("Priority")}</Table.Th>
-              <Table.Th>{t("Assignee")}</Table.Th>
-              <Table.Th>{t("Due Date")}</Table.Th>
-              <Table.Th>{t("Labels")}</Table.Th>
-              <Table.Th style={{ width: 40 }}></Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {tasks.length === 0 ? (
-              <Table.Tr>
-                <Table.Td colSpan={7} align="center" p="lg">
-                  <Text c="dimmed" fz="sm">
-                    {t("No tasks found")}
+    <Box>
+      {onCreateTask && (
+        <Box mb="md">
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={onCreateTask}
+            size="sm"
+          >
+            Create Task
+          </Button>
+        </Box>
+      )}
+
+      <Stack>
+        {sortedTasks.map((task) => (
+          <UnstyledButton
+            key={task.id}
+            onClick={() => onEditTask(task)}
+            style={{ width: "100%" }}
+          >
+            <Card p="sm" withBorder>
+              <Stack gap="sm">
+                <Group justify="space-between">
+                  <Badge color={getStatusColor(task.status)}>
+                    {task.status}
+                  </Badge>
+                  {renderActions(task)}
+                </Group>
+
+                <Text fw={500}>{task.title}</Text>
+                {task.description && (
+                  <Text size="sm" c="dimmed" lineClamp={2}>
+                    {task.description}
                   </Text>
-                </Table.Td>
-              </Table.Tr>
-            ) : (
-              tasks.map((task) => (
-                <Table.Tr key={task.id}>
-                  <Table.Td>
-                    <Text
-                      fw={500}
-                      lineClamp={1}
-                      style={{ cursor: "pointer" }}
-                      onClick={() => onEditTask(task)}
-                    >
-                      {task.title}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge color={getStatusColor(task.status)}>
-                      {task.status.replace("_", " ")}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>{renderPriority(task.priority)}</Table.Td>
-                  <Table.Td>{renderAssignee(task.assigneeId)}</Table.Td>
-                  <Table.Td>{renderDueDate(task.dueDate)}</Table.Td>
-                  <Table.Td>{renderLabels(task.labels)}</Table.Td>
-                  <Table.Td>{renderActions(task)}</Table.Td>
-                </Table.Tr>
-              ))
-            )}
-          </Table.Tbody>
-        </Table>
-      </Box>
-    </Card>
+                )}
+
+                <Group justify="space-between">
+                  <Group gap="sm">
+                    {renderAssignee(task)}
+                    {renderPriority(task)}
+                    {renderDueDate(task)}
+                  </Group>
+                  {renderLabels(task)}
+                </Group>
+              </Stack>
+            </Card>
+          </UnstyledButton>
+        ))}
+      </Stack>
+    </Box>
   );
 }

@@ -10,16 +10,23 @@ import {
   Title,
   ScrollArea,
   Divider,
+  Button,
+  Stack,
+  Timeline,
+  Tooltip,
 } from "@mantine/core";
 import { Task } from "../../../types";
+import { IUser } from "@/features/user/types/user.types";
 import { useTranslation } from "react-i18next";
 import { formatDate } from "@/lib/utils/format-utils";
 import dayjs from "dayjs";
+import { IconPlus, IconCalendar } from "@tabler/icons-react";
 
 interface BoardTimelineProps {
   tasks: Task[];
-  users: any[];
+  users: IUser[];
   onEditTask: (task: Task) => void;
+  onCreateTask?: (status?: string) => void;
 }
 
 interface TimelineGroup {
@@ -32,43 +39,68 @@ export function BoardTimeline({
   tasks,
   users,
   onEditTask,
+  onCreateTask,
 }: BoardTimelineProps) {
   const { t } = useTranslation();
   const [timelineGroups, setTimelineGroups] = useState<TimelineGroup[]>([]);
 
-  // Map status to color
+  // Sort tasks by date (newest first)
+  const sortedTasks = [...tasks].sort((a, b) => {
+    const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+    const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+    return dateA - dateB;
+  });
+
+  // Helper to map status to color
   const getStatusColor = (status: string) => {
     switch (status) {
       case "todo":
-        return "gray";
-      case "in_progress":
         return "blue";
-      case "in_review":
-        return "indigo";
-      case "done":
-        return "green";
+      case "in_progress":
+        return "yellow";
       case "blocked":
         return "red";
+      case "completed":
+        return "green";
       default:
         return "gray";
     }
   };
 
-  // Map priority to color
+  // Helper to map priority to color
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "urgent":
-        return "red";
       case "high":
-        return "orange";
+        return "red";
       case "medium":
-        return "blue";
+        return "orange";
       case "low":
-        return "gray";
+        return "blue";
       default:
         return "gray";
     }
   };
+
+  // Group tasks by month
+  const tasksByMonth: { [key: string]: Task[] } = {};
+  sortedTasks.forEach((task) => {
+    if (!task.dueDate) return;
+
+    const date = new Date(task.dueDate);
+    const month = date.toLocaleString("default", {
+      month: "long",
+      year: "numeric",
+    });
+
+    if (!tasksByMonth[month]) {
+      tasksByMonth[month] = [];
+    }
+
+    tasksByMonth[month].push(task);
+  });
+
+  // Tasks without due dates
+  const tasksWithoutDueDate = sortedTasks.filter((task) => !task.dueDate);
 
   // Group tasks by due date
   useEffect(() => {
@@ -115,22 +147,20 @@ export function BoardTimeline({
   }, [tasks, t]);
 
   // Render assignee
-  const renderAssignee = (assigneeId?: string) => {
-    if (!assigneeId) return null;
-
-    const assignee = users.find((user) => user.id === assigneeId);
+  const renderAssignee = (task: Task) => {
+    if (!task.assigneeId) return null;
+    const assignee = users.find((user) => user.id === task.assigneeId);
     if (!assignee) return null;
 
     return (
-      <Avatar
-        src={assignee.avatarUrl}
-        size="sm"
-        radius="xl"
-        alt={assignee.name}
-        title={assignee.name}
-      >
-        {assignee.name?.charAt(0).toUpperCase()}
-      </Avatar>
+      <Tooltip label={`Assigned to ${assignee.name}`}>
+        <Avatar
+          src={assignee.avatarUrl}
+          alt={assignee.name}
+          size="sm"
+          radius="xl"
+        />
+      </Tooltip>
     );
   };
 
@@ -172,11 +202,11 @@ export function BoardTimeline({
       )}
 
       <Group justify="space-between" mt="md">
-        {renderAssignee(task.assigneeId)}
+        {renderAssignee(task)}
 
         {task.dueDate && (
           <Text size="xs" c="dimmed">
-            {task.dueDate ? formatDate(new Date(task.dueDate)) : ""}
+            {formatDate(new Date(task.dueDate))}
           </Text>
         )}
       </Group>
@@ -205,15 +235,111 @@ export function BoardTimeline({
 
   return (
     <Box>
-      {timelineGroups.length === 0 ? (
-        <Card withBorder p="xl" ta="center">
-          <Text c="dimmed" fz="md">
-            {t("No tasks with due dates found")}
-          </Text>
-        </Card>
-      ) : (
-        timelineGroups.map(renderTimelineGroup)
+      {onCreateTask && (
+        <Box mb="md">
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => onCreateTask()}
+            size="sm"
+          >
+            {t("Create Task")}
+          </Button>
+        </Box>
       )}
+
+      <Stack gap="xl">
+        {Object.keys(tasksByMonth).map((month) => (
+          <Box key={month}>
+            <Text fw={700} mb="md">
+              {month}
+            </Text>
+            <Timeline active={tasksByMonth[month].length} bulletSize={24}>
+              {tasksByMonth[month].map((task) => (
+                <Timeline.Item
+                  key={task.id}
+                  bullet={renderAssignee(task) || <span />}
+                  title={
+                    <Group gap="xs">
+                      <Text fw={500}>{task.title}</Text>
+                      <Badge color={getStatusColor(task.status)}>
+                        {task.status}
+                      </Badge>
+                      {task.priority && (
+                        <Badge color={getPriorityColor(task.priority)}>
+                          {task.priority}
+                        </Badge>
+                      )}
+                    </Group>
+                  }
+                  onClick={() => onEditTask(task)}
+                  style={{ cursor: "pointer" }}
+                >
+                  {task.description && (
+                    <Text size="sm" c="dimmed" lineClamp={2}>
+                      {task.description}
+                    </Text>
+                  )}
+
+                  {task.dueDate && (
+                    <Group gap="xs" mt="xs">
+                      <IconCalendar size={14} />
+                      <Text size="sm">
+                        {formatDate(new Date(task.dueDate))}
+                      </Text>
+                    </Group>
+                  )}
+                </Timeline.Item>
+              ))}
+            </Timeline>
+          </Box>
+        ))}
+
+        {tasksWithoutDueDate.length > 0 && (
+          <Box>
+            <Text fw={700} mb="md">
+              No Due Date
+            </Text>
+            <Timeline active={tasksWithoutDueDate.length} bulletSize={24}>
+              {tasksWithoutDueDate.map((task) => (
+                <Timeline.Item
+                  key={task.id}
+                  bullet={renderAssignee(task) || <span />}
+                  title={
+                    <Group gap="xs">
+                      <Text fw={500}>{task.title}</Text>
+                      <Badge color={getStatusColor(task.status)}>
+                        {task.status}
+                      </Badge>
+                      {task.priority && (
+                        <Badge color={getPriorityColor(task.priority)}>
+                          {task.priority}
+                        </Badge>
+                      )}
+                    </Group>
+                  }
+                  onClick={() => onEditTask(task)}
+                  style={{ cursor: "pointer" }}
+                >
+                  {task.description && (
+                    <Text size="sm" c="dimmed" lineClamp={2}>
+                      {task.description}
+                    </Text>
+                  )}
+                </Timeline.Item>
+              ))}
+            </Timeline>
+          </Box>
+        )}
+
+        {Object.keys(tasksByMonth).length === 0 &&
+          tasksWithoutDueDate.length === 0 && (
+            <Card withBorder p="lg">
+              <Text ta="center" c="dimmed">
+                No tasks found
+              </Text>
+            </Card>
+          )}
+      </Stack>
     </Box>
   );
 }

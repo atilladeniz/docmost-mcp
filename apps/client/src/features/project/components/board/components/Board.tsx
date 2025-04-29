@@ -106,6 +106,11 @@ function BoardContent() {
     openForm();
   };
 
+  // Wrapper for components that don't pass status
+  const handleCreateTaskWithoutStatus = () => {
+    handleCreateTask("todo"); // Default to 'todo' status
+  };
+
   // Handle task editing
   const handleEditTask = (task) => {
     setSelectedTask(task);
@@ -163,7 +168,12 @@ function BoardContent() {
         return renderSwimlanes();
       case "list":
         return (
-          <BoardList tasks={tasks} users={users} onEditTask={handleEditTask} />
+          <BoardList
+            tasks={tasks}
+            users={users}
+            onEditTask={handleEditTask}
+            onCreateTask={handleCreateTaskWithoutStatus}
+          />
         );
       case "timeline":
         return (
@@ -171,6 +181,7 @@ function BoardContent() {
             tasks={tasks}
             users={users}
             onEditTask={handleEditTask}
+            onCreateTask={handleCreateTaskWithoutStatus}
           />
         );
       default:
