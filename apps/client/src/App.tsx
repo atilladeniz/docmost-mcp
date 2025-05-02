@@ -31,6 +31,61 @@ import { useMCPEvents } from "@/features/websocket/hooks/use-mcp-events";
 import NavigationTestPage from "@/features/websocket/pages/navigation-test-page.tsx";
 import { ProjectManagementPage } from "@/features/project/pages/project-management-page.tsx";
 import { TasksPage } from "@/features/project/pages/tasks-page.tsx";
+import { useEffect } from "react";
+
+// CSS for Project 89 themes
+const project89CSS = `
+  /* Matrix theme styles */
+  [data-theme="project89-matrix"] .mantine-Title-root,
+  [data-theme="project89-matrix"] h1,
+  [data-theme="project89-matrix"] h2,
+  [data-theme="project89-matrix"] h3 {
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
+    text-shadow: 0 0 5px var(--mantine-color-neonGreen-5), 0 0 10px var(--mantine-color-neonGreen-5);
+  }
+  
+  [data-theme="project89-matrix"] .mantine-Button-root {
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border: 1px solid var(--mantine-color-neonGreen-5);
+    box-shadow: 0 0 5px var(--mantine-color-neonGreen-5);
+  }
+  
+  /* Tron theme styles */
+  [data-theme="project89-tron"] .mantine-Title-root,
+  [data-theme="project89-tron"] h1,
+  [data-theme="project89-tron"] h2,
+  [data-theme="project89-tron"] h3 {
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
+    text-shadow: 0 0 5px var(--mantine-color-electricBlue-5), 0 0 10px var(--mantine-color-electricBlue-5);
+  }
+  
+  [data-theme="project89-tron"] .mantine-Button-root {
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border: 1px solid var(--mantine-color-electricBlue-5);
+    box-shadow: 0 0 5px var(--mantine-color-electricBlue-5);
+  }
+  
+  /* Common Project 89 terminal-style elements */
+  [data-theme^="project89"] .mantine-Code-root,
+  [data-theme^="project89"] pre {
+    font-family: "Courier New", monospace;
+    border: 1px solid var(--mantine-primary-color-filled);
+    background-color: rgba(0, 0, 0, 0.8);
+    box-shadow: 0 0 5px var(--mantine-primary-color-filled);
+  }
+  
+  [data-theme^="project89"] .mantine-Card-root {
+    backdrop-filter: blur(2px);
+    border: 1px solid var(--mantine-primary-color-filled);
+    box-shadow: 0 0 10px var(--mantine-primary-color-filled);
+  }
+`;
 
 export default function App() {
   const { t } = useTranslation();
@@ -38,6 +93,25 @@ export default function App() {
 
   // Initialize MCP events handling (including navigation events)
   useMCPEvents();
+
+  // Add Project 89 styles to the document
+  useEffect(() => {
+    // Add the style element if it doesn't exist
+    if (!document.getElementById("project89-styles")) {
+      const styleElement = document.createElement("style");
+      styleElement.id = "project89-styles";
+      styleElement.textContent = project89CSS;
+      document.head.appendChild(styleElement);
+    }
+
+    return () => {
+      // Cleanup on unmount
+      const styleElement = document.getElementById("project89-styles");
+      if (styleElement) {
+        styleElement.remove();
+      }
+    };
+  }, []);
 
   return (
     <>

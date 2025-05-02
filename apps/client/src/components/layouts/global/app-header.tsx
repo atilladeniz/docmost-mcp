@@ -14,6 +14,7 @@ import SidebarToggle from "@/components/ui/sidebar-toggle-button.tsx";
 import { useTranslation } from "react-i18next";
 import useTrial from "@/ee/hooks/use-trial.tsx";
 import { isCloud } from "@/lib/config.ts";
+import { ThemeSwitcher } from "@/features/user/components/theme-switcher";
 // import { MCPEventIndicator } from "@/features/websocket/components/mcp-event-indicator.tsx";
 
 const links = [
@@ -95,6 +96,7 @@ export function AppHeader() {
                 : `${trialDaysLeft} days left`}
             </Badge>
           )}
+          <ThemeSwitcher />
           {/* <MCPEventIndicator /> */}
           <TopMenu />
         </Group>

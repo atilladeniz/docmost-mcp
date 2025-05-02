@@ -256,6 +256,14 @@ export class UserHandler {
         updateUserDto.fullPageWidth = params.fullPageWidth;
       }
 
+      // Handle themeId preference
+      if (params.themeId !== undefined) {
+        updateUserDto.themeId = params.themeId;
+        this.logger.debug(
+          `UserHandler: Updating themeId to ${params.themeId} for user ${params.userId}`,
+        );
+      }
+
       // Admin users can update user roles
       if (
         params.role !== undefined &&
@@ -286,6 +294,7 @@ export class UserHandler {
         avatarUrl: updatedUser.avatarUrl,
         role: updatedUser.role,
         locale: updatedUser.locale,
+        settings: updatedUser.settings,
       };
     } catch (error: any) {
       this.logger.error(

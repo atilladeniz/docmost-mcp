@@ -4,7 +4,7 @@ import "@mantine/notifications/styles.css";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import { mantineCssResolver, theme } from "@/theme";
-import { MantineProvider } from "@mantine/core";
+import { ColorSchemeScript, MantineProvider } from "@mantine/core";
 import { BrowserRouter } from "react-router-dom";
 import { ModalsProvider } from "@mantine/modals";
 import { Notifications } from "@mantine/notifications";
@@ -42,9 +42,56 @@ const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement
 );
 
+// Create an extended theme that includes all our color palettes by default
+const extendedTheme = {
+  ...theme,
+  defaultRadius: "md",
+  // These will be overridden by the ThemeProvider
+  primaryColor: "blue",
+  // Use valid MantineColorShade values (0-9)
+  primaryShade: { light: 6, dark: 8 } as const,
+  // Additional configuration to ensure theme changes work properly
+  components: {
+    Button: {
+      defaultProps: {
+        variant: "filled",
+      },
+    },
+    ActionIcon: {
+      defaultProps: {
+        variant: "subtle",
+      },
+    },
+  },
+};
+
+// Add CSS variables for dynamic theme changes
+const cssVariablesResolver = (theme) => {
+  return {
+    ...mantineCssResolver(theme),
+    variables: {
+      ...mantineCssResolver(theme).variables,
+      "--mantine-primary-color-filled": `var(--mantine-color-${theme.primaryColor}-filled)`,
+      "--mantine-primary-color-filled-hover": `var(--mantine-color-${theme.primaryColor}-filled-hover)`,
+      "--mantine-primary-color-light": `var(--mantine-color-${theme.primaryColor}-light)`,
+      "--mantine-primary-color-light-hover": `var(--mantine-color-${theme.primaryColor}-light-hover)`,
+      "--mantine-primary-color-light-color": `var(--mantine-color-${theme.primaryColor}-light-color)`,
+    },
+    light: mantineCssResolver(theme).light,
+    dark: mantineCssResolver(theme).dark,
+  };
+};
+
+console.log("[THEME-DEBUG] Initializing app with base theme:", extendedTheme);
+
 root.render(
   <BrowserRouter>
-    <MantineProvider theme={theme} cssVariablesResolver={mantineCssResolver}>
+    <ColorSchemeScript defaultColorScheme="auto" />
+    <MantineProvider
+      theme={extendedTheme}
+      cssVariablesResolver={cssVariablesResolver}
+      defaultColorScheme="auto"
+    >
       <ModalsProvider>
         <QueryClientProvider client={queryClient}>
           <Notifications position="bottom-center" limit={3} />

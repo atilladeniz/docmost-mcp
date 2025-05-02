@@ -71,12 +71,20 @@ export class UserService {
       throw new NotFoundException('User not found');
     }
 
-    // preference update
+    // preference updates
     if (typeof updateUserDto.fullPageWidth !== 'undefined') {
       return this.userRepo.updatePreference(
         userId,
         'fullPageWidth',
         updateUserDto.fullPageWidth,
+      );
+    }
+
+    if (typeof updateUserDto.themeId !== 'undefined') {
+      return this.userRepo.updatePreference(
+        userId,
+        'themeId',
+        updateUserDto.themeId,
       );
     }
 

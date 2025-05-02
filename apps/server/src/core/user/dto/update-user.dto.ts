@@ -16,4 +16,8 @@ export class UpdateUserDto extends PartialType(
   @IsOptional()
   @IsString()
   locale: string;
+
+  @IsOptional()
+  @IsString()
+  themeId: string;
 }
