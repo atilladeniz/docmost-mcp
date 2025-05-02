@@ -269,6 +269,7 @@ export const DOCMOST_THEMES: DocmostTheme[] = [
     secondaryColor: "glitchPurple",
     isDark: true,
     headingFontFamily: "'Orbitron', sans-serif",
+    fontFamily: "'Share Tech Mono', 'Courier New', monospace",
   },
   {
     id: "project89-tron",
@@ -278,6 +279,7 @@ export const DOCMOST_THEMES: DocmostTheme[] = [
     secondaryColor: "neonGreen",
     isDark: true,
     headingFontFamily: "'Orbitron', sans-serif",
+    fontFamily: "'VT323', 'Courier New', monospace",
   },
 ];
 

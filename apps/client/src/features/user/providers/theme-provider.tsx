@@ -137,12 +137,67 @@ export function DocmostThemeProvider({ children }: ThemeProviderProps) {
         document.documentElement.style.removeProperty(
           "--mantine-heading-font-family"
         );
+      }
 
-        // Optionally remove font if no longer needed
-        const orbitronLink = document.getElementById("orbitron-font");
-        if (orbitronLink && !theme.id.includes("project89")) {
-          orbitronLink.remove();
+      // Apply body font family if specified
+      if (theme.fontFamily) {
+        document.documentElement.style.setProperty(
+          "--mantine-font-family",
+          theme.fontFamily
+        );
+
+        // Load VT323 font if it's specified
+        if (
+          theme.fontFamily.includes("VT323") &&
+          !document.getElementById("vt323-font")
+        ) {
+          const link = document.createElement("link");
+          link.id = "vt323-font";
+          link.rel = "stylesheet";
+          link.href =
+            "https://fonts.googleapis.com/css2?family=VT323&display=swap";
+          document.head.appendChild(link);
+
+          if (DEBUG_THEME) {
+            console.log(
+              "[THEME-PROVIDER] Loaded VT323 font for Project 89 theme"
+            );
+          }
         }
+
+        // Load Share Tech Mono font if it's specified
+        if (
+          theme.fontFamily.includes("Share Tech Mono") &&
+          !document.getElementById("share-tech-mono-font")
+        ) {
+          const link = document.createElement("link");
+          link.id = "share-tech-mono-font";
+          link.rel = "stylesheet";
+          link.href =
+            "https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap";
+          document.head.appendChild(link);
+
+          if (DEBUG_THEME) {
+            console.log(
+              "[THEME-PROVIDER] Loaded Share Tech Mono font for Project 89 theme"
+            );
+          }
+        }
+      } else {
+        // Reset to default body font
+        document.documentElement.style.removeProperty("--mantine-font-family");
+      }
+
+      // Remove fonts if no longer needed
+      const orbitronLink = document.getElementById("orbitron-font");
+      const vt323Link = document.getElementById("vt323-font");
+      const shareTechMonoLink = document.getElementById("share-tech-mono-font");
+
+      if (!theme.id.includes("project89")) {
+        // Remove Project 89 fonts if switching to a different theme
+        if (orbitronLink) orbitronLink.remove();
+        if (vt323Link) vt323Link.remove();
+        if (shareTechMonoLink) shareTechMonoLink.remove();
       }
 
       // Apply global CSS custom properties for theme colors
