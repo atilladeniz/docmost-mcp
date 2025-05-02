@@ -20,6 +20,7 @@ export const MCPSocketProvider: React.FC<MCPSocketProviderProps> = ({
   const [, setMcpSocket] = useAtom(mcpSocketAtom);
   const [currentUser] = useAtom(currentUserAtom);
   const [subscribed, setSubscribed] = useState<boolean>(false);
+  const [connectionFailed, setConnectionFailed] = useState<boolean>(false);
 
   // Setup MCP socket connection
   useEffect(() => {
@@ -31,6 +32,9 @@ export const MCPSocketProvider: React.FC<MCPSocketProviderProps> = ({
       );
       return;
     }
+
+    let connectionAttempts = 0;
+    const maxAttempts = 3;
 
     console.log(
       "%c[MCP-SOCKET] Initiating connection to MCP WebSocket...",
@@ -50,9 +54,9 @@ export const MCPSocketProvider: React.FC<MCPSocketProviderProps> = ({
       const newSocket = io(socketUrl, {
         transports: ["websocket"],
         withCredentials: true,
-        reconnectionAttempts: 10,
-        reconnectionDelay: 2000,
-        timeout: 10000,
+        reconnectionAttempts: 3,
+        reconnectionDelay: 1000,
+        timeout: 5000,
         autoConnect: true,
       });
 
@@ -68,10 +72,20 @@ export const MCPSocketProvider: React.FC<MCPSocketProviderProps> = ({
 
       // Attempt to reconnect if disconnected
       newSocket.io.on("reconnect_attempt", (attempt) => {
+        connectionAttempts = attempt;
         console.log(
           `%c[MCP-SOCKET] Reconnection attempt #${attempt}`,
           "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
         );
+
+        if (attempt >= maxAttempts) {
+          console.log(
+            "%c[MCP-SOCKET] Maximum reconnection attempts reached. Giving up.",
+            "background: #F44336; color: white; padding: 3px; border-radius: 3px;"
+          );
+          setConnectionFailed(true);
+          newSocket.disconnect();
+        }
       });
 
       newSocket.io.on("reconnect", (attempt) => {
@@ -79,6 +93,8 @@ export const MCPSocketProvider: React.FC<MCPSocketProviderProps> = ({
           `%c[MCP-SOCKET] Reconnected after ${attempt} attempts!`,
           "background: #4CAF50; color: white; padding: 3px; border-radius: 3px;"
         );
+
+        setConnectionFailed(false);
 
         // Re-subscribe after reconnection
         if (currentUser?.workspace?.id) {
@@ -100,6 +116,8 @@ export const MCPSocketProvider: React.FC<MCPSocketProviderProps> = ({
           newSocket.id
         );
 
+        setConnectionFailed(false);
+
         // Subscribe to resources
         subscribeToResources(newSocket, currentUser);
       });
@@ -111,6 +129,15 @@ export const MCPSocketProvider: React.FC<MCPSocketProviderProps> = ({
           error.message
         );
         console.error("Error details:", error);
+
+        connectionAttempts++;
+        if (connectionAttempts >= maxAttempts) {
+          console.log(
+            "%c[MCP-SOCKET] Maximum connection attempts reached. Proceeding without WebSocket.",
+            "background: #F44336; color: white; padding: 3px; border-radius: 3px;"
+          );
+          setConnectionFailed(true);
+        }
       });
 
       newSocket.on("disconnect", (reason) => {
@@ -146,17 +173,16 @@ export const MCPSocketProvider: React.FC<MCPSocketProviderProps> = ({
         );
       });
 
-      // Force a reconnect if connection attempt takes too long
+      // Force a proceed if connection attempt takes too long
       const connectionTimeout = setTimeout(() => {
         if (!newSocket.connected) {
           console.log(
-            "%c[MCP-SOCKET] Connection timed out, forcing reconnect...",
+            "%c[MCP-SOCKET] Connection timed out, marking as failed but allowing app to proceed...",
             "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
           );
-          newSocket.disconnect();
-          newSocket.connect();
+          setConnectionFailed(true);
         }
-      }, 5000);
+      }, 3000);
 
       return () => {
         clearTimeout(connectionTimeout);
@@ -174,6 +200,7 @@ export const MCPSocketProvider: React.FC<MCPSocketProviderProps> = ({
         "background: #F44336; color: white; padding: 3px; border-radius: 3px;",
         error
       );
+      setConnectionFailed(true);
     }
   }, [currentUser, setMcpSocket]);
 

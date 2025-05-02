@@ -112,6 +112,11 @@ export default function GlobalAppShell({
           {isProjectRoute && (
             <ProjectSidebar
               spaceId={location.pathname.split("/")[2]}
+              activeProjectId={
+                location.search.includes("projectId=")
+                  ? new URLSearchParams(location.search).get("projectId")
+                  : null
+              }
               onSelectProject={(project) => {
                 navigate(
                   `/spaces/${location.pathname.split("/")[2]}/projects?projectId=${project.id}`

@@ -9,6 +9,7 @@ import {
   Tooltip,
   Stack,
   Button,
+  Modal,
 } from "@mantine/core";
 import {
   IconChevronDown,
@@ -23,11 +24,13 @@ import {
   IconNote,
   IconNotes,
   IconFileText,
+  IconCopy,
 } from "@tabler/icons-react";
 import clsx from "clsx";
 import { useDisclosure, useElementSize, useMergedRef } from "@mantine/hooks";
 import { useTranslation } from "react-i18next";
 import { notifications } from "@mantine/notifications";
+import { modals } from "@mantine/modals";
 import classes from "../styles/project-file-tree.module.css";
 
 // Types for the tree nodes
@@ -139,6 +142,36 @@ export function ProjectFileTree({
     }
   };
 
+  const handleCopyFile = (file: ProjectFileNode) => {
+    // TODO: Implement file copying
+    notifications.show({
+      title: t("Not implemented"),
+      message: t("File copying is not yet implemented"),
+      color: "yellow",
+    });
+  };
+
+  const handleDeleteFile = (file: ProjectFileNode) => {
+    modals.openConfirmModal({
+      title: t("Delete file"),
+      children: (
+        <Text size="sm">
+          {t('Are you sure you want to delete "{name}"?', { name: file.name })}
+        </Text>
+      ),
+      labels: { confirm: t("Delete"), cancel: t("Cancel") },
+      confirmProps: { color: "red" },
+      onConfirm: () => {
+        // TODO: Implement file deletion
+        notifications.show({
+          title: t("Not implemented"),
+          message: t("File deletion is not yet implemented"),
+          color: "yellow",
+        });
+      },
+    });
+  };
+
   const renderTreeNode = (node: ProjectFileNode, level = 0) => {
     const isFolder = node.type === "folder";
     const isOpen = openFolders[node.id] || false;
@@ -210,7 +243,7 @@ export function ProjectFileTree({
               {node.name}
             </Text>
 
-            {!readOnly && (
+            {!readOnly && !isFolder && (
               <Menu shadow="md" position="bottom-end">
                 <Menu.Target>
                   <ActionIcon
@@ -224,44 +257,21 @@ export function ProjectFileTree({
                 </Menu.Target>
 
                 <Menu.Dropdown>
-                  {isFolder && (
-                    <Menu.Item
-                      leftSection={<IconPlus size={14} />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        notifications.show({
-                          title: t("Not implemented"),
-                          message: t("Adding files is not yet implemented"),
-                          color: "yellow",
-                        });
-                      }}
-                    >
-                      {t("Add file")}
-                    </Menu.Item>
-                  )}
                   <Menu.Item
-                    leftSection={<IconEdit size={14} />}
+                    leftSection={<IconCopy size={14} />}
                     onClick={(e) => {
                       e.stopPropagation();
-                      notifications.show({
-                        title: t("Not implemented"),
-                        message: t("Renaming files is not yet implemented"),
-                        color: "yellow",
-                      });
+                      handleCopyFile(node);
                     }}
                   >
-                    {t("Rename")}
+                    {t("Copy")}
                   </Menu.Item>
                   <Menu.Item
                     leftSection={<IconTrash size={14} />}
                     color="red"
                     onClick={(e) => {
                       e.stopPropagation();
-                      notifications.show({
-                        title: t("Not implemented"),
-                        message: t("File deletion is not yet implemented"),
-                        color: "yellow",
-                      });
+                      handleDeleteFile(node);
                     }}
                   >
                     {t("Delete")}

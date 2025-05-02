@@ -32,7 +32,7 @@ export default function SpaceGrid() {
   const { data, isLoading, refetch, isRefetching } = useGetSpacesQuery({
     page: 1,
   });
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
 
   // Handle immediate refetch when a space is created
   const handleSpaceEvent = useCallback(
@@ -63,8 +63,14 @@ export default function SpaceGrid() {
       return () => {
         socket.off("mcp:event", handleSpaceEvent);
       };
+    } else {
+      // Socket not available, force a one-time refresh
+      console.log(
+        "🔍 SpaceGrid: Socket not available, forcing one-time refresh"
+      );
+      refetch();
     }
-  }, [socket, handleSpaceEvent]);
+  }, [socket, handleSpaceEvent, refetch]);
 
   // Force a refetch when the component mounts and set up periodic refreshes
   useEffect(() => {
@@ -72,16 +78,19 @@ export default function SpaceGrid() {
     // Refetch immediately on mount
     refetch();
 
-    // Setup an interval for periodic checks
-    const refreshInterval = setInterval(() => {
-      console.log("⏱️ SpaceGrid: Periodic refresh triggered");
-      refetch();
-    }, 10000); // Check every 10 seconds
+    // Setup an interval for periodic checks - use a shorter interval if no socket
+    const refreshInterval = setInterval(
+      () => {
+        console.log("⏱️ SpaceGrid: Periodic refresh triggered");
+        refetch();
+      },
+      socket ? 30000 : 10000
+    ); // Check every 30 seconds with socket, every 10 seconds without
 
     return () => {
       clearInterval(refreshInterval);
     };
-  }, [refetch]);
+  }, [refetch, socket]);
 
   // Force a manual refetch when refresh button is clicked
   const handleManualRefresh = () => {

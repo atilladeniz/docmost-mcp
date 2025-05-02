@@ -26,10 +26,39 @@ export const useMCPEvents = () => {
   useEffect(() => {
     if (!socket) {
       console.log(
-        "%c[MCP-EVENTS] Socket not available, cannot listen for events",
-        "background: #F44336; color: white; padding: 3px; border-radius: 3px;"
+        "%c[MCP-EVENTS] Socket not available, continuing without real-time updates",
+        "background: #FF9800; color: white; padding: 3px; border-radius: 3px;"
       );
-      return;
+
+      // Set up a fallback polling mechanism for critical data
+      const pollingInterval = setInterval(() => {
+        console.log(
+          "%c[MCP-EVENTS] Performing fallback polling for critical data",
+          "background: #2196F3; color: white; padding: 3px; border-radius: 3px;"
+        );
+
+        // Poll for spaces
+        queryClient.invalidateQueries({
+          queryKey: ["spaces"],
+          exact: false,
+        });
+
+        // Poll for any active page or space data
+        queryClient.invalidateQueries({
+          queryKey: ["currentSpace"],
+          exact: false,
+        });
+
+        // Poll for sidebar pages to keep navigation updated
+        queryClient.invalidateQueries({
+          queryKey: ["sidebar-pages"],
+          exact: false,
+        });
+      }, 60000); // Poll every minute
+
+      return () => {
+        clearInterval(pollingInterval);
+      };
     }
 
     // Avoid double registration
