@@ -51,10 +51,11 @@ export function BoardSwimlane({
         id={containerId}
         style={{
           minHeight: tasks.length > 0 ? "auto" : 80,
-          backgroundColor: "#f9f9f9",
+          backgroundColor: "var(--mantine-color-dark-6, #f9f9f9)",
           borderRadius: 8,
           padding: 8,
         }}
+        className="project-swimlane-container"
       >
         <SortableContext
           items={tasks.map((task) => task.id)}

@@ -50,37 +50,60 @@ const project89CSS = `
     }
   }
   
-  @keyframes textShadowPulse {
+  @keyframes horizontalScanline {
     0% {
-      text-shadow: 0 0 4px var(--mantine-primary-color-filled), 0 0 8px var(--mantine-primary-color-filled);
-    }
-    50% {
-      text-shadow: 0 0 4px var(--mantine-primary-color-filled), 0 0 12px var(--mantine-primary-color-filled), 0 0 16px var(--mantine-primary-color-filled);
+      transform: translateX(-100%);
     }
     100% {
-      text-shadow: 0 0 4px var(--mantine-primary-color-filled), 0 0 8px var(--mantine-primary-color-filled);
+      transform: translateX(100%);
     }
   }
   
-  @keyframes glitch {
-    0% {
-      transform: translate(0);
-    }
-    20% {
-      transform: translate(-2px, 2px);
-    }
-    40% {
-      transform: translate(-2px, -2px);
-    }
-    60% {
-      transform: translate(2px, 2px);
-    }
-    80% {
-      transform: translate(2px, -2px);
-    }
-    100% {
-      transform: translate(0);
-    }
+  /* Background effects for the entire page */
+  [data-theme^="project89"] body {
+    position: relative;
+    background-color: rgba(0, 0, 0, 0.95); /* Restore to previous darkness level */
+  }
+  
+  /* Grid lines are removed for both themes */
+  [data-theme^="project89"] body::before {
+    display: none;
+  }
+  
+  /* Add scanlines overlay for Matrix theme - made more subtle */
+  [data-theme="project89-matrix"] body::after {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      transparent 0%,
+      rgba(0, 255, 65, 0.08) 50%,
+      transparent 100%
+    );
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: -2; /* Position behind all content */
+  }
+  
+  /* Tron blue scan lines - made more subtle */
+  [data-theme="project89-tron"] body::after {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      transparent 0%,
+      rgba(30, 143, 255, 0.08) 50%,
+      transparent 100%
+    );
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: -2; /* Position behind all content */
   }
   
   /* Matrix theme styles */
@@ -90,29 +113,56 @@ const project89CSS = `
     --matrix-glow: 0 0 5px var(--mantine-color-neonGreen-5), 0 0 10px var(--mantine-color-neonGreen-5);
   }
   
-  [data-theme="project89-matrix"] .mantine-Title-root,
-  [data-theme="project89-matrix"] h1,
-  [data-theme="project89-matrix"] h2,
-  [data-theme="project89-matrix"] h3,
-  [data-theme="project89-matrix"] h4 {
-    font-family: var(--header-font);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    font-weight: 700;
-    text-shadow: var(--matrix-glow);
-    animation: textShadowPulse 2s infinite;
+  /* Add some transparency to cards to let the background effects show through */
+  [data-theme^="project89"] .mantine-Card-root {
+    background-color: rgba(18, 18, 20, 0.85);
+    backdrop-filter: blur(2px);
+    border: 1px solid rgba(40, 40, 45, 0.8);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+    transition: all 0.3s ease;
   }
   
-  [data-theme="project89-matrix"] .mantine-Button-root {
-    font-family: var(--header-font);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    border: 1px solid var(--mantine-color-neonGreen-5);
-    box-shadow: var(--matrix-glow);
+  [data-theme^="project89"] .mantine-Card-root:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(60, 60, 65, 0.9);
   }
   
-  [data-theme="project89-matrix"] .mantine-Text-root {
-    font-family: var(--terminal-font);
+  /* Content areas get a subtle glow */
+  [data-theme^="project89"] .mantine-Paper-root {
+    background-color: rgba(18, 18, 20, 0.85);
+    backdrop-filter: blur(2px);
+    border: 1px solid rgba(40, 40, 45, 0.8);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  }
+  
+  /* Matrix specific card styles */
+  [data-theme="project89-matrix"] .mantine-Card-root {
+    background-color: rgba(15, 20, 15, 0.85);
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 12px rgba(0, 255, 65, 0.2);
+  }
+  
+  [data-theme="project89-matrix"] .mantine-Card-root:hover {
+    border: 1px solid rgba(0, 255, 65, 0.5);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7), 0 0 16px rgba(0, 255, 65, 0.3);
+  }
+  
+  [data-theme="project89-matrix"] .mantine-Paper-root {
+    background-color: rgba(15, 20, 15, 0.85);
+    border: 1px solid rgba(0, 255, 65, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 10px rgba(0, 255, 65, 0.15);
+  }
+  
+  /* Project swimlane styling */
+  [data-theme^="project89"] .project-swimlane-container {
+    background-color: rgba(18, 18, 20, 0.85) !important;
+    backdrop-filter: blur(2px);
+    border: 1px solid rgba(40, 40, 45, 0.8);
+  }
+  
+  [data-theme="project89-matrix"] .project-swimlane-container {
+    background-color: rgba(15, 20, 15, 0.85) !important;
+    border: 1px solid rgba(0, 255, 65, 0.2);
   }
   
   /* Tron theme styles */
@@ -122,48 +172,17 @@ const project89CSS = `
     --tron-glow: 0 0 5px var(--mantine-color-electricBlue-5), 0 0 10px var(--mantine-color-electricBlue-5);
   }
   
-  [data-theme="project89-tron"] .mantine-Title-root,
-  [data-theme="project89-tron"] h1,
-  [data-theme="project89-tron"] h2,
-  [data-theme="project89-tron"] h3,
-  [data-theme="project89-tron"] h4 {
-    font-family: var(--header-font);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    font-weight: 700;
-    text-shadow: var(--tron-glow);
-    animation: textShadowPulse 3s infinite;
-  }
-  
   [data-theme="project89-tron"] .mantine-Button-root {
     font-family: var(--header-font);
     text-transform: uppercase;
     letter-spacing: 1px;
     border: 1px solid var(--mantine-color-electricBlue-5);
-    box-shadow: var(--tron-glow);
-    position: relative;
-    overflow: hidden;
+    box-shadow: 0 0 5px var(--mantine-color-electricBlue-5);
   }
   
-  /* Button hover effect */
+  /* Remove button scan line effect */
   [data-theme="project89-tron"] .mantine-Button-root:hover::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(var(--mantine-color-electricBlue-5-rgb), 0.4),
-      transparent
-    );
-    animation: scanline 1s linear;
-  }
-  
-  [data-theme="project89-tron"] .mantine-Text-root {
-    font-family: var(--terminal-font);
+    display: none;
   }
   
   /* Common Project 89 terminal-style elements */
@@ -173,62 +192,6 @@ const project89CSS = `
     font-family: var(--terminal-font);
     border: 1px solid var(--mantine-primary-color-filled);
     background-color: rgba(0, 0, 0, 0.8);
-    box-shadow: 0 0 5px var(--mantine-primary-color-filled);
-  }
-  
-  [data-theme^="project89"] .mantine-Card-root {
-    backdrop-filter: blur(2px);
-    border: 1px solid var(--mantine-primary-color-filled);
-    box-shadow: 0 0 10px var(--mantine-primary-color-filled);
-    overflow: hidden;
-    position: relative;
-  }
-  
-  /* Add scanline effect to cards */
-  [data-theme^="project89"] .mantine-Card-root::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      transparent 0%, 
-      rgba(32, 32, 32, 0.2) 50%, 
-      transparent 100%
-    );
-    background-size: 100% 4px;
-    pointer-events: none;
-    z-index: 1;
-  }
-  
-  /* Add moving scanline effect */
-  [data-theme^="project89"] .mantine-Card-root::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      var(--mantine-primary-color-filled),
-      transparent
-    );
-    opacity: 0.3;
-    pointer-events: none;
-    z-index: 2;
-    animation: scanline 8s linear infinite;
-  }
-  
-  /* Text inputs get the terminal treatment */
-  [data-theme^="project89"] .mantine-TextInput-input,
-  [data-theme^="project89"] .mantine-Textarea-input,
-  [data-theme^="project89"] .mantine-PasswordInput-input {
-    font-family: var(--terminal-font);
-    background-color: rgba(0, 0, 0, 0.6);
-    border: 1px solid var(--mantine-primary-color-filled);
     box-shadow: 0 0 5px var(--mantine-primary-color-filled);
   }
   
@@ -248,11 +211,11 @@ const project89CSS = `
     box-shadow: 0 0 15px var(--mantine-primary-color-filled);
   }
   
-  /* Occasional glitch effect on hover */
+  /* Remove the occasional glitch effect on hover */
   [data-theme^="project89"] .mantine-Title-root:hover,
   [data-theme^="project89"] h1:hover,
   [data-theme^="project89"] .mantine-Button-root:hover {
-    animation: glitch 0.2s linear;
+    animation: none;
   }
   
   /* Headers get a special terminal-like effect */
@@ -261,6 +224,133 @@ const project89CSS = `
     border: 1px solid var(--mantine-primary-color-filled);
     box-shadow: 0 0 10px var(--mantine-primary-color-filled);
     background-color: rgba(0, 0, 0, 0.85);
+  }
+
+  /* Add moving horizontal scanline effect for the entire page - made more subtle */
+  [data-theme="project89-matrix"] #horizontal-scanline {
+    position: fixed;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(var(--mantine-color-neonGreen-filled-rgb), 0.3),
+      transparent
+    );
+    z-index: 0; /* Behind content but above background */
+    pointer-events: none;
+    opacity: 0.3;
+    animation: horizontalScanline 20s linear infinite; /* Slower animation */
+  }
+  
+  [data-theme="project89-tron"] #horizontal-scanline {
+    position: fixed;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(var(--mantine-color-electricBlue-filled-rgb), 0.3),
+      transparent
+    );
+    z-index: 0; /* Behind content but above background */
+    pointer-events: none;
+    opacity: 0.3;
+    animation: horizontalScanline 20s linear infinite; /* Slower animation */
+  }
+
+  /* Text inputs get the terminal treatment */
+  [data-theme^="project89"] .mantine-TextInput-input,
+  [data-theme^="project89"] .mantine-Textarea-input,
+  [data-theme^="project89"] .mantine-PasswordInput-input {
+    font-family: var(--terminal-font);
+    background-color: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--mantine-primary-color-filled);
+    box-shadow: 0 0 5px var(--mantine-primary-color-filled);
+  }
+
+  /* Tron specific card styles */
+  [data-theme="project89-tron"] .mantine-Card-root {
+    background-color: rgba(15, 15, 25, 0.85);
+    border: 1px solid rgba(30, 143, 255, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 12px rgba(30, 143, 255, 0.2);
+  }
+  
+  [data-theme="project89-tron"] .mantine-Card-root:hover {
+    border: 1px solid rgba(30, 143, 255, 0.5);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7), 0 0 16px rgba(30, 143, 255, 0.3);
+  }
+  
+  [data-theme="project89-tron"] .mantine-Paper-root {
+    background-color: rgba(15, 15, 25, 0.85);
+    border: 1px solid rgba(30, 143, 255, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 10px rgba(30, 143, 255, 0.15);
+  }
+  
+  /* Remove the scan line effect from cards */
+  [data-theme^="project89"] .mantine-Card-root::before,
+  [data-theme^="project89"] .mantine-Card-root::after {
+    display: none;
+  }
+  
+  /* Add section styling */
+  [data-theme^="project89"] section, 
+  [data-theme^="project89"] .mantine-Container-root,
+  [data-theme^="project89"] .mantine-Group-root > div {
+    position: relative;
+    z-index: 1;
+  }
+  
+  /* Matrix theme typography styles */
+  [data-theme="project89-matrix"] .mantine-Title-root,
+  [data-theme="project89-matrix"] h1,
+  [data-theme="project89-matrix"] h2,
+  [data-theme="project89-matrix"] h3,
+  [data-theme="project89-matrix"] h4 {
+    font-family: var(--header-font);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
+    text-shadow: 0 0 4px var(--mantine-color-neonGreen-5);
+  }
+  
+  [data-theme="project89-matrix"] .mantine-Button-root {
+    font-family: var(--header-font);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border: 1px solid var(--mantine-color-neonGreen-5);
+    box-shadow: 0 0 5px var(--mantine-color-neonGreen-5);
+  }
+  
+  [data-theme="project89-matrix"] .mantine-Text-root {
+    font-family: var(--terminal-font);
+  }
+  
+  /* Tron theme typography styles */
+  [data-theme="project89-tron"] .mantine-Title-root,
+  [data-theme="project89-tron"] h1,
+  [data-theme="project89-tron"] h2,
+  [data-theme="project89-tron"] h3,
+  [data-theme="project89-tron"] h4 {
+    font-family: var(--header-font);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
+    text-shadow: 0 0 4px var(--mantine-color-electricBlue-5);
+  }
+  
+  [data-theme="project89-tron"] .mantine-Text-root {
+    font-family: var(--terminal-font);
+  }
+
+  /* Project swimlane styling */
+  [data-theme="project89-tron"] .project-swimlane-container {
+    background-color: rgba(15, 15, 25, 0.85) !important;
+    border: 1px solid rgba(30, 143, 255, 0.2);
   }
 `;
 
@@ -286,6 +376,62 @@ export default function App() {
       const styleElement = document.getElementById("project89-styles");
       if (styleElement) {
         styleElement.remove();
+      }
+    };
+  }, []);
+
+  // Add horizontal scanline for Project 89 themes
+  useEffect(() => {
+    // Function to check if the current theme is a Project 89 theme
+    const checkAndUpdateScanline = () => {
+      const currentTheme = document.documentElement.getAttribute("data-theme");
+      const isProject89Theme =
+        currentTheme && currentTheme.startsWith("project89");
+
+      // Get or create the scanline element
+      let scanlineElement = document.getElementById("horizontal-scanline");
+
+      if (isProject89Theme) {
+        // Create scanline if it doesn't exist
+        if (!scanlineElement) {
+          scanlineElement = document.createElement("div");
+          scanlineElement.id = "horizontal-scanline";
+          document.body.appendChild(scanlineElement);
+        }
+      } else {
+        // Remove scanline if it exists and theme is not Project 89
+        if (scanlineElement) {
+          scanlineElement.remove();
+        }
+      }
+    };
+
+    // Run once on mount
+    checkAndUpdateScanline();
+
+    // Set up a MutationObserver to watch for theme changes
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (
+          mutation.type === "attributes" &&
+          mutation.attributeName === "data-theme"
+        ) {
+          checkAndUpdateScanline();
+        }
+      });
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+
+    return () => {
+      // Cleanup - disconnect observer and remove scanline
+      observer.disconnect();
+      const scanlineElement = document.getElementById("horizontal-scanline");
+      if (scanlineElement) {
+        scanlineElement.remove();
       }
     };
   }, []);
