@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Flex, Stack, Box, Text, Loader } from "@mantine/core";
+import { Flex, Stack, Box, Text, Loader, Button } from "@mantine/core";
 import {
   DndContext,
   DragOverlay,
@@ -23,6 +23,9 @@ import { TaskCard } from "../../../components/task-card";
 import { Task, Project } from "../../../types";
 import { useDisclosure } from "@mantine/hooks";
 import { useWorkspaceUsers } from "@/features/user/hooks/use-workspace-users";
+import { ProjectHeader } from "@/features/project/components/project-header.tsx";
+import { IconArrowLeft } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
 
 interface BoardProps {
   project: Project;
@@ -63,6 +66,7 @@ function BoardContent() {
     isAdvancedFiltersOpen,
     openAdvancedFilters,
     closeAdvancedFilters,
+    onBack,
   } = useBoardContext();
 
   const [isFiltersVisible, setIsFiltersVisible] = useState(false);
@@ -281,15 +285,33 @@ function BoardContent() {
     return key; // Placeholder
   };
 
+  const { t } = useTranslation();
+
   return (
-    <Box>
+    <Stack gap="md">
+      {/* Project header with all project details */}
+      <ProjectHeader project={project} />
+
+      {/* Small back button */}
+      <Box ml={-8}>
+        <Button
+          variant="subtle"
+          leftSection={<IconArrowLeft size={16} />}
+          onClick={onBack}
+          size="sm"
+        >
+          {t("Back to Projects")}
+        </Button>
+      </Box>
+
+      {/* Board header with view controls */}
       <BoardHeader onToggleFilters={toggleFilters} />
 
-      <BoardControls isVisible={isFiltersVisible} />
+      {/* Board filters if visible */}
+      {isFiltersVisible && <BoardControls isVisible={true} />}
 
+      {/* Main board content area */}
       {renderContent()}
-
-      {/* Task form modal would go here */}
-    </Box>
+    </Stack>
   );
 }

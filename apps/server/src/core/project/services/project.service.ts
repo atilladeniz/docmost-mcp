@@ -63,11 +63,23 @@ export class ProjectService {
       endDate?: Date;
     },
   ): Promise<Project> {
+    console.log('ProjectService.create called with:', {
+      userId,
+      workspaceId,
+      data,
+    });
+
     // Verify the space exists and belongs to the workspace
     const space = await this.spaceRepo.findById(data.spaceId, workspaceId);
     if (!space || space.workspaceId !== workspaceId) {
       throw new Error('Space not found or does not belong to the workspace');
     }
+
+    console.log('Space found:', {
+      id: space.id,
+      name: space.name,
+      workspaceId: space.workspaceId,
+    });
 
     const projectData: InsertableProject = {
       name: data.name,
@@ -82,7 +94,13 @@ export class ProjectService {
       isArchived: false,
     };
 
-    return this.projectRepo.create(projectData);
+    console.log(
+      'Creating project with data:',
+      JSON.stringify(projectData, null, 2),
+    );
+    const result = await this.projectRepo.create(projectData);
+    console.log('Project created result:', JSON.stringify(result, null, 2));
+    return result;
   }
 
   async update(
@@ -92,20 +110,31 @@ export class ProjectService {
       description?: string;
       icon?: string;
       color?: string;
+      coverImage?: string | null;
       startDate?: Date;
       endDate?: Date;
     },
   ): Promise<Project | undefined> {
+    console.log('ProjectService.update called with:', { projectId, data });
     const updateData: UpdatableProject = {
       ...(data.name && { name: data.name }),
       ...(data.description !== undefined && { description: data.description }),
       ...(data.icon !== undefined && { icon: data.icon }),
       ...(data.color !== undefined && { color: data.color }),
+      ...(data.coverImage !== undefined && { coverImage: data.coverImage }),
       ...(data.startDate !== undefined && { startDate: data.startDate }),
       ...(data.endDate !== undefined && { endDate: data.endDate }),
     };
+    console.log('ProjectService.update: prepared updateData:', updateData);
 
-    return this.projectRepo.update(projectId, updateData);
+    try {
+      const result = await this.projectRepo.update(projectId, updateData);
+      console.log('ProjectService.update: result:', result);
+      return result;
+    } catch (error) {
+      console.error('ProjectService.update: error:', error);
+      throw error;
+    }
   }
 
   async delete(projectId: string): Promise<void> {

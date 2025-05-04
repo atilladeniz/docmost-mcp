@@ -14,6 +14,8 @@ export default defineConfig(({ mode }) => {
     COLLAB_URL,
   } = loadEnv(mode, envPath, "");
 
+  console.log("Configuring Vite with APP_URL:", APP_URL);
+
   return {
     define: {
       "process.env": {
@@ -36,16 +38,51 @@ export default defineConfig(({ mode }) => {
       proxy: {
         "/api": {
           target: APP_URL,
-          changeOrigin: false,
+          changeOrigin: true,
+          secure: false,
+          xfwd: true,
+          withCredentials: true,
+          cookieDomainRewrite: {
+            "*": "",
+          },
+          headers: {
+            Connection: "keep-alive",
+          },
+          rewrite: (path) => path, // Don't rewrite the path
+          configure: (proxy, options) => {
+            // Log proxy requests for debugging
+            proxy.on("error", (err, req, res) => {
+              console.log("Proxy error:", err);
+            });
+            proxy.on("proxyReq", (proxyReq, req, res) => {
+              // Copy authentication headers from original request
+              if (req.headers.cookie) {
+                proxyReq.setHeader("cookie", req.headers.cookie);
+              }
+              if (req.headers.authorization) {
+                proxyReq.setHeader("authorization", req.headers.authorization);
+              }
+
+              console.log(
+                "Proxy request:",
+                req.method,
+                req.url,
+                "→",
+                options.target + req.url
+              );
+            });
+          },
         },
         "/socket.io": {
           target: APP_URL,
           ws: true,
+          changeOrigin: true,
           rewriteWsOrigin: true,
         },
         "/collab": {
           target: APP_URL,
           ws: true,
+          changeOrigin: true,
           rewriteWsOrigin: true,
         },
       },

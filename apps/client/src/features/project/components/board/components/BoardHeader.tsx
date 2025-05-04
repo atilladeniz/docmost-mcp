@@ -23,23 +23,11 @@ interface BoardHeaderProps {
 
 export function BoardHeader({ onToggleFilters }: BoardHeaderProps) {
   const { t } = useTranslation();
-  const { project, viewMode, setViewMode, groupBy, setGroupBy, onBack } =
+  const { project, viewMode, setViewMode, groupBy, setGroupBy } =
     useBoardContext();
 
   return (
     <Box mb="md">
-      <Flex align="center" gap="sm" mb="sm">
-        <Button
-          variant="subtle"
-          leftSection={<IconArrowLeft size={16} />}
-          onClick={onBack}
-          size="sm"
-        >
-          {t("Back")}
-        </Button>
-        <Title order={2}>{project.name}</Title>
-      </Flex>
-
       <Group justify="space-between" align="center">
         <SegmentedControl
           value={viewMode}

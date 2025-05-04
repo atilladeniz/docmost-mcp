@@ -1,52 +1,43 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActionIcon,
   Group,
+  ScrollArea,
+  Stack,
   Text,
+  TextInput,
   Tooltip,
   UnstyledButton,
-  Stack,
-  ScrollArea,
-  Box,
-  Modal,
-  Button,
-  TextInput,
-  Textarea,
   Menu,
 } from "@mantine/core";
 import {
-  IconArrowRight,
+  IconChecklist,
   IconChevronRight,
-  IconPlus,
-  IconDotsVertical,
-  IconFolder,
-  IconFolderFilled,
-  IconTrash,
-  IconCopy,
   IconHome,
+  IconPlus,
   IconSearch,
   IconSettings,
-  IconChecklist,
+  IconDotsVertical,
+  IconTrash,
+  IconFolder,
+  IconFolderFilled,
 } from "@tabler/icons-react";
-import {
-  useProjects,
-  useCreateProjectMutation,
-  useDeleteProjectMutation,
-} from "../hooks/use-projects";
-import { Project } from "../types";
-import { useDisclosure } from "@mantine/hooks";
-import { useTranslation } from "react-i18next";
-import { useForm } from "@mantine/form";
 import classes from "../../space/components/sidebar/space-sidebar.module.css";
-import { modals } from "@mantine/modals";
+import APP_ROUTE from "@/lib/app-route";
 import { Link, useLocation } from "react-router-dom";
 import clsx from "clsx";
-import { spotlight } from "@mantine/spotlight";
+import { useProjects, useDeleteProjectMutation } from "../hooks/use-projects";
+import { Project } from "../types";
 import { useSpaceQuery } from "@/features/space/queries/space-query";
 import { getSpaceUrl } from "@/lib/config";
-import APP_ROUTE from "@/lib/app-route";
+import { useDisclosure } from "@mantine/hooks";
+import { modals } from "@mantine/modals";
+import { spotlight } from "@mantine/spotlight";
 import SpaceSettingsModal from "@/features/space/components/settings-modal";
 import { SearchSpotlight } from "@/features/search/search-spotlight";
+import ProjectFormModal from "./project-form-modal";
+import { useCurrentWorkspace } from "@/features/workspace/hooks/use-current-workspace";
 
 interface ProjectSidebarProps {
   spaceId: string;
@@ -64,7 +55,11 @@ export function ProjectSidebar({
   const deleteProjectMutation = useDeleteProjectMutation();
   const location = useLocation();
   const { data: space } = useSpaceQuery(spaceId);
-  const [opened, { open, close }] = useDisclosure(false);
+  const { data: workspaceData } = useCurrentWorkspace();
+  const [
+    createModalOpened,
+    { open: openCreateModal, close: closeCreateModal },
+  ] = useDisclosure(false);
   const [settingsOpened, { open: openSettings, close: closeSettings }] =
     useDisclosure(false);
 
@@ -79,37 +74,6 @@ export function ProjectSidebar({
       projects = projectsData.items;
     }
   }
-
-  const createProjectMutation = useCreateProjectMutation();
-
-  const form = useForm({
-    initialValues: {
-      name: "",
-      description: "",
-    },
-    validate: {
-      name: (value) => (value.trim().length < 1 ? t("Name is required") : null),
-    },
-  });
-
-  const handleCreateProject = (values: {
-    name: string;
-    description: string;
-  }) => {
-    createProjectMutation.mutate(
-      {
-        name: values.name,
-        description: values.description,
-        spaceId,
-      },
-      {
-        onSuccess: () => {
-          close();
-          form.reset();
-        },
-      }
-    );
-  };
 
   const handleDeleteProject = (project: Project) => {
     modals.openConfirmModal({
@@ -235,7 +199,7 @@ export function ProjectSidebar({
               </div>
             </UnstyledButton>
 
-            <UnstyledButton className={classes.menu} onClick={open}>
+            <UnstyledButton className={classes.menu} onClick={openCreateModal}>
               <div className={classes.menuItemInner}>
                 <IconPlus
                   size={18}
@@ -258,7 +222,7 @@ export function ProjectSidebar({
               <ActionIcon
                 variant="default"
                 size={18}
-                onClick={open}
+                onClick={openCreateModal}
                 aria-label={t("Create project")}
               >
                 <IconPlus />
@@ -343,39 +307,14 @@ export function ProjectSidebar({
         </div>
       </div>
 
-      {/* New Project Modal */}
-      <Modal
-        opened={opened}
-        onClose={close}
-        title={t("Create new project")}
-        centered
-      >
-        <form onSubmit={form.onSubmit(handleCreateProject)}>
-          <TextInput
-            label={t("Project name")}
-            placeholder={t("Enter project name")}
-            required
-            mb="md"
-            {...form.getInputProps("name")}
-          />
-          <Textarea
-            label={t("Description")}
-            placeholder={t("Enter project description")}
-            mb="xl"
-            {...form.getInputProps("description")}
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={close}>
-              {t("Cancel")}
-            </Button>
-            <Button type="submit" loading={createProjectMutation.isPending}>
-              {t("Create")}
-            </Button>
-          </Group>
-        </form>
-      </Modal>
+      {/* Project Create Modal */}
+      <ProjectFormModal
+        opened={createModalOpened}
+        onClose={closeCreateModal}
+        spaceId={spaceId}
+        workspaceId={workspaceData?.id || ""}
+      />
 
-      {/* Use the SpaceSettingsModal component for space settings */}
       {space && (
         <SpaceSettingsModal
           opened={settingsOpened}

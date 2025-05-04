@@ -330,6 +330,16 @@ export const theme = createTheme({
     terminalBlack,
     glitchPurple,
   },
+
+  // Increase font sizes for better readability
+  fontSizes: {
+    xs: "0.85rem", // 13.6px - slightly larger than default
+    sm: "0.95rem", // 15.2px - more readable small text
+    md: "1.05rem", // 16.8px - increased for better readability
+    lg: "1.15rem", // 18.4px - larger text
+    xl: "1.35rem", // 21.6px - larger headlines
+  },
+
   components: {
     Button: {
       defaultProps: {
@@ -339,6 +349,47 @@ export const theme = createTheme({
     ActionIcon: {
       defaultProps: {
         variant: "subtle",
+      },
+    },
+    // Increase text size for Input descriptions and labels
+    Input: {
+      styles: {
+        description: {
+          fontSize: "var(--mantine-font-size-sm)", // Larger description text
+        },
+        label: {
+          fontSize: "var(--mantine-font-size-sm)", // Larger labels
+        },
+      },
+    },
+    // Increase text size for Tabs
+    Tabs: {
+      styles: {
+        tab: {
+          fontSize: "var(--mantine-font-size-sm)", // Larger tab labels
+        },
+      },
+    },
+    // Increase text size for Select components
+    Select: {
+      styles: {
+        label: {
+          fontSize: "var(--mantine-font-size-sm)",
+        },
+        description: {
+          fontSize: "var(--mantine-font-size-sm)",
+        },
+      },
+    },
+    // Make MultiSelect text larger
+    MultiSelect: {
+      styles: {
+        label: {
+          fontSize: "var(--mantine-font-size-sm)",
+        },
+        description: {
+          fontSize: "var(--mantine-font-size-sm)",
+        },
       },
     },
   },
@@ -351,6 +402,9 @@ export const mantineCssResolver: CSSVariablesResolver = (theme) => ({
     "--docmost-primary-hover": `var(--mantine-color-${theme.primaryColor}-filled-hover)`,
     "--docmost-primary-light": `var(--mantine-color-${theme.primaryColor}-light)`,
     "--docmost-primary-light-hover": `var(--mantine-color-${theme.primaryColor}-light-hover)`,
+    // Add new text size variables
+    "--docmost-text-size-small": theme.fontSizes.sm,
+    "--docmost-text-size-description": theme.fontSizes.sm,
   },
   light: {},
   dark: {},

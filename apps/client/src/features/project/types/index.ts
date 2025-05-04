@@ -41,6 +41,7 @@ export interface Project {
   description?: string;
   icon?: string;
   color?: string;
+  coverImage?: string | null;
   isArchived: boolean;
   startDate?: string;
   endDate?: string;
@@ -131,6 +132,7 @@ export interface UpdateProjectParams {
   description?: string;
   icon?: string;
   color?: string;
+  coverImage?: string | null;
   startDate?: Date;
   endDate?: Date;
 }

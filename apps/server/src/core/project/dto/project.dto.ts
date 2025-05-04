@@ -34,6 +34,10 @@ export class CreateProjectDto {
   @IsOptional()
   color?: string;
 
+  @IsString()
+  @IsOptional()
+  coverImage?: string;
+
   @IsOptional()
   @Type(() => Date)
   @IsDate()
@@ -65,6 +69,10 @@ export class UpdateProjectDto {
   @IsString()
   @IsOptional()
   color?: string;
+
+  @IsString()
+  @IsOptional()
+  coverImage?: string;
 
   @IsOptional()
   @Type(() => Date)

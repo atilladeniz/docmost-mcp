@@ -9,6 +9,27 @@ import {
 import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
 
+// Check if we're in development mode
+const isDevelopment = import.meta.env?.DEV;
+
+// Only log in production or if explicitly enabled
+const shouldLog =
+  !isDevelopment || import.meta.env?.VITE_ENABLE_LOGS === "true";
+
+// Helper function to conditionally log
+const conditionalLog = (message: string, data?: any) => {
+  if (shouldLog) {
+    console.log(message, data);
+  }
+};
+
+// Helper function to conditionally log errors
+const conditionalErrorLog = (message: string, error?: any) => {
+  if (shouldLog || error?.response?.status >= 400) {
+    console.error(message, error);
+  }
+};
+
 const PROJECTS_QUERY_KEY = "projects";
 const PROJECT_QUERY_KEY = "project";
 
@@ -16,12 +37,55 @@ export function useProjects(params: ProjectListParams) {
   return useQuery({
     queryKey: [PROJECTS_QUERY_KEY, params],
     queryFn: async () => {
-      console.log("Fetching projects with params:", params);
+      conditionalLog("Fetching projects with params:", params);
+      console.log("PROJECT LIST DEBUG - Fetching with params:", params);
+
       const result = await projectService.listProjects(params);
-      console.log("Projects fetched:", result);
+
+      console.log("PROJECT LIST DEBUG - Raw API response:", result);
+      console.log("PROJECT LIST DEBUG - Projects data structure:", {
+        hasDataProperty: !!result.data,
+        hasItemsProperty: !!result.items,
+        dataIsArray: Array.isArray(result.data),
+        itemsIsArray: Array.isArray(result.items),
+        dataLength: Array.isArray(result.data)
+          ? result.data.length
+          : "not an array",
+        itemsLength: Array.isArray(result.items)
+          ? result.items.length
+          : "not an array",
+      });
+
+      // If we have projects data, log the first few projects to see their names
+      if (Array.isArray(result.data) && result.data.length > 0) {
+        console.log(
+          "PROJECT LIST DEBUG - First projects from data:",
+          result.data.slice(0, 3)
+        );
+      } else if (Array.isArray(result.items) && result.items.length > 0) {
+        console.log(
+          "PROJECT LIST DEBUG - First projects from items:",
+          result.items.slice(0, 3)
+        );
+      } else if (
+        result.data &&
+        typeof result.data === "object" &&
+        result.data.items &&
+        Array.isArray(result.data.items)
+      ) {
+        console.log(
+          "PROJECT LIST DEBUG - First projects from data.items:",
+          result.data.items.slice(0, 3)
+        );
+      }
+
+      conditionalLog("Projects fetched:", result);
       return result;
     },
     enabled: !!params.spaceId,
+    // During hot reloads, don't retry as aggressively
+    retry: isDevelopment ? false : 1,
+    retryDelay: 1000,
   });
 }
 
@@ -30,6 +94,9 @@ export function useProject(projectId: string) {
     queryKey: [PROJECT_QUERY_KEY, projectId],
     queryFn: () => projectService.getProjectById(projectId),
     enabled: !!projectId,
+    // During hot reloads, don't retry as aggressively
+    retry: isDevelopment ? false : 1,
+    retryDelay: 1000,
   });
 }
 
@@ -39,14 +106,39 @@ export function useCreateProjectMutation() {
 
   return useMutation({
     mutationFn: async (params: CreateProjectParams) => {
-      console.log("Creating project with params:", params);
-      const result = await projectService.createProject(params);
-      console.log("Project created:", result);
-      return result;
+      const startTime = performance.now();
+      console.log(
+        `Create project mutation started at ${new Date().toISOString()}`
+      );
+
+      conditionalLog("Creating project with params:", params);
+      try {
+        const result = await projectService.createProject(params);
+        conditionalLog("Project created:", result);
+
+        const endTime = performance.now();
+        console.log(
+          `Create project mutation completed in ${endTime - startTime}ms at ${new Date().toISOString()}`
+        );
+
+        return result;
+      } catch (error) {
+        const endTime = performance.now();
+        console.error(
+          `Create project mutation failed after ${endTime - startTime}ms at ${new Date().toISOString()}`,
+          error
+        );
+        throw error;
+      }
+    },
+    onMutate: () => {
+      console.log(`onMutate callback started at ${new Date().toISOString()}`);
     },
     onSuccess: (data, variables) => {
+      console.log(`onSuccess callback started at ${new Date().toISOString()}`);
+
       const queryParams = { spaceId: variables.spaceId };
-      console.log(
+      conditionalLog(
         "Project creation successful, invalidating queries with key:",
         [PROJECTS_QUERY_KEY, queryParams]
       );
@@ -68,14 +160,22 @@ export function useCreateProjectMutation() {
         }),
         color: "green",
       });
+
+      console.log(
+        `onSuccess callback completed at ${new Date().toISOString()}`
+      );
     },
     onError: (error) => {
-      console.error("Project creation error:", error);
+      console.log(`onError callback started at ${new Date().toISOString()}`);
+
+      conditionalErrorLog("Project creation error:", error);
       notifications.show({
         title: t("Error"),
         message: t("Failed to create project"),
         color: "red",
       });
+
+      console.log(`onError callback completed at ${new Date().toISOString()}`);
     },
   });
 }

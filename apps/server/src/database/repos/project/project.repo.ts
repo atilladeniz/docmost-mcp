@@ -25,7 +25,7 @@ export class ProjectRepo {
   ): Promise<Project | undefined> {
     let query = dbOrTx(this.db, trx)
       .selectFrom('projects')
-      .selectAll()
+      .selectAll('projects')
       .where('projects.id', '=', projectId)
       .where('projects.deletedAt', 'is', null);
 
@@ -56,7 +56,7 @@ export class ProjectRepo {
   ): Promise<Paginated<Project>> {
     let query = dbOrTx(this.db, trx)
       .selectFrom('projects')
-      .selectAll()
+      .selectAll('projects')
       .where('projects.spaceId', '=', spaceId)
       .where('projects.deletedAt', 'is', null);
 
@@ -84,6 +84,7 @@ export class ProjectRepo {
         ]);
     }
 
+    console.log('findBySpaceId query SQL:', query.compile().sql);
     return paginate(query, pagination);
   }
 
@@ -99,7 +100,7 @@ export class ProjectRepo {
   ): Promise<Paginated<Project>> {
     let query = dbOrTx(this.db, trx)
       .selectFrom('projects')
-      .selectAll()
+      .selectAll('projects')
       .where('projects.workspaceId', '=', workspaceId)
       .where('projects.deletedAt', 'is', null);
 
@@ -127,6 +128,7 @@ export class ProjectRepo {
         ]);
     }
 
+    console.log('findByWorkspaceId query SQL:', query.compile().sql);
     return paginate(query, pagination);
   }
 
@@ -134,13 +136,26 @@ export class ProjectRepo {
     projectData: InsertableProject,
     trx?: Transaction<DB>,
   ): Promise<Project> {
-    const project = await dbOrTx(this.db, trx)
-      .insertInto('projects')
-      .values(projectData)
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    console.log(
+      'ProjectRepo.create called with data:',
+      JSON.stringify(projectData, null, 2),
+    );
+    try {
+      const project = await dbOrTx(this.db, trx)
+        .insertInto('projects')
+        .values(projectData)
+        .returningAll()
+        .executeTakeFirstOrThrow();
 
-    return project as Project;
+      console.log(
+        'ProjectRepo.create success, returned:',
+        JSON.stringify(project, null, 2),
+      );
+      return project as Project;
+    } catch (error) {
+      console.error('ProjectRepo.create error:', error);
+      throw error;
+    }
   }
 
   async update(
@@ -148,15 +163,22 @@ export class ProjectRepo {
     updateData: UpdatableProject,
     trx?: Transaction<DB>,
   ): Promise<Project | undefined> {
-    const project = await dbOrTx(this.db, trx)
-      .updateTable('projects')
-      .set({ ...updateData, updatedAt: new Date() })
-      .where('id', '=', projectId)
-      .where('deletedAt', 'is', null)
-      .returningAll()
-      .executeTakeFirst();
+    console.log('ProjectRepo.update called with:', { projectId, updateData });
+    try {
+      const project = await dbOrTx(this.db, trx)
+        .updateTable('projects')
+        .set({ ...updateData, updatedAt: new Date() })
+        .where('id', '=', projectId)
+        .where('deletedAt', 'is', null)
+        .returningAll()
+        .executeTakeFirst();
 
-    return project as Project | undefined;
+      console.log('ProjectRepo.update result:', project);
+      return project as Project | undefined;
+    } catch (error) {
+      console.error('ProjectRepo.update error:', error);
+      throw error;
+    }
   }
 
   async softDelete(projectId: string, trx?: Transaction<DB>): Promise<void> {

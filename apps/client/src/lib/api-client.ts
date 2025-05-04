@@ -2,8 +2,14 @@ import axios, { AxiosInstance } from "axios";
 import APP_ROUTE from "@/lib/app-route.ts";
 import { isCloud } from "@/lib/config.ts";
 
+// Use the absolute URL to the API server
+const API_BASE_URL =
+  process.env.NODE_ENV === "development" ? "http://localhost:3000/api" : "/api";
+
+console.log("API client configured with base URL:", API_BASE_URL);
+
 const api: AxiosInstance = axios.create({
-  baseURL: "/api",
+  baseURL: API_BASE_URL,
   withCredentials: true,
 });
 
@@ -58,7 +64,7 @@ api.interceptors.response.use(
       }
     }
     return Promise.reject(error);
-  },
+  }
 );
 
 function redirectToLogin() {

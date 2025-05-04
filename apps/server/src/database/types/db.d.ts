@@ -3,20 +3,15 @@
  * Please do not edit it manually.
  */
 
-import type { ColumnType } from 'kysely';
+import type { ColumnType } from "kysely";
 
-export type AuthProviderType = 'google' | 'oidc' | 'saml';
+export type AuthProviderType = "google" | "oidc" | "saml";
 
-export type Generated<T> =
-  T extends ColumnType<infer S, infer I, infer U>
-    ? ColumnType<S, I | undefined, U>
-    : ColumnType<T, T | undefined, T>;
+export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
+  ? ColumnType<S, I | undefined, U>
+  : ColumnType<T, T | undefined, T>;
 
-export type Int8 = ColumnType<
-  string,
-  bigint | number | string,
-  bigint | number | string
->;
+export type Int8 = ColumnType<string, bigint | number | string, bigint | number | string>;
 
 export type Json = JsonValue;
 
@@ -30,14 +25,9 @@ export type JsonPrimitive = boolean | number | string | null;
 
 export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
-export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TaskPriority = "high" | "low" | "medium" | "urgent";
 
-export type TaskStatus =
-  | 'todo'
-  | 'in_progress'
-  | 'in_review'
-  | 'done'
-  | 'blocked';
+export type TaskStatus = "blocked" | "done" | "in_progress" | "in_review" | "todo";
 
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
@@ -207,6 +197,36 @@ export interface Pages {
   ydoc: Buffer | null;
 }
 
+export interface Projects {
+  color: string | null;
+  coverImage: string | null;
+  createdAt: Generated<Timestamp>;
+  creatorId: string | null;
+  deletedAt: Timestamp | null;
+  description: string | null;
+  endDate: Timestamp | null;
+  icon: string | null;
+  id: Generated<string>;
+  isArchived: Generated<boolean>;
+  name: string;
+  spaceId: string;
+  startDate: Timestamp | null;
+  updatedAt: Generated<Timestamp>;
+  workspaceId: string;
+}
+
+export interface ProjectViews {
+  config: Json | null;
+  createdAt: Generated<Timestamp>;
+  creatorId: string | null;
+  id: Generated<string>;
+  isDefault: Generated<boolean>;
+  name: string;
+  projectId: string;
+  type: string;
+  updatedAt: Generated<Timestamp>;
+}
+
 export interface SpaceMembers {
   addedById: string | null;
   createdAt: Generated<Timestamp>;
@@ -232,6 +252,59 @@ export interface Spaces {
   updatedAt: Generated<Timestamp>;
   visibility: Generated<string>;
   workspaceId: string;
+}
+
+export interface TaskDependencies {
+  createdAt: Generated<Timestamp>;
+  dependsOnTaskId: string;
+  id: Generated<string>;
+  taskId: string;
+}
+
+export interface TaskLabelAssignments {
+  createdAt: Generated<Timestamp>;
+  id: Generated<string>;
+  labelId: string;
+  taskId: string;
+}
+
+export interface TaskLabels {
+  color: string;
+  createdAt: Generated<Timestamp>;
+  id: Generated<string>;
+  name: string;
+  updatedAt: Generated<Timestamp>;
+  workspaceId: string;
+}
+
+export interface Tasks {
+  assigneeId: string | null;
+  completedAt: Timestamp | null;
+  createdAt: Generated<Timestamp>;
+  creatorId: string | null;
+  deletedAt: Timestamp | null;
+  description: string | null;
+  dueDate: Timestamp | null;
+  estimatedTime: number | null;
+  id: Generated<string>;
+  isCompleted: Generated<boolean>;
+  pageId: string | null;
+  parentTaskId: string | null;
+  position: string | null;
+  priority: Generated<TaskPriority>;
+  projectId: string | null;
+  spaceId: string;
+  status: Generated<TaskStatus>;
+  title: string;
+  updatedAt: Generated<Timestamp>;
+  workspaceId: string;
+}
+
+export interface TaskWatchers {
+  createdAt: Generated<Timestamp>;
+  id: Generated<string>;
+  taskId: string;
+  userId: string;
 }
 
 export interface Users {
@@ -299,88 +372,6 @@ export interface Workspaces {
   stripeCustomerId: string | null;
   trialEndAt: Timestamp | null;
   updatedAt: Generated<Timestamp>;
-}
-
-export interface Projects {
-  color: string | null;
-  createdAt: Generated<Timestamp>;
-  creatorId: string | null;
-  deletedAt: Timestamp | null;
-  description: string | null;
-  endDate: Timestamp | null;
-  icon: string | null;
-  id: Generated<string>;
-  isArchived: Generated<boolean>;
-  name: string;
-  spaceId: string;
-  startDate: Timestamp | null;
-  updatedAt: Generated<Timestamp>;
-  workspaceId: string;
-}
-
-export interface ProjectViews {
-  config: Json | null;
-  createdAt: Generated<Timestamp>;
-  creatorId: string | null;
-  id: Generated<string>;
-  isDefault: Generated<boolean>;
-  name: string;
-  projectId: string;
-  type: string;
-  updatedAt: Generated<Timestamp>;
-}
-
-export interface Tasks {
-  assigneeId: string | null;
-  completedAt: Timestamp | null;
-  createdAt: Generated<Timestamp>;
-  creatorId: string | null;
-  deletedAt: Timestamp | null;
-  description: string | null;
-  dueDate: Timestamp | null;
-  estimatedTime: number | null;
-  id: Generated<string>;
-  isCompleted: Generated<boolean>;
-  pageId: string | null;
-  parentTaskId: string | null;
-  position: string | null;
-  priority: TaskPriority;
-  projectId: string | null;
-  spaceId: string;
-  status: TaskStatus;
-  title: string;
-  updatedAt: Generated<Timestamp>;
-  workspaceId: string;
-}
-
-export interface TaskDependencies {
-  createdAt: Generated<Timestamp>;
-  dependsOnTaskId: string;
-  id: Generated<string>;
-  taskId: string;
-}
-
-export interface TaskLabels {
-  color: string;
-  createdAt: Generated<Timestamp>;
-  id: Generated<string>;
-  name: string;
-  updatedAt: Generated<Timestamp>;
-  workspaceId: string;
-}
-
-export interface TaskLabelAssignments {
-  createdAt: Generated<Timestamp>;
-  id: Generated<string>;
-  labelId: string;
-  taskId: string;
-}
-
-export interface TaskWatchers {
-  createdAt: Generated<Timestamp>;
-  id: Generated<string>;
-  taskId: string;
-  userId: string;
 }
 
 export interface DB {

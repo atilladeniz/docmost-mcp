@@ -32,7 +32,7 @@ function EmojiPicker({
   useClickOutside(
     () => handlers.close(),
     ["mousedown", "touchstart"],
-    [dropdown, target],
+    [dropdown, target]
   );
 
   // We need this because the default Mantine popover closeOnEscape does not work
@@ -62,6 +62,7 @@ function EmojiPicker({
       position="bottom"
       disabled={readOnly}
       closeOnEscape={true}
+      zIndex={2000}
     >
       <Popover.Target ref={setTarget}>
         <ActionIcon c="gray" variant="transparent" onClick={handlers.toggle}>

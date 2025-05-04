@@ -14,7 +14,10 @@ export function DashboardHeader({ onCreateProject }: DashboardHeaderProps) {
       <Title order={2}>{t("Project Dashboard")}</Title>
       <Button
         leftSection={<IconPlus size={16} />}
-        onClick={onCreateProject}
+        onClick={() => {
+          console.log("Create Project button clicked");
+          onCreateProject();
+        }}
         size="sm"
       >
         {t("Create Project")}

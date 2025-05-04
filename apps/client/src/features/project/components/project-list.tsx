@@ -118,6 +118,18 @@ export function ProjectList({
 
   const projects = data?.items || [];
 
+  console.log("PROJECT-LIST COMPONENT DEBUG:");
+  console.log("- raw data:", data);
+  console.log("- extracted projects:", projects);
+  if (projects.length > 0) {
+    console.log("- first project details:", {
+      id: projects[0].id,
+      name: projects[0].name,
+      description: projects[0].description,
+      isArchived: projects[0].isArchived,
+    });
+  }
+
   return (
     <>
       <Stack gap="md">

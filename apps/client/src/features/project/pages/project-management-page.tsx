@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Box,
   Container,
@@ -23,6 +23,9 @@ import { DashboardMetrics } from "../components/dashboard/components/DashboardMe
 import { DashboardCharts } from "../components/dashboard/components/DashboardCharts";
 import { useDashboardData } from "../components/dashboard/dashboard-hooks";
 import { DashboardHeader } from "../components/dashboard/components/DashboardHeader";
+import { useCreateProjectMutation } from "../hooks/use-projects";
+import { useDisclosure } from "@mantine/hooks";
+import ProjectFormModal from "../components/project-form-modal";
 
 export function ProjectManagementPage() {
   const { t } = useTranslation();
@@ -32,6 +35,22 @@ export function ProjectManagementPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showDashboard, setShowDashboard] = useState(true);
   const location = useLocation();
+
+  // Use useDisclosure with a stable reference
+  const [createModalOpened, createModalHandlers] = useDisclosure(false);
+
+  // Create stable callback references to prevent re-renders
+  const openCreateModal = useCallback(() => {
+    console.log("Opening create project modal with spaceId:", spaceId);
+    createModalHandlers.open();
+  }, [spaceId, createModalHandlers]);
+
+  const closeCreateModal = useCallback(() => {
+    createModalHandlers.close();
+  }, [createModalHandlers]);
+
+  // Initialize the createProject mutation
+  const createProjectMutation = useCreateProjectMutation();
 
   const {
     projects,
@@ -60,14 +79,6 @@ export function ProjectManagementPage() {
   console.log("ProjectManagementPage - spaceData:", spaceData);
   console.log("ProjectManagementPage - workspaceData:", workspaceData);
   console.log("ProjectManagementPage - showDashboard:", showDashboard);
-
-  if (!spaceId || !spaceData || !workspaceData) {
-    return (
-      <Container my="xl">
-        <Text>{t("Loading...")}</Text>
-      </Container>
-    );
-  }
 
   const handleSelectProject = (project: Project) => {
     setSelectedProject(project);
@@ -132,12 +143,6 @@ export function ProjectManagementPage() {
     if (selectedProject) {
       return (
         <Box>
-          <Group justify="space-between" mb="md">
-            <Title order={3}>{selectedProject.name}</Title>
-            <Button onClick={handleBackToProjects}>
-              {t("Back to Projects")}
-            </Button>
-          </Group>
           <ProjectBoard
             project={selectedProject}
             onBack={handleBackToProjects}
@@ -149,7 +154,9 @@ export function ProjectManagementPage() {
     if (showDashboard) {
       return (
         <Box p="md">
-          <DashboardHeader onCreateProject={() => {}} />
+          <Group justify="space-between">
+            <DashboardHeader onCreateProject={openCreateModal} />
+          </Group>
           <Box mt="xl">
             <DashboardMetrics
               taskStats={taskStats}
@@ -179,12 +186,30 @@ export function ProjectManagementPage() {
     );
   };
 
+  // Return early if data is missing
+  if (!spaceId || !spaceData || !workspaceData) {
+    return (
+      <Container my="xl">
+        <Text>{t("Loading...")}</Text>
+      </Container>
+    );
+  }
+
   return (
     <>
       <Container size="xl" my="xl">
+        {/* Breadcrumbs provide navigation between workspace, space, project list, and current project */}
         {renderBreadcrumbs()}
 
         {renderContent()}
+
+        {/* Render the modal directly - it's already memoized internally */}
+        <ProjectFormModal
+          opened={createModalOpened}
+          onClose={closeCreateModal}
+          spaceId={spaceId}
+          workspaceId={workspaceData.id}
+        />
       </Container>
     </>
   );
