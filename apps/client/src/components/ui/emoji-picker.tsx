@@ -1,4 +1,4 @@
-import React, { ReactNode, useState } from "react";
+import React, { ReactNode, useState, useCallback, memo } from "react";
 import {
   ActionIcon,
   Popover,
@@ -17,7 +17,8 @@ export interface EmojiPickerInterface {
   readOnly: boolean;
 }
 
-function EmojiPicker({
+// Use React.memo to prevent unnecessary re-renders
+const EmojiPicker = memo(function EmojiPicker({
   onEmojiSelect,
   icon,
   removeEmojiAction,
@@ -29,11 +30,30 @@ function EmojiPicker({
   const [target, setTarget] = useState<HTMLElement | null>(null);
   const [dropdown, setDropdown] = useState<HTMLDivElement | null>(null);
 
+  // Use useClickOutside with a stable array reference
   useClickOutside(
-    () => handlers.close(),
+    () => {
+      if (opened) {
+        handlers.close();
+      }
+    },
     ["mousedown", "touchstart"],
     [dropdown, target]
   );
+
+  // Memoize handlers to prevent unnecessary re-renders
+  const handleEmojiSelect = useCallback(
+    (emoji) => {
+      onEmojiSelect(emoji);
+      handlers.close();
+    },
+    [onEmojiSelect, handlers]
+  );
+
+  const handleRemoveEmoji = useCallback(() => {
+    removeEmojiAction();
+    handlers.close();
+  }, [removeEmojiAction, handlers]);
 
   // We need this because the default Mantine popover closeOnEscape does not work
   useWindowEvent("keydown", (event) => {
@@ -44,15 +64,16 @@ function EmojiPicker({
     }
   });
 
-  const handleEmojiSelect = (emoji) => {
-    onEmojiSelect(emoji);
-    handlers.close();
-  };
-
-  const handleRemoveEmoji = () => {
-    removeEmojiAction();
-    handlers.close();
-  };
+  // Memoize the toggle handler
+  const togglePopover = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (readOnly) return;
+      handlers.toggle();
+    },
+    [handlers, readOnly]
+  );
 
   return (
     <Popover
@@ -63,39 +84,52 @@ function EmojiPicker({
       disabled={readOnly}
       closeOnEscape={true}
       zIndex={2000}
+      shadow="md"
+      withinPortal={true}
     >
       <Popover.Target ref={setTarget}>
-        <ActionIcon c="gray" variant="transparent" onClick={handlers.toggle}>
+        <ActionIcon
+          c="gray"
+          variant="transparent"
+          onClick={togglePopover}
+          disabled={readOnly}
+        >
           {icon}
         </ActionIcon>
       </Popover.Target>
-      <Suspense fallback={null}>
-        <Popover.Dropdown bg="000" style={{ border: "none" }} ref={setDropdown}>
-          <Picker
-            data={async () => (await import("@emoji-mart/data")).default}
-            onEmojiSelect={handleEmojiSelect}
-            perLine={8}
-            skinTonePosition="search"
-            theme={colorScheme}
-          />
-          <Button
-            variant="default"
-            c="gray"
-            size="xs"
-            style={{
-              position: "absolute",
-              zIndex: 2,
-              bottom: "1rem",
-              right: "1rem",
-            }}
-            onClick={handleRemoveEmoji}
+      {opened && (
+        <Suspense fallback={null}>
+          <Popover.Dropdown
+            bg="000"
+            style={{ border: "none" }}
+            ref={setDropdown}
           >
-            {t("Remove")}
-          </Button>
-        </Popover.Dropdown>
-      </Suspense>
+            <Picker
+              data={async () => (await import("@emoji-mart/data")).default}
+              onEmojiSelect={handleEmojiSelect}
+              perLine={8}
+              skinTonePosition="search"
+              theme={colorScheme}
+            />
+            <Button
+              variant="default"
+              c="gray"
+              size="xs"
+              style={{
+                position: "absolute",
+                zIndex: 2,
+                bottom: "1rem",
+                right: "1rem",
+              }}
+              onClick={handleRemoveEmoji}
+            >
+              {t("Remove")}
+            </Button>
+          </Popover.Dropdown>
+        </Suspense>
+      )}
     </Popover>
   );
-}
+});
 
 export default EmojiPicker;

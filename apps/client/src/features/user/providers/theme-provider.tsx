@@ -23,9 +23,6 @@ import {
 } from "@/theme";
 import { setManualThemeApplied } from "../hooks/use-current-user";
 
-// For debugging
-const DEBUG_THEME = true;
-
 // Global flag to prevent multiple theme applications
 let themeBeingApplied = false;
 
@@ -56,11 +53,6 @@ export function DocmostThemeProvider({ children }: ThemeProviderProps) {
     const defaultTheme =
       colorScheme === "dark" ? "default-dark" : "default-light";
     const themeId = user?.settings?.preferences?.themeId || defaultTheme;
-
-    if (DEBUG_THEME) {
-      console.log("[THEME-PROVIDER] Initializing with theme:", themeId);
-    }
-
     return getThemeById(themeId);
   });
 
@@ -76,22 +68,11 @@ export function DocmostThemeProvider({ children }: ThemeProviderProps) {
   // Function to apply a theme to all parts of the system
   const applyThemeToSystem = (theme: DocmostTheme) => {
     if (themeBeingApplied) {
-      console.log(
-        "[THEME-PROVIDER] Theme application already in progress, skipping"
-      );
       return;
     }
 
     try {
       themeBeingApplied = true;
-
-      if (DEBUG_THEME) {
-        console.log("[THEME-PROVIDER] Applying theme to system:", {
-          themeId: theme.id,
-          primaryColor: theme.primaryColor,
-          isDark: theme.isDark,
-        });
-      }
 
       // Set color scheme
       setColorScheme(theme.isDark ? "dark" : "light");
@@ -125,12 +106,6 @@ export function DocmostThemeProvider({ children }: ThemeProviderProps) {
           link.href =
             "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&display=swap";
           document.head.appendChild(link);
-
-          if (DEBUG_THEME) {
-            console.log(
-              "[THEME-PROVIDER] Loaded Orbitron font for Project 89 theme"
-            );
-          }
         }
       } else {
         // Reset to default heading font
@@ -157,12 +132,6 @@ export function DocmostThemeProvider({ children }: ThemeProviderProps) {
           link.href =
             "https://fonts.googleapis.com/css2?family=VT323&display=swap";
           document.head.appendChild(link);
-
-          if (DEBUG_THEME) {
-            console.log(
-              "[THEME-PROVIDER] Loaded VT323 font for Project 89 theme"
-            );
-          }
         }
 
         // Load Share Tech Mono font if it's specified
@@ -176,12 +145,6 @@ export function DocmostThemeProvider({ children }: ThemeProviderProps) {
           link.href =
             "https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap";
           document.head.appendChild(link);
-
-          if (DEBUG_THEME) {
-            console.log(
-              "[THEME-PROVIDER] Loaded Share Tech Mono font for Project 89 theme"
-            );
-          }
         }
       } else {
         // Reset to default body font
@@ -219,13 +182,6 @@ export function DocmostThemeProvider({ children }: ThemeProviderProps) {
     } finally {
       setTimeout(() => {
         themeBeingApplied = false;
-
-        if (DEBUG_THEME) {
-          console.log(
-            "[THEME-PROVIDER] Theme application completed for:",
-            theme.id
-          );
-        }
       }, 50); // Small delay to prevent rapid consecutive changes
     }
   };
@@ -234,10 +190,6 @@ export function DocmostThemeProvider({ children }: ThemeProviderProps) {
   useEffect(() => {
     if (themeInitializedRef.current) return;
 
-    if (DEBUG_THEME) {
-      console.log("[THEME-PROVIDER] Initial theme setup");
-    }
-
     themeInitializedRef.current = true;
 
     // Apply the initial theme
@@ -245,19 +197,9 @@ export function DocmostThemeProvider({ children }: ThemeProviderProps) {
       const themeId = user.settings.preferences.themeId;
       const userTheme = getThemeById(themeId);
 
-      if (DEBUG_THEME) {
-        console.log(
-          "[THEME-PROVIDER] Setting initial theme from user preferences:",
-          {
-            themeId,
-            resolvedTheme: userTheme,
-          }
-        );
-      }
-
       applyThemeToSystem(userTheme);
     }
-  }, []); // This effect should only run once
+  }, [user]);
 
   // This effect handles user preference changes
   useEffect(() => {
@@ -270,13 +212,6 @@ export function DocmostThemeProvider({ children }: ThemeProviderProps) {
     // 1. A manual theme hasn't been applied (i.e., user didn't explicitly select a theme)
     // 2. The theme ID from user preferences exists and is different from the current active theme
     if (userThemeId && userThemeId !== activeTheme.id) {
-      if (DEBUG_THEME) {
-        console.log("[THEME-PROVIDER] User preferences theme changed:", {
-          newThemeId: userThemeId,
-          currentThemeId: activeTheme.id,
-        });
-      }
-
       // Only apply the theme from user preferences if a theme wasn't manually selected
       const userTheme = getThemeById(userThemeId);
       applyThemeToSystem(userTheme);
@@ -285,31 +220,58 @@ export function DocmostThemeProvider({ children }: ThemeProviderProps) {
 
   // This function is used by other components to change the theme
   const setThemeById = (themeId: string) => {
-    if (themeId === activeTheme.id) {
-      if (DEBUG_THEME) {
-        console.log(
-          "[THEME-PROVIDER] Skipping theme change - already using this theme:",
-          themeId
-        );
-      }
-      return;
+    try {
+      const theme = getThemeById(themeId);
+      setActiveTheme(theme);
+      document.documentElement.setAttribute("data-theme-id", themeId);
+      document.documentElement.setAttribute(
+        "data-theme-primary",
+        theme.primaryColor
+      );
+      document.documentElement.setAttribute(
+        "data-theme-secondary",
+        theme.secondaryColor || "red"
+      );
+      setColorScheme(theme.isDark ? "dark" : "light");
+    } catch (error) {
+      console.error("Error setting theme:", error);
     }
-
-    const newTheme = getThemeById(themeId);
-
-    if (DEBUG_THEME) {
-      console.log("[THEME-PROVIDER] Setting theme manually:", {
-        themeId,
-        resolvedTheme: newTheme,
-      });
-    }
-
-    // Mark as manually applied to prevent override
-    setManualThemeApplied(true);
-
-    // Apply theme to entire system
-    applyThemeToSystem(newTheme);
   };
+
+  // Initialize theme from user preferences or fallback to default
+  useEffect(() => {
+    if (!themeInitializedRef.current && user) {
+      themeInitializedRef.current = true;
+
+      // Get from user preferences
+      const userThemeId =
+        user.settings?.preferences?.themeId || "default-light";
+
+      try {
+        setThemeById(userThemeId);
+      } catch (error) {
+        console.error("Failed to set initial theme:", error);
+        // Fallback to default
+        setThemeById("default-light");
+      }
+    }
+  }, [user, colorScheme]);
+
+  // Update theme when user preferences change
+  useEffect(() => {
+    if (themeInitializedRef.current && user && !themeBeingApplied) {
+      const userThemeId =
+        user.settings?.preferences?.themeId || "default-light";
+
+      if (userThemeId !== activeTheme.id) {
+        try {
+          setThemeById(userThemeId);
+        } catch (error) {
+          console.error("Failed to update theme from preferences:", error);
+        }
+      }
+    }
+  }, [user, activeTheme.id]);
 
   return (
     <ThemeContext.Provider value={{ activeTheme, setThemeById }}>

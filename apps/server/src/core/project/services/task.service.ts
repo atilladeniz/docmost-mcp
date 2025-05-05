@@ -46,7 +46,33 @@ export class TaskService {
       includeAssignee?: boolean;
     },
   ): Promise<Paginated<Task>> {
-    return this.taskRepo.findByProjectId(projectId, pagination, options);
+    console.log('[TaskService] findByProjectId called with:', {
+      projectId,
+      projectIdType: typeof projectId,
+      projectIdLength: projectId?.length,
+      pagination,
+      options,
+    });
+
+    try {
+      const result = await this.taskRepo.findByProjectId(
+        projectId,
+        pagination,
+        options,
+      );
+      console.log('[TaskService] findByProjectId succeeded:', {
+        resultDataCount: result?.data?.length,
+        pagination: result?.pagination,
+      });
+      return result;
+    } catch (error: any) {
+      console.error('[TaskService] findByProjectId error:', {
+        error: error.message || String(error),
+        stack: error.stack || 'No stack trace',
+        projectId,
+      });
+      throw error;
+    }
   }
 
   async findByParentTaskId(
@@ -71,7 +97,33 @@ export class TaskService {
       includeProject?: boolean;
     },
   ): Promise<Paginated<Task>> {
-    return this.taskRepo.findBySpaceId(spaceId, pagination, options);
+    console.log('[TaskService] findBySpaceId called with:', {
+      spaceId,
+      spaceIdType: typeof spaceId,
+      spaceIdLength: spaceId?.length,
+      pagination,
+      options,
+    });
+
+    try {
+      const result = await this.taskRepo.findBySpaceId(
+        spaceId,
+        pagination,
+        options,
+      );
+      console.log('[TaskService] findBySpaceId succeeded:', {
+        resultDataCount: result?.data?.length,
+        pagination: result?.pagination,
+      });
+      return result;
+    } catch (error: any) {
+      console.error('[TaskService] findBySpaceId error:', {
+        error: error.message || String(error),
+        stack: error.stack || 'No stack trace',
+        spaceId,
+      });
+      throw error;
+    }
   }
 
   async findByAssigneeId(

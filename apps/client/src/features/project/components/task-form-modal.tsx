@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   Modal,
   Button,
@@ -10,6 +10,7 @@ import {
   ActionIcon,
   Flex,
   Box,
+  Text,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import {
@@ -59,6 +60,7 @@ export default function TaskFormModal({
   const [assigneeId, setAssigneeId] = useState<string | null>(
     task?.assigneeId || null
   );
+  const formInitializedRef = useRef(false);
 
   const form = useForm({
     initialValues: {
@@ -77,9 +79,8 @@ export default function TaskFormModal({
   const updateTaskMutation = useUpdateTaskMutation();
   const assignTaskMutation = useAssignTaskMutation();
 
-  // Load initial values if editing
   useEffect(() => {
-    if (task) {
+    if (opened && task) {
       form.setValues({
         title: task.title || "",
         description: task.description || "",
@@ -88,15 +89,20 @@ export default function TaskFormModal({
         dueDate: task.dueDate ? new Date(task.dueDate) : null,
       });
       setAssigneeId(task.assigneeId || null);
-    } else {
+      formInitializedRef.current = true;
+    } else if (opened && !task) {
       form.reset();
       setAssigneeId(null);
+      formInitializedRef.current = true;
     }
-  }, [task, form]);
+
+    if (!opened) {
+      formInitializedRef.current = false;
+    }
+  }, [opened, task, form]);
 
   const handleSubmit = form.onSubmit((values) => {
     if (isEditing && task) {
-      // Update existing task
       updateTaskMutation.mutate(
         {
           taskId: task.id,
@@ -104,7 +110,6 @@ export default function TaskFormModal({
         },
         {
           onSuccess: () => {
-            // Update assignee if changed
             if (assigneeId !== task.assigneeId) {
               assignTaskMutation.mutate(
                 {
@@ -124,17 +129,55 @@ export default function TaskFormModal({
         }
       );
     } else {
-      // Create new task
+      console.log("Creating new task with values:", {
+        ...values,
+        projectId,
+        spaceId,
+        assigneeId: assigneeId || undefined,
+      });
+
+      if (!projectId) {
+        console.error("Error: projectId is missing or invalid", projectId);
+      }
+
+      if (!spaceId) {
+        console.error("Error: spaceId is missing or invalid", spaceId);
+      }
+
+      const validStatus = [
+        "todo",
+        "in_progress",
+        "in_review",
+        "done",
+        "blocked",
+      ].includes(values.status)
+        ? values.status
+        : "todo";
+
       createTaskMutation.mutate(
         {
           ...values,
+          status: validStatus,
           projectId,
           spaceId,
           assigneeId: assigneeId || undefined,
         },
         {
-          onSuccess: () => {
+          onSuccess: (data) => {
+            console.log("Task created successfully:", data);
             onClose();
+          },
+          onError: (error) => {
+            console.error("Error creating task:", error);
+            try {
+              if (error && typeof error === "object" && "response" in error) {
+                const errorResponse = error.response as any;
+                console.error("Response data:", errorResponse?.data);
+                console.error("Response status:", errorResponse?.status);
+              }
+            } catch (e) {
+              console.error("Error parsing error response", e);
+            }
           },
         }
       );
@@ -203,7 +246,9 @@ export default function TaskFormModal({
 
           <Box>
             <Flex justify="space-between" align="center" mb={5}>
-              <TextInput.Label>{t("Assignee")}</TextInput.Label>
+              <Text fw={500} size="sm">
+                {t("Assignee")}
+              </Text>
               {assigneeId && (
                 <ActionIcon
                   size="xs"

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActionIcon,
@@ -105,6 +105,19 @@ export function ProjectSidebar({
       onConfirm: () => {},
     });
   };
+
+  // Memoize the ProjectFormModal component to avoid unnecessary re-renders
+  const ProjectFormModalMemo = useMemo(
+    () => (
+      <ProjectFormModal
+        opened={createModalOpened}
+        onClose={closeCreateModal}
+        spaceId={spaceId}
+        workspaceId={workspaceData?.id || ""}
+      />
+    ),
+    [createModalOpened, closeCreateModal, spaceId, workspaceData?.id]
+  );
 
   return (
     <>
@@ -308,12 +321,7 @@ export function ProjectSidebar({
       </div>
 
       {/* Project Create Modal */}
-      <ProjectFormModal
-        opened={createModalOpened}
-        onClose={closeCreateModal}
-        spaceId={spaceId}
-        workspaceId={workspaceData?.id || ""}
-      />
+      {ProjectFormModalMemo}
 
       {space && (
         <SpaceSettingsModal

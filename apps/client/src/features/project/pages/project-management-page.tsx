@@ -186,6 +186,19 @@ export function ProjectManagementPage() {
     );
   };
 
+  // Memoize the ProjectFormModal to prevent unnecessary re-renders
+  const projectFormModalMemo = useMemo(
+    () => (
+      <ProjectFormModal
+        opened={createModalOpened}
+        onClose={closeCreateModal}
+        spaceId={spaceId}
+        workspaceId={workspaceData?.id || ""}
+      />
+    ),
+    [createModalOpened, closeCreateModal, spaceId, workspaceData?.id]
+  );
+
   // Return early if data is missing
   if (!spaceId || !spaceData || !workspaceData) {
     return (
@@ -203,13 +216,8 @@ export function ProjectManagementPage() {
 
         {renderContent()}
 
-        {/* Render the modal directly - it's already memoized internally */}
-        <ProjectFormModal
-          opened={createModalOpened}
-          onClose={closeCreateModal}
-          spaceId={spaceId}
-          workspaceId={workspaceData.id}
-        />
+        {/* Use memoized modal */}
+        {projectFormModalMemo}
       </Container>
     </>
   );

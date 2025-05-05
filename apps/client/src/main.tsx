@@ -82,8 +82,6 @@ const cssVariablesResolver = (theme) => {
   };
 };
 
-console.log("[THEME-DEBUG] Initializing app with base theme:", extendedTheme);
-
 root.render(
   <BrowserRouter>
     <ColorSchemeScript defaultColorScheme="auto" />

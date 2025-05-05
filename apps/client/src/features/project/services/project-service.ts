@@ -37,6 +37,19 @@ const conditionalErrorLog = (message: string, error?: any) => {
 const PROJECTS_ENDPOINT = "projects";
 const TASKS_ENDPOINT = "tasks";
 
+// Use camelCase for REST endpoints instead of kebab-case
+const TASK_ENDPOINTS = {
+  INFO: "info",
+  LIST_BY_PROJECT: "listByProject",
+  LIST_BY_SPACE: "listBySpace",
+  CREATE: "create",
+  UPDATE: "update",
+  DELETE: "delete",
+  ASSIGN: "assign",
+  COMPLETE: "complete",
+  MOVE_TO_PROJECT: "moveToProject",
+};
+
 export const projectService = {
   // Project endpoints
   async getProjectById(projectId: string): Promise<Project> {
@@ -150,61 +163,161 @@ export const projectService = {
 
   // Task endpoints
   async getTaskById(taskId: string): Promise<Task> {
-    const { data } = await api.post(`${TASKS_ENDPOINT}/info`, { taskId });
+    if (!taskId) {
+      throw new Error("Task ID is required");
+    }
+    const { data } = await api.post(
+      `${TASKS_ENDPOINT}/${TASK_ENDPOINTS.INFO}`,
+      { taskId }
+    );
     return data;
   },
 
   async listTasksByProject(params: TaskListParams): Promise<IPagination<Task>> {
-    const { data } = await api.post(
-      `${TASKS_ENDPOINT}/list-by-project`,
-      params
-    );
-    return data;
+    // Validate that projectId is not empty
+    if (!params.projectId) {
+      console.error(
+        "Project service: listTasksByProject called with empty projectId"
+      );
+      return {
+        items: [],
+        meta: {
+          limit: 10,
+          page: 1,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
+      };
+    }
+
+    try {
+      const { data } = await api.post(
+        `${TASKS_ENDPOINT}/${TASK_ENDPOINTS.LIST_BY_PROJECT}`,
+        params
+      );
+      return data;
+    } catch (error) {
+      console.error("Error fetching tasks by project:", error);
+      return {
+        items: [],
+        meta: {
+          limit: 10,
+          page: 1,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
+      };
+    }
   },
 
   async listTasksBySpace(
     params: TaskListBySpaceParams
   ): Promise<IPagination<Task>> {
-    const { data } = await api.post(`${TASKS_ENDPOINT}/list-by-space`, params);
-    return data;
+    // Validate that spaceId is not empty
+    if (!params.spaceId) {
+      console.error(
+        "Project service: listTasksBySpace called with empty spaceId"
+      );
+      return {
+        items: [],
+        meta: {
+          limit: 10,
+          page: 1,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
+      };
+    }
+
+    try {
+      const { data } = await api.post(
+        `${TASKS_ENDPOINT}/${TASK_ENDPOINTS.LIST_BY_SPACE}`,
+        params
+      );
+      return data;
+    } catch (error) {
+      console.error("Error fetching tasks by space:", error);
+      return {
+        items: [],
+        meta: {
+          limit: 10,
+          page: 1,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
+      };
+    }
   },
 
   async createTask(params: CreateTaskParams): Promise<Task> {
-    const { data } = await api.post(`${TASKS_ENDPOINT}/create`, params);
+    const { data } = await api.post(
+      `${TASKS_ENDPOINT}/${TASK_ENDPOINTS.CREATE}`,
+      params
+    );
     return data;
   },
 
   async updateTask(params: UpdateTaskParams): Promise<Task> {
-    const { data } = await api.post(`${TASKS_ENDPOINT}/update`, params);
+    if (!params.taskId) {
+      throw new Error("Task ID is required");
+    }
+    const { data } = await api.post(
+      `${TASKS_ENDPOINT}/${TASK_ENDPOINTS.UPDATE}`,
+      params
+    );
     return data;
   },
 
   async deleteTask(taskId: string): Promise<{ success: boolean }> {
-    const { data } = await api.post(`${TASKS_ENDPOINT}/delete`, { taskId });
+    if (!taskId) {
+      throw new Error("Task ID is required");
+    }
+    const { data } = await api.post(
+      `${TASKS_ENDPOINT}/${TASK_ENDPOINTS.DELETE}`,
+      { taskId }
+    );
     return data;
   },
 
   async assignTask(taskId: string, assigneeId?: string): Promise<Task> {
-    const { data } = await api.post(`${TASKS_ENDPOINT}/assign`, {
-      taskId,
-      assigneeId,
-    });
+    if (!taskId) {
+      throw new Error("Task ID is required");
+    }
+    const { data } = await api.post(
+      `${TASKS_ENDPOINT}/${TASK_ENDPOINTS.ASSIGN}`,
+      {
+        taskId,
+        assigneeId,
+      }
+    );
     return data;
   },
 
   async completeTask(taskId: string, isCompleted: boolean): Promise<Task> {
-    const { data } = await api.post(`${TASKS_ENDPOINT}/complete`, {
-      taskId,
-      isCompleted,
-    });
+    if (!taskId) {
+      throw new Error("Task ID is required");
+    }
+    const { data } = await api.post(
+      `${TASKS_ENDPOINT}/${TASK_ENDPOINTS.COMPLETE}`,
+      {
+        taskId,
+        isCompleted,
+      }
+    );
     return data;
   },
 
   async moveTaskToProject(taskId: string, projectId?: string): Promise<Task> {
-    const { data } = await api.post(`${TASKS_ENDPOINT}/move-to-project`, {
-      taskId,
-      projectId,
-    });
+    if (!taskId) {
+      throw new Error("Task ID is required");
+    }
+    const { data } = await api.post(
+      `${TASKS_ENDPOINT}/${TASK_ENDPOINTS.MOVE_TO_PROJECT}`,
+      {
+        taskId,
+        projectId,
+      }
+    );
     return data;
   },
 };

@@ -8,12 +8,15 @@ import {
   Group,
   Text,
   Divider,
+  Stack,
+  ColorSwatch,
 } from "@mantine/core";
 import {
   IconPalette,
   IconSun,
   IconMoon,
   IconDeviceDesktop,
+  IconCheck,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useAtom } from "jotai";
@@ -23,6 +26,7 @@ import { useDocmostTheme } from "../providers/theme-provider";
 import { DOCMOST_THEMES, getThemeById } from "@/theme";
 import { useTranslation } from "react-i18next";
 import { setManualThemeApplied } from "../hooks/use-current-user";
+import { useColorScheme } from "@mantine/hooks";
 
 export function ThemeSwitcher() {
   const { t } = useTranslation();
@@ -70,73 +74,35 @@ export function ThemeSwitcher() {
   // Apply a specific theme
   const applyTheme = async (themeId: string) => {
     try {
-      console.log("[THEME-DEBUG] Applying theme:", themeId);
-      const selectedTheme = getThemeById(themeId);
-      console.log("[THEME-DEBUG] Selected theme object:", selectedTheme);
-
-      // Mark as manually set to prevent override
-      setManualThemeApplied(true);
-
-      // Update Mantine color scheme
-      setColorScheme(selectedTheme.isDark ? "dark" : "light");
-      console.log(
-        "[THEME-DEBUG] Set color scheme to:",
-        selectedTheme.isDark ? "dark" : "light"
+      // Find the selected theme from available themes
+      const selectedTheme = DOCMOST_THEMES.find(
+        (theme) => theme.id === themeId
       );
+      if (!selectedTheme) throw new Error(`Theme ${themeId} not found`);
 
-      // Save to backend
-      console.log("[THEME-DEBUG] Saving theme to backend...");
-      try {
-        const updatedUser = await updateUser({ themeId });
-        console.log("[THEME-DEBUG] Backend response:", updatedUser);
+      // Set the color scheme based on theme's dark mode setting
+      setColorScheme(selectedTheme.isDark ? "dark" : "light");
 
-        if (
-          updatedUser &&
-          updatedUser.settings &&
-          updatedUser.settings.preferences
-        ) {
-          console.log(
-            "[THEME-DEBUG] Updated user preferences:",
-            updatedUser.settings.preferences
-          );
+      // Attempt to save the theme to the backend
+      const updatedUser = await updateUser({ themeId });
 
-          // Check if the themeId was actually saved
-          if (updatedUser.settings.preferences.themeId !== themeId) {
-            console.error(
-              "[THEME-DEBUG] Server did not save the theme correctly!",
-              {
-                requested: themeId,
-                received:
-                  updatedUser.settings.preferences.themeId || "undefined",
-              }
-            );
-          }
-        } else {
-          console.error(
-            "[THEME-DEBUG] Updated user object structure is invalid:",
-            updatedUser
-          );
-        }
-
+      // Validate the user object contains theme preferences
+      if (
+        updatedUser &&
+        updatedUser.settings &&
+        updatedUser.settings.preferences &&
+        updatedUser.settings.preferences.themeId === themeId
+      ) {
+        // Update user context with new preferences
         setUser(updatedUser);
-      } catch (apiError) {
-        console.error("[THEME-DEBUG] API error when updating theme:", apiError);
-        // Even if the backend fails, we'll still update the UI
-        console.log(
-          "[THEME-DEBUG] Applying theme locally despite backend error"
-        );
       }
+
+      // Mark theme as manually applied
+      setManualThemeApplied(true);
 
       // Apply theme locally regardless of backend success
       setThemeById(themeId);
       setOpened(false);
-
-      // Log the current theme state
-      console.log("[THEME-DEBUG] Current theme state after update:", {
-        themeId,
-        primaryColor: selectedTheme.primaryColor,
-        isDark: selectedTheme.isDark,
-      });
 
       // Apply theme directly to document (as a fallback)
       document.documentElement.setAttribute(
@@ -148,7 +114,7 @@ export function ThemeSwitcher() {
         selectedTheme.secondaryColor || "red"
       );
     } catch (error) {
-      console.error("[THEME-DEBUG] Failed to update theme:", error);
+      console.error("Failed to update theme:", error);
     }
   };
 

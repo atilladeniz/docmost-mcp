@@ -38,9 +38,9 @@ const ProjectFormModal = memo(function ProjectFormModal({
 }: ProjectFormModalProps) {
   const { t } = useTranslation();
   const isEditing = !!project;
-
-  // Use ref instead of state to avoid re-renders when tracking initialization
-  const hasInitializedForm = useRef(false);
+  const formInitializedRef = useRef(false);
+  const projectRef = useRef<Project | undefined>(project);
+  const openedRef = useRef(opened);
 
   const form = useForm({
     initialValues: {
@@ -63,45 +63,52 @@ const ProjectFormModal = memo(function ProjectFormModal({
     ? updateProjectMutation.isPending
     : createProjectMutation.isPending;
 
-  // Reset initialization ref when modal closes
+  // Update refs when props change without triggering renders
   useEffect(() => {
-    if (!opened) {
-      hasInitializedForm.current = false;
-    }
-  }, [opened]);
+    projectRef.current = project;
+    openedRef.current = opened;
+  }, [project, opened]);
 
-  // Only update form values when modal opens or project changes, not on every render
+  // Initialize form values once when the modal opens
   useEffect(() => {
-    // Skip if already initialized or modal is closed
-    if (!opened || hasInitializedForm.current) {
-      return;
-    }
-
-    if (project) {
-      form.setValues({
-        name: project.name,
-        description: project.description || "",
-        icon: project.icon || "",
-        color: project.color || "",
-        startDate: project.startDate ? new Date(project.startDate) : null,
-        endDate: project.endDate ? new Date(project.endDate) : null,
-      });
-    } else {
-      form.reset();
-    }
-
-    // Mark as initialized
-    hasInitializedForm.current = true;
-  }, [project, form, opened]);
-
-  // Clean up form state when component unmounts
-  useEffect(() => {
-    return () => {
-      if (!opened) {
+    // Only initialize when modal opens
+    if (opened && !formInitializedRef.current) {
+      if (project) {
+        form.setValues({
+          name: project.name,
+          description: project.description || "",
+          icon: project.icon || "",
+          color: project.color || "",
+          startDate: project.startDate ? new Date(project.startDate) : null,
+          endDate: project.endDate ? new Date(project.endDate) : null,
+        });
+      } else {
         form.reset();
       }
-    };
+      formInitializedRef.current = true;
+    } else if (!opened) {
+      // Reset initialization flag when modal closes
+      formInitializedRef.current = false;
+    }
   }, [opened, form]);
+
+  // Separate useEffect for project changes to prevent conflicts
+  useEffect(() => {
+    // If modal is open and project changes, update the form
+    if (opened && projectRef.current !== project) {
+      if (project) {
+        form.setValues({
+          name: project.name,
+          description: project.description || "",
+          icon: project.icon || "",
+          color: project.color || "",
+          startDate: project.startDate ? new Date(project.startDate) : null,
+          endDate: project.endDate ? new Date(project.endDate) : null,
+        });
+      }
+      projectRef.current = project;
+    }
+  }, [project, form, opened]);
 
   const handleSubmit = form.onSubmit((values) => {
     if (isEditing && project) {

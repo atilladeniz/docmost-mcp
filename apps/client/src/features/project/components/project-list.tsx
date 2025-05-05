@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Button,
   Card,
@@ -50,6 +50,7 @@ export function ProjectList({
   onShowDashboard,
 }: ProjectListProps) {
   const { t } = useTranslation();
+  const [view, setView] = useState<"grid" | "list">("grid");
   const [searchTerm, setSearchTerm] = useState("");
   const [includeArchived, setIncludeArchived] = useState(false);
   const [
@@ -67,11 +68,6 @@ export function ProjectList({
   const archiveProjectMutation = useArchiveProjectMutation();
   const deleteProjectMutation = useDeleteProjectMutation();
 
-  useEffect(() => {
-    // Refetch when props change
-    refetch();
-  }, [spaceId, refetch]);
-
   const handleOpenEditModal = (project: Project) => {
     setEditingProject(project);
   };
@@ -79,6 +75,38 @@ export function ProjectList({
   const handleCloseEditModal = () => {
     setEditingProject(null);
   };
+
+  // Memoize the ProjectFormModals to avoid unnecessary re-renders
+  const createModalMemo = useMemo(
+    () => (
+      <ProjectFormModal
+        opened={createModalOpened}
+        onClose={closeCreateModal}
+        spaceId={spaceId}
+        workspaceId={workspaceId}
+      />
+    ),
+    [createModalOpened, closeCreateModal, spaceId, workspaceId]
+  );
+
+  const editModalMemo = useMemo(
+    () =>
+      editingProject ? (
+        <ProjectFormModal
+          opened={true}
+          onClose={handleCloseEditModal}
+          spaceId={spaceId}
+          workspaceId={workspaceId}
+          project={editingProject}
+        />
+      ) : null,
+    [editingProject, handleCloseEditModal, spaceId, workspaceId]
+  );
+
+  useEffect(() => {
+    // Refetch when props change
+    refetch();
+  }, [spaceId, refetch]);
 
   const handleArchiveProject = (project: Project) => {
     archiveProjectMutation.mutate({
@@ -273,23 +301,10 @@ export function ProjectList({
       </Stack>
 
       {/* Project Create Modal */}
-      <ProjectFormModal
-        opened={createModalOpened}
-        onClose={closeCreateModal}
-        spaceId={spaceId}
-        workspaceId={workspaceId}
-      />
+      {createModalMemo}
 
       {/* Project Edit Modal */}
-      {editingProject && (
-        <ProjectFormModal
-          opened={!!editingProject}
-          onClose={handleCloseEditModal}
-          spaceId={spaceId}
-          workspaceId={workspaceId}
-          project={editingProject}
-        />
-      )}
+      {editModalMemo}
     </>
   );
 }

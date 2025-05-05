@@ -12,6 +12,26 @@ import { paginate } from '../../../lib/pagination/paginate';
 export class TaskRepo {
   constructor(@InjectKysely() private readonly db: Kysely<DB>) {}
 
+  // Helper method to validate UUID
+  private isValidUuid(uuid: string | undefined | null): boolean {
+    return !!uuid && uuid.trim() !== '';
+  }
+
+  // Helper method to create empty paginated result
+  private createEmptyPaginatedResult<T>(
+    pagination: PaginationOptions,
+  ): Paginated<T> {
+    return {
+      data: [],
+      pagination: {
+        total: 0,
+        page: pagination.page || 1,
+        limit: pagination.limit || 10,
+        totalPages: 0,
+      },
+    };
+  }
+
   async findById(
     taskId: string,
     options?: {
@@ -24,6 +44,11 @@ export class TaskRepo {
     },
     trx?: Transaction<DB>,
   ): Promise<Task | undefined> {
+    // Validate UUID
+    if (!this.isValidUuid(taskId)) {
+      return undefined;
+    }
+
     let query = dbOrTx(this.db, trx)
       .selectFrom('tasks')
       .selectAll('tasks')
@@ -116,57 +141,88 @@ export class TaskRepo {
     },
     trx?: Transaction<DB>,
   ): Promise<Paginated<Task>> {
-    let query = dbOrTx(this.db, trx)
-      .selectFrom('tasks')
-      .selectAll('tasks')
-      .where('tasks.projectId', '=', projectId)
-      .where('tasks.deletedAt', 'is', null);
+    console.log('[TaskRepo] findByProjectId started:', {
+      projectId,
+      projectIdType: typeof projectId,
+      projectIdLength: projectId?.length,
+      pagination,
+      hasOptions: !!options,
+    });
 
-    if (!options?.includeSubtasks) {
-      query = query.where((eb) =>
-        eb.or([
-          eb('tasks.parentTaskId', 'is', null),
-          eb('tasks.parentTaskId', '=', ''),
-        ]),
+    // Validate UUID
+    if (!this.isValidUuid(projectId)) {
+      console.log('[TaskRepo] Invalid projectId, returning empty result');
+      return this.createEmptyPaginatedResult<Task>(pagination);
+    }
+
+    try {
+      let query = dbOrTx(this.db, trx)
+        .selectFrom('tasks')
+        .selectAll('tasks')
+        .where('tasks.projectId', '=', projectId)
+        .where('tasks.deletedAt', 'is', null);
+
+      if (!options?.includeSubtasks) {
+        query = query.where('tasks.parentTaskId', 'is', null);
+      }
+
+      if (options?.status && options.status.length > 0) {
+        query = query.where('tasks.status', 'in', options.status);
+      }
+
+      if (options?.searchTerm) {
+        query = query.where((eb) =>
+          eb.or([
+            eb('tasks.title', 'ilike', `%${options.searchTerm}%`),
+            eb('tasks.description', 'ilike', `%${options.searchTerm}%`),
+          ]),
+        );
+      }
+
+      if (options?.includeCreator) {
+        query = query
+          .leftJoin('users as creator', 'creator.id', 'tasks.creatorId')
+          .select([
+            'creator.id as creator_id',
+            'creator.name as creator_name',
+            'creator.email as creator_email',
+            'creator.avatarUrl as creator_avatar_url',
+          ]);
+      }
+
+      if (options?.includeAssignee) {
+        query = query
+          .leftJoin('users as assignee', 'assignee.id', 'tasks.assigneeId')
+          .select([
+            'assignee.id as assignee_id',
+            'assignee.name as assignee_name',
+            'assignee.email as assignee_email',
+            'assignee.avatarUrl as assignee_avatar_url',
+          ]);
+      }
+
+      // Log the SQL query before executing (for debugging)
+      console.log(
+        '[TaskRepo] About to execute query for projectId:',
+        projectId,
       );
-    }
 
-    if (options?.status && options.status.length > 0) {
-      query = query.where('tasks.status', 'in', options.status);
-    }
+      const result = await paginate(query, pagination);
+      console.log('[TaskRepo] findByProjectId succeeded:', {
+        resultCount: result?.data?.length,
+        pagination: result?.pagination,
+      });
 
-    if (options?.searchTerm) {
-      query = query.where((eb) =>
-        eb.or([
-          eb('tasks.title', 'ilike', `%${options.searchTerm}%`),
-          eb('tasks.description', 'ilike', `%${options.searchTerm}%`),
-        ]),
-      );
+      return result;
+    } catch (error: any) {
+      console.error('[TaskRepo] findByProjectId error:', {
+        error: error.message || String(error),
+        stack: error.stack || 'No stack trace',
+        projectId,
+        query: error.query || 'No query info',
+      });
+      throw error;
     }
-
-    if (options?.includeCreator) {
-      query = query
-        .leftJoin('users as creator', 'creator.id', 'tasks.creatorId')
-        .select([
-          'creator.id as creator_id',
-          'creator.name as creator_name',
-          'creator.email as creator_email',
-          'creator.avatarUrl as creator_avatar_url',
-        ]);
-    }
-
-    if (options?.includeAssignee) {
-      query = query
-        .leftJoin('users as assignee', 'assignee.id', 'tasks.assigneeId')
-        .select([
-          'assignee.id as assignee_id',
-          'assignee.name as assignee_name',
-          'assignee.email as assignee_email',
-          'assignee.avatarUrl as assignee_avatar_url',
-        ]);
-    }
-
-    return paginate(query, pagination);
   }
 
   async findByParentTaskId(
@@ -178,6 +234,11 @@ export class TaskRepo {
     },
     trx?: Transaction<DB>,
   ): Promise<Paginated<Task>> {
+    // Validate UUID
+    if (!this.isValidUuid(parentTaskId)) {
+      return this.createEmptyPaginatedResult<Task>(pagination);
+    }
+
     let query = dbOrTx(this.db, trx)
       .selectFrom('tasks')
       .selectAll('tasks')
@@ -221,59 +282,92 @@ export class TaskRepo {
     },
     trx?: Transaction<DB>,
   ): Promise<Paginated<Task>> {
-    let query = dbOrTx(this.db, trx)
-      .selectFrom('tasks')
-      .selectAll('tasks')
-      .where('tasks.spaceId', '=', spaceId)
-      .where('tasks.deletedAt', 'is', null);
+    console.log('[TaskRepo] findBySpaceId started:', {
+      spaceId,
+      spaceIdType: typeof spaceId,
+      spaceIdLength: spaceId?.length,
+      pagination,
+      hasOptions: !!options,
+    });
 
-    if (options?.status && options.status.length > 0) {
-      query = query.where('tasks.status', 'in', options.status);
+    // Validate UUID
+    if (!this.isValidUuid(spaceId)) {
+      console.log('[TaskRepo] Invalid spaceId, returning empty result');
+      return this.createEmptyPaginatedResult<Task>(pagination);
     }
 
-    if (options?.searchTerm) {
-      query = query.where((eb) =>
-        eb.or([
-          eb('tasks.title', 'ilike', `%${options.searchTerm}%`),
-          eb('tasks.description', 'ilike', `%${options.searchTerm}%`),
-        ]),
-      );
-    }
+    try {
+      let query = dbOrTx(this.db, trx)
+        .selectFrom('tasks')
+        .selectAll('tasks')
+        .where('tasks.spaceId', '=', spaceId)
+        .where('tasks.deletedAt', 'is', null);
 
-    if (options?.includeCreator) {
-      query = query
-        .leftJoin('users as creator', 'creator.id', 'tasks.creatorId')
-        .select([
-          'creator.id as creator_id',
-          'creator.name as creator_name',
-          'creator.email as creator_email',
-          'creator.avatarUrl as creator_avatar_url',
-        ]);
-    }
+      if (options?.status && options.status.length > 0) {
+        query = query.where('tasks.status', 'in', options.status);
+      }
 
-    if (options?.includeAssignee) {
-      query = query
-        .leftJoin('users as assignee', 'assignee.id', 'tasks.assigneeId')
-        .select([
-          'assignee.id as assignee_id',
-          'assignee.name as assignee_name',
-          'assignee.email as assignee_email',
-          'assignee.avatarUrl as assignee_avatar_url',
-        ]);
-    }
+      if (options?.searchTerm) {
+        query = query.where((eb) =>
+          eb.or([
+            eb('tasks.title', 'ilike', `%${options.searchTerm}%`),
+            eb('tasks.description', 'ilike', `%${options.searchTerm}%`),
+          ]),
+        );
+      }
 
-    if (options?.includeProject) {
-      query = query
-        .leftJoin('projects', 'projects.id', 'tasks.projectId')
-        .select([
-          'projects.id as project_id',
-          'projects.name as project_name',
-          'projects.color as project_color',
-          'projects.icon as project_icon',
-        ]);
-    }
+      if (options?.includeCreator) {
+        query = query
+          .leftJoin('users as creator', 'creator.id', 'tasks.creatorId')
+          .select([
+            'creator.id as creator_id',
+            'creator.name as creator_name',
+            'creator.email as creator_email',
+            'creator.avatarUrl as creator_avatar_url',
+          ]);
+      }
 
-    return paginate(query, pagination);
+      if (options?.includeAssignee) {
+        query = query
+          .leftJoin('users as assignee', 'assignee.id', 'tasks.assigneeId')
+          .select([
+            'assignee.id as assignee_id',
+            'assignee.name as assignee_name',
+            'assignee.email as assignee_email',
+            'assignee.avatarUrl as assignee_avatar_url',
+          ]);
+      }
+
+      if (options?.includeProject) {
+        query = query
+          .leftJoin('projects', 'projects.id', 'tasks.projectId')
+          .select([
+            'projects.id as project_id',
+            'projects.name as project_name',
+            'projects.color as project_color',
+            'projects.icon as project_icon',
+          ]);
+      }
+
+      // Log the SQL query before executing (for debugging)
+      console.log('[TaskRepo] About to execute query for spaceId:', spaceId);
+
+      const result = await paginate(query, pagination);
+      console.log('[TaskRepo] findBySpaceId succeeded:', {
+        resultCount: result?.data?.length,
+        pagination: result?.pagination,
+      });
+
+      return result;
+    } catch (error: any) {
+      console.error('[TaskRepo] findBySpaceId error:', {
+        error: error.message || String(error),
+        stack: error.stack || 'No stack trace',
+        spaceId,
+        query: error.query || 'No query info',
+      });
+      throw error;
+    }
   }
 
   async findByAssigneeId(
@@ -288,6 +382,11 @@ export class TaskRepo {
     },
     trx?: Transaction<DB>,
   ): Promise<Paginated<Task>> {
+    // Validate UUID
+    if (!this.isValidUuid(assigneeId)) {
+      return this.createEmptyPaginatedResult<Task>(pagination);
+    }
+
     let query = dbOrTx(this.db, trx)
       .selectFrom('tasks')
       .selectAll('tasks')
@@ -337,9 +436,25 @@ export class TaskRepo {
   }
 
   async create(taskData: InsertableTask, trx?: Transaction<DB>): Promise<Task> {
+    // Validate UUIDs - ensure they aren't empty strings
+    const validatedData = {
+      ...taskData,
+      // Convert empty strings to null for nullable UUID fields
+      projectId: this.isValidUuid(taskData.projectId)
+        ? taskData.projectId
+        : null,
+      parentTaskId: this.isValidUuid(taskData.parentTaskId)
+        ? taskData.parentTaskId
+        : null,
+      pageId: this.isValidUuid(taskData.pageId) ? taskData.pageId : null,
+      assigneeId: this.isValidUuid(taskData.assigneeId)
+        ? taskData.assigneeId
+        : null,
+    };
+
     const task = await dbOrTx(this.db, trx)
       .insertInto('tasks')
-      .values(taskData)
+      .values(validatedData)
       .returningAll()
       .executeTakeFirstOrThrow();
 
@@ -351,9 +466,26 @@ export class TaskRepo {
     updateData: UpdatableTask,
     trx?: Transaction<DB>,
   ): Promise<Task | undefined> {
+    // Validate UUID
+    if (!this.isValidUuid(taskId)) {
+      return undefined;
+    }
+
+    // Validate UUIDs in update data
+    const validatedUpdateData = {
+      ...updateData,
+      // Convert empty strings to null for nullable UUID fields
+      assigneeId:
+        updateData.assigneeId !== undefined
+          ? this.isValidUuid(updateData.assigneeId)
+            ? updateData.assigneeId
+            : null
+          : undefined,
+    };
+
     const task = await dbOrTx(this.db, trx)
       .updateTable('tasks')
-      .set({ ...updateData, updatedAt: new Date() })
+      .set({ ...validatedUpdateData, updatedAt: new Date() })
       .where('id', '=', taskId)
       .where('deletedAt', 'is', null)
       .returningAll()

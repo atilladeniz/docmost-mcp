@@ -38,14 +38,6 @@ export default function useCurrentUser() {
         !manualThemeApplied
       ) {
         const themeId = query.data.user.settings.preferences.themeId;
-        console.log(
-          "[THEME-DEBUG] Applying theme from user data:",
-          themeId,
-          "Initial load:",
-          initialLoadRef.current,
-          "Manual override:",
-          manualThemeApplied
-        );
 
         try {
           const selectedTheme = getThemeById(themeId);
@@ -63,18 +55,12 @@ export default function useCurrentUser() {
           // Set Mantine color scheme based on theme
           setColorScheme(selectedTheme.isDark ? "dark" : "light");
 
-          console.log("[THEME-DEBUG] Theme applied successfully:", {
-            themeId,
-            primaryColor: selectedTheme.primaryColor,
-            isDark: selectedTheme.isDark,
-          });
-
           // If this is the initial load, apply theme but don't mark as manual
           if (initialLoadRef.current) {
             initialLoadRef.current = false;
           }
         } catch (error) {
-          console.error("[THEME-DEBUG] Error applying theme:", error);
+          console.error("Error applying theme:", error);
         }
       }
     }
@@ -85,6 +71,5 @@ export default function useCurrentUser() {
 
 // Export function to mark when a theme has been manually applied
 export function setManualThemeApplied(value = true) {
-  console.log("[THEME-DEBUG] Setting manualThemeApplied to:", value);
   manualThemeApplied = value;
 }
