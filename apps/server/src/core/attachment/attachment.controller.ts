@@ -278,6 +278,7 @@ export class AttachmentController {
         limits: { fileSize: maxFileSize, fields: 3, files: 1 },
       });
     } catch (err: any) {
+      this.logger.error('File upload error:', err);
       if (err?.statusCode === 413) {
         throw new BadRequestException(
           `File too large. Exceeds the ${MAX_AVATAR_SIZE} limit`,
@@ -289,8 +290,15 @@ export class AttachmentController {
       throw new BadRequestException('Invalid file upload');
     }
 
+    // Log all fields for debugging
+    this.logger.debug('File upload fields:', file.fields);
+
     const attachmentType = file.fields?.type?.value;
     const spaceId = file.fields?.spaceId?.value;
+
+    this.logger.debug(
+      `Processing upload - type: ${attachmentType}, spaceId: ${spaceId}`,
+    );
 
     if (!attachmentType) {
       throw new BadRequestException('attachment type is required');
@@ -303,7 +311,24 @@ export class AttachmentController {
       throw new BadRequestException('Invalid image attachment type');
     }
 
-    if (attachmentType === AttachmentType.WorkspaceLogo) {
+    // Handle ProjectCover type specifically
+    if (attachmentType === AttachmentType.ProjectCover) {
+      if (!spaceId) {
+        throw new BadRequestException(
+          'spaceId is required for project cover image',
+        );
+      }
+
+      // Check if user has permission to manage the space
+      const spaceAbility = await this.spaceAbility.createForUser(user, spaceId);
+      if (
+        spaceAbility.cannot(SpaceCaslAction.Manage, SpaceCaslSubject.Settings)
+      ) {
+        throw new ForbiddenException(
+          'You do not have permission to upload project cover images',
+        );
+      }
+    } else if (attachmentType === AttachmentType.WorkspaceLogo) {
       const ability = this.workspaceAbility.createForUser(user, workspace);
       if (
         ability.cannot(
@@ -313,9 +338,7 @@ export class AttachmentController {
       ) {
         throw new ForbiddenException();
       }
-    }
-
-    if (attachmentType === AttachmentType.SpaceLogo) {
+    } else if (attachmentType === AttachmentType.SpaceLogo) {
       if (!spaceId) {
         throw new BadRequestException('spaceId is required');
       }
@@ -329,6 +352,10 @@ export class AttachmentController {
     }
 
     try {
+      this.logger.debug(
+        `Uploading ${attachmentType} image for user: ${user.id}, workspace: ${workspace.id}, space: ${spaceId || 'none'}`,
+      );
+
       const fileResponse = await this.attachmentService.uploadImage(
         file,
         attachmentType,
@@ -337,10 +364,13 @@ export class AttachmentController {
         spaceId,
       );
 
+      this.logger.debug('Upload successful, returning response:', fileResponse);
       return res.send(fileResponse);
     } catch (err: any) {
-      this.logger.error(err);
-      throw new BadRequestException('Error processing file upload.');
+      this.logger.error('Error processing file upload:', err);
+      throw new BadRequestException(
+        err?.message || 'Error processing file upload.',
+      );
     }
   }
 

@@ -62,6 +62,8 @@ export function getAttachmentFolderPath(
       return `${workspaceId}/workspace-logo`;
     case AttachmentType.SpaceLogo:
       return `${workspaceId}/space-logos`;
+    case AttachmentType.ProjectCover:
+      return `${workspaceId}/project-covers`;
     case AttachmentType.File:
       return `${workspaceId}/files`;
     default:

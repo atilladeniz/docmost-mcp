@@ -27,6 +27,8 @@ import {
   Tooltip,
   useMantineTheme,
   FileInput,
+  Checkbox,
+  UnstyledButton,
 } from "@mantine/core";
 import {
   IconCalendar,
@@ -43,6 +45,16 @@ import {
   IconChevronDown,
   IconCheck,
   IconDotsVertical,
+  IconPaperclip,
+  IconAt,
+  IconSend,
+  IconDots,
+  IconGripVertical,
+  IconChevronRight,
+  IconCopy,
+  IconTrash,
+  IconEye,
+  IconEyeOff,
 } from "@tabler/icons-react";
 import { useDisclosure } from "@mantine/hooks";
 import { Project, Task, Label, TaskPriority } from "../types";
@@ -51,6 +63,16 @@ import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import { useUpdateProjectMutation } from "../hooks/use-projects";
 import { useWorkspaceUsers } from "@/features/user/hooks/use-workspace-users";
+import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
+import { useAtom } from "jotai";
+import { currentUserAtom } from "@/features/user/atoms/current-user-atom.ts";
+import api from "@/lib/api-client.ts";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+
+// NOTE: To implement drag and drop properly, we need to install:
+// npm install @hello-pangea/dnd
+// After installation, uncomment the import below and restore the DnD functionality
+// import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
 // Check if we're in development mode
 const isDevelopment = import.meta.env?.DEV;
@@ -107,6 +129,39 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
   );
   const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+
+  // Track which properties are visible
+  const [visibleProperties, setVisibleProperties] = useState({
+    timeline: true,
+    priority: true,
+    members: true,
+    tags: true,
+  });
+
+  // Track if we're showing hidden properties
+  const [showAllProperties, setShowAllProperties] = useState(false);
+
+  // Track property order
+  const [propertyOrder, setPropertyOrder] = useState([
+    { id: "timeline", name: "Timeline", type: "builtin" },
+    { id: "priority", name: "Priority", type: "builtin" },
+    { id: "members", name: "Members", type: "builtin" },
+    { id: "tags", name: "Tags", type: "builtin" },
+  ]);
+
+  // State for custom properties
+  const [customProperties, setCustomProperties] = useState<
+    Array<{
+      id: string;
+      name: string;
+      value: string;
+      isVisible: boolean;
+    }>
+  >([]);
+
+  // State for property management modal
+  const [propertiesModalOpened, setPropertiesModalOpened] = useState(false);
 
   const [opened, { open, close }] = useDisclosure(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -264,16 +319,25 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
   const processImageUrl = async (url: string) => {
     if (!url) return;
 
-    // Show loading notification
-    notifications.show({
-      id: "validate-image-url",
-      title: t("Validating image URL"),
-      message: t("Please wait while we validate the image URL..."),
-      color: "blue",
-      loading: true,
-    });
+    // Define a consistent toast ID
+    const toastId = "validate-image-url-toast";
 
     try {
+      // First, clear any existing toasts with this ID
+      notifications.hide(toastId);
+
+      // Set upload state to prevent double uploads
+      setIsUploadingCover(true);
+
+      // Show loading notification
+      notifications.show({
+        id: toastId,
+        title: t("Validating image URL"),
+        message: t("Please wait while we validate the image URL..."),
+        color: "blue",
+        loading: true,
+      });
+
       // Check if the URL is valid by loading the image
       const isValid = await new Promise<boolean>((resolve) => {
         const img = document.createElement("img");
@@ -290,11 +354,13 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
         updateProject({ coverImage: url });
 
         // Success notification
-        notifications.show({
-          id: "validate-image-url",
+        notifications.update({
+          id: toastId,
           title: t("Image URL validated"),
           message: t("The image URL has been set as your cover image"),
           color: "green",
+          loading: false,
+          autoClose: 3000,
         });
 
         // Close the modal
@@ -304,12 +370,17 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
       }
     } catch (error) {
       // Error notification
-      notifications.show({
-        id: "validate-image-url",
+      notifications.update({
+        id: toastId,
         title: t("Error"),
         message: t("The provided URL is not a valid image"),
         color: "red",
+        loading: false,
+        autoClose: 3000,
       });
+    } finally {
+      // Reset the upload state
+      setIsUploadingCover(false);
     }
   };
 
@@ -325,14 +396,37 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
 
   // Upload file to server
   const uploadFileToServer = async (file: File) => {
+    // Define a consistent toast ID
+    const toastId = "upload-cover-image-toast";
+
     try {
+      // First, clear any existing upload toasts
+      notifications.hide(toastId);
+
+      // Set upload state to prevent double uploads
+      setIsUploadingCover(true);
+
+      // Verify spaceId exists before attempting upload
+      if (!project.spaceId) {
+        console.error("Missing spaceId for project:", project);
+        throw new Error("Space ID is required for image upload");
+      }
+
+      console.log("Uploading cover image with spaceId:", project.spaceId);
+
       // Create a FormData instance
       const formData = new FormData();
-      formData.append("file", file);
-      formData.append("projectId", project.id);
 
-      // Show loading notification
-      const loadingId = notifications.show({
+      // Order matters! Add non-file fields first
+      formData.append("type", "project-cover");
+      formData.append("spaceId", project.spaceId);
+
+      // Add file last for FastifyMultipart to parse correctly
+      formData.append("file", file);
+
+      // Show loading notification with the consistent ID
+      notifications.show({
+        id: toastId,
         loading: true,
         title: t("Uploading image"),
         message: t("Please wait while we upload your image"),
@@ -340,17 +434,18 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
         withCloseButton: false,
       });
 
-      // In a real implementation, you would use your API client to upload the file
-      // For example:
-      // const response = await api.post('/upload', formData);
-      // const imageUrl = response.data.url;
+      // Upload the file using the attachment API
+      const response = await api.post("/attachments/upload-image", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
-      // For now, we'll simulate a successful upload with the object URL
-      await new Promise<void>((resolve) => setTimeout(resolve, 1500)); // Simulate network delay
+      console.log("Upload response:", JSON.stringify(response, null, 2));
 
-      // Success notification
-      notifications.show({
-        id: loadingId,
+      // Success notification - update the existing toast
+      notifications.update({
+        id: toastId,
         color: "green",
         title: t("Upload complete"),
         message: t("The image has been uploaded successfully"),
@@ -359,23 +454,63 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
         autoClose: 3000,
       });
 
-      // For now, we'll use a placeholder image URL for demonstration
-      const imageUrl = "https://picsum.photos/1000/300";
-      setCoverImageUrl(imageUrl);
+      // Get the URL from the response
+      // The response should include an attachment object with information to construct the URL
+      if (response && typeof response === "object") {
+        // Construct a direct URL to the image based on the response
+        let imageUrl;
 
-      // In a real app, you would update the project with the new image URL from the server
-      updateProject({ coverImage: imageUrl });
+        if ("fileName" in response) {
+          // Use the standardized path format based on attachment type
+          imageUrl = `/api/attachments/img/project-cover/${response.fileName}`;
+          console.log("Using constructed image URL:", imageUrl);
+        } else if ("filePath" in response) {
+          // If we have a full file path, use it directly
+          imageUrl = `/api/attachments/img/project-cover/${(response.filePath as string).split("/").pop()}`;
+          console.log("Using file path-based URL:", imageUrl);
+        } else {
+          console.error("Invalid response format from image upload:", response);
+          throw new Error("Invalid response format from server");
+        }
+
+        // Wait a moment before updating the cover image to avoid conflicts
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        // Only update if we actually have a valid URL
+        if (imageUrl) {
+          // We need to prevent the local object URL from being revoked
+          // since we still want to display the image
+          setObjectUrl(null);
+
+          console.log("Updating cover image URL to:", imageUrl);
+          setCoverImageUrl(imageUrl);
+
+          // Update the project with the actual image URL from the server
+          updateProject({ coverImage: imageUrl });
+        }
+      } else {
+        console.error("Invalid response format from image upload:", response);
+        throw new Error("Invalid response format from server");
+      }
 
       handleModalClose();
     } catch (error) {
-      // Error notification
-      notifications.show({
+      // Error notification - update the existing toast
+      notifications.update({
+        id: toastId,
         color: "red",
         title: t("Upload failed"),
-        message: t("There was a problem uploading your image"),
+        message:
+          error?.response?.data?.message ||
+          t("There was a problem uploading your image"),
         icon: <IconX size={16} />,
+        loading: false,
+        autoClose: 3000,
       });
       console.error("Error uploading file:", error);
+    } finally {
+      // Reset the upload state regardless of success or failure
+      setIsUploadingCover(false);
     }
   };
 
@@ -389,13 +524,12 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
         URL.revokeObjectURL(objectUrl);
       }
 
-      // Create a local object URL for preview
+      // Create a local object URL for preview only
       const newObjectUrl = URL.createObjectURL(file);
       setObjectUrl(newObjectUrl);
       setCoverImageUrl(newObjectUrl);
 
-      // Upload the file
-      uploadFileToServer(file);
+      // Note: We don't upload immediately - that happens when the user clicks 'Add cover'
     } else {
       // If file is cleared, also clear the object URL
       if (objectUrl) {
@@ -406,6 +540,7 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
       if (coverImageUrl && coverImageUrl.startsWith("blob:")) {
         setCoverImageUrl(null);
       }
+      setCoverImageFile(null);
     }
   };
 
@@ -429,14 +564,410 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
     });
   };
 
-  // Cleanup object URLs when component unmounts
+  // Cleanup object URLs and toasts when component unmounts
   useEffect(() => {
     return () => {
+      // Clean up object URLs
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
       }
+
+      // Clean up any lingering toasts
+      notifications.hide("upload-cover-image-toast");
+      notifications.hide("validate-image-url-toast");
     };
   }, [objectUrl]);
+
+  // Handle property reordering
+  const handleDragEnd = (result: any) => {
+    if (!result?.destination) return;
+
+    const items = Array.from(propertyOrder);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    setPropertyOrder(items);
+  };
+
+  // Toggle property visibility
+  const togglePropertyVisibility = (property: string) => {
+    if (propertyOrder.find((p) => p.id === property)?.type === "builtin") {
+      setVisibleProperties((prev) => ({
+        ...prev,
+        [property]: !prev[property],
+      }));
+    } else {
+      setCustomProperties((prev) =>
+        prev.map((p) =>
+          p.id === property ? { ...p, isVisible: !p.isVisible } : p
+        )
+      );
+    }
+  };
+
+  // Add custom property
+  const addCustomProperty = () => {
+    const newProperty = {
+      id: `custom-${Date.now()}`,
+      name: "New Property",
+      value: "",
+      isVisible: true,
+    };
+
+    setCustomProperties((prev) => [...prev, newProperty]);
+    setPropertyOrder((prev) => [
+      ...prev,
+      { id: newProperty.id, name: newProperty.name, type: "custom" },
+    ]);
+  };
+
+  // Remove custom property
+  const removeCustomProperty = (id: string) => {
+    setCustomProperties((prev) => prev.filter((p) => p.id !== id));
+    setPropertyOrder((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  // Duplicate custom property
+  const duplicateProperty = (id: string) => {
+    const propToDuplicate = customProperties.find((p) => p.id === id);
+    if (!propToDuplicate) return;
+
+    const newProperty = {
+      id: `custom-${Date.now()}`,
+      name: `${propToDuplicate.name} copy`,
+      value: propToDuplicate.value,
+      isVisible: propToDuplicate.isVisible,
+    };
+
+    setCustomProperties((prev) => [...prev, newProperty]);
+    setPropertyOrder((prev) => [
+      ...prev,
+      { id: newProperty.id, name: newProperty.name, type: "custom" },
+    ]);
+  };
+
+  // Update custom property
+  const updateCustomProperty = (
+    id: string,
+    field: "name" | "value",
+    newValue: string
+  ) => {
+    setCustomProperties((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, [field]: newValue } : p))
+    );
+
+    if (field === "name") {
+      setPropertyOrder((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, name: newValue } : p))
+      );
+    }
+  };
+
+  const [currentUser] = useAtom(currentUserAtom);
+
+  // Number of hidden properties
+  const getHiddenPropertiesCount = () => {
+    const hiddenBuiltIn = Object.entries(visibleProperties).filter(
+      ([, visible]) => !visible
+    ).length;
+    const hiddenCustom = customProperties.filter(
+      (prop) => !prop.isVisible
+    ).length;
+    return hiddenBuiltIn + hiddenCustom;
+  };
+
+  // Render a single property row
+  const renderPropertyRow = (propertyId: string, index: number) => {
+    const property = propertyOrder.find((p) => p.id === propertyId);
+    if (!property) return null;
+
+    // Check if property should be shown
+    const isVisible =
+      property.type === "builtin"
+        ? visibleProperties[propertyId]
+        : customProperties.find((p) => p.id === propertyId)?.isVisible;
+
+    if (!isVisible && !showAllProperties) return null;
+
+    return (
+      <Draggable key={propertyId} draggableId={propertyId} index={index}>
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            style={{
+              ...provided.draggableProps.style,
+              opacity: !isVisible ? 0.5 : 1,
+            }}
+          >
+            <Group align="center" mb="xs" style={{ position: "relative" }}>
+              <div
+                {...provided.dragHandleProps}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  cursor: "grab",
+                  marginRight: "4px",
+                  opacity: 0.5,
+                }}
+              >
+                <IconGripVertical size={16} />
+              </div>
+
+              <Text fw={500} size="sm" style={{ width: "100px" }}>
+                {property.name}
+              </Text>
+
+              {propertyId === "timeline" && (
+                <Popover position="bottom" withArrow shadow="md">
+                  <Popover.Target>
+                    <Group gap="xs" style={{ cursor: "pointer" }}>
+                      <Text size="sm" color={startDate ? "inherit" : "dimmed"}>
+                        {startDate
+                          ? startDate.toLocaleDateString()
+                          : t("Set start date")}
+                      </Text>
+                      <Text size="sm"> - </Text>
+                      <Text size="sm" color={endDate ? "inherit" : "dimmed"}>
+                        {endDate
+                          ? endDate.toLocaleDateString()
+                          : t("Set due date")}
+                      </Text>
+                    </Group>
+                  </Popover.Target>
+                  <Popover.Dropdown>
+                    <Stack>
+                      <DateInput
+                        value={startDate}
+                        onChange={setStartDate}
+                        label={t("Start date")}
+                        placeholder={t("Pick start date")}
+                        clearable
+                      />
+                      <DateInput
+                        value={endDate}
+                        onChange={setEndDate}
+                        label={t("Due date")}
+                        placeholder={t("Pick due date")}
+                        clearable
+                        minDate={startDate || undefined}
+                      />
+                      <Button
+                        onClick={handleDatesUpdate}
+                        fullWidth
+                        disabled={
+                          startDate ===
+                            (project.startDate
+                              ? new Date(project.startDate)
+                              : null) &&
+                          endDate ===
+                            (project.endDate ? new Date(project.endDate) : null)
+                        }
+                      >
+                        {t("Save")}
+                      </Button>
+                    </Stack>
+                  </Popover.Dropdown>
+                </Popover>
+              )}
+
+              {propertyId === "priority" && (
+                <Select
+                  size="xs"
+                  data={priorityOptions}
+                  value={priority}
+                  onChange={(value: TaskPriority) => setPriority(value)}
+                  styles={{
+                    input: {
+                      border: "none",
+                      padding: 0,
+                      backgroundColor: "transparent",
+                    },
+                  }}
+                />
+              )}
+
+              {propertyId === "members" && (
+                <Popover position="bottom" withArrow shadow="md">
+                  <Popover.Target>
+                    <Group gap={-8} style={{ cursor: "pointer" }}>
+                      {selectedMembers.length > 0 ? (
+                        selectedMembers.slice(0, 3).map((memberId) => {
+                          const user = typedUsers.find(
+                            (u) => u.id === memberId
+                          );
+                          return (
+                            <CustomAvatar
+                              key={memberId}
+                              avatarUrl={user?.avatarUrl}
+                              name={user?.name || ""}
+                              radius="xl"
+                              size="sm"
+                            />
+                          );
+                        })
+                      ) : (
+                        <Text size="sm" color="dimmed">
+                          {t("Add members")}
+                        </Text>
+                      )}
+                      {selectedMembers.length > 3 && (
+                        <Avatar radius="xl" size="sm">
+                          +{selectedMembers.length - 3}
+                        </Avatar>
+                      )}
+                    </Group>
+                  </Popover.Target>
+                  <Popover.Dropdown>
+                    <MultiSelect
+                      label={t("Project members")}
+                      data={typedUsers.map((user) => ({
+                        value: user.id,
+                        label: user.name || user.email,
+                      }))}
+                      value={selectedMembers}
+                      onChange={setSelectedMembers}
+                      placeholder={t("Select members")}
+                      searchable
+                      clearable
+                    />
+                  </Popover.Dropdown>
+                </Popover>
+              )}
+
+              {propertyId === "tags" && (
+                <Popover position="bottom" withArrow shadow="md">
+                  <Popover.Target>
+                    <Group gap={5} style={{ cursor: "pointer" }}>
+                      {selectedLabels.length > 0 ? (
+                        selectedLabels.slice(0, 3).map((labelId) => {
+                          const label = labels.find((l) => l.id === labelId);
+                          return label ? (
+                            <Badge key={labelId} color={label.color} size="sm">
+                              {label.name}
+                            </Badge>
+                          ) : null;
+                        })
+                      ) : (
+                        <Text size="sm" color="dimmed">
+                          {t("Add tags")}
+                        </Text>
+                      )}
+                      {selectedLabels.length > 3 && (
+                        <Badge size="sm">+{selectedLabels.length - 3}</Badge>
+                      )}
+                    </Group>
+                  </Popover.Target>
+                  <Popover.Dropdown>
+                    <MultiSelect
+                      label={t("Project tags")}
+                      data={labels.map((label) => ({
+                        value: label.id,
+                        label: label.name,
+                        group: "Existing Tags",
+                      }))}
+                      value={selectedLabels}
+                      onChange={setSelectedLabels}
+                      placeholder={t("Select tags")}
+                      searchable
+                      clearable
+                    />
+                  </Popover.Dropdown>
+                </Popover>
+              )}
+
+              {property.type === "custom" && (
+                <TextInput
+                  value={
+                    customProperties.find((p) => p.id === propertyId)?.value ||
+                    ""
+                  }
+                  onChange={(e) =>
+                    updateCustomProperty(propertyId, "value", e.target.value)
+                  }
+                  size="xs"
+                  placeholder={t("Enter value")}
+                  styles={{
+                    input: {
+                      border: "none",
+                      padding: 0,
+                      backgroundColor: "transparent",
+                    },
+                    root: {
+                      width: "auto",
+                      flex: 1,
+                    },
+                  }}
+                />
+              )}
+
+              <Menu shadow="md" position="bottom-end">
+                <Menu.Target>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    style={{
+                      opacity: 0.5,
+                      position: "absolute",
+                      right: 0,
+                    }}
+                  >
+                    <IconDotsVertical size={16} />
+                  </ActionIcon>
+                </Menu.Target>
+
+                <Menu.Dropdown>
+                  <Menu.Label>{property.name}</Menu.Label>
+                  <Menu.Item leftSection={<IconEdit size={14} />}>
+                    {t("Rename")}
+                  </Menu.Item>
+                  <Menu.Item leftSection={<IconEdit size={14} />}>
+                    {t("Edit property")}
+                  </Menu.Item>
+
+                  <Menu.Divider />
+
+                  <Menu.Label>{t("Property visibility")}</Menu.Label>
+                  <Menu.Item
+                    leftSection={
+                      isVisible ? (
+                        <IconEyeOff size={14} />
+                      ) : (
+                        <IconEye size={14} />
+                      )
+                    }
+                    onClick={() => togglePropertyVisibility(propertyId)}
+                  >
+                    {isVisible ? t("Always hide") : t("Always show")}
+                  </Menu.Item>
+
+                  <Menu.Divider />
+
+                  {property.type === "custom" && (
+                    <>
+                      <Menu.Item
+                        leftSection={<IconCopy size={14} />}
+                        onClick={() => duplicateProperty(propertyId)}
+                      >
+                        {t("Duplicate property")}
+                      </Menu.Item>
+                      <Menu.Item
+                        leftSection={<IconTrash size={14} />}
+                        color="red"
+                        onClick={() => removeCustomProperty(propertyId)}
+                      >
+                        {t("Delete property")}
+                      </Menu.Item>
+                    </>
+                  )}
+                </Menu.Dropdown>
+              </Menu>
+            </Group>
+          </div>
+        )}
+      </Draggable>
+    );
+  };
 
   return (
     <Box mb="lg">
@@ -561,198 +1092,203 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
       </Box>
 
       {/* Project metadata */}
-      <Grid mt="md" gutter="xl">
-        {/* Due Dates */}
-        <Grid.Col span={6}>
-          <Group align="flex-start" gap="xs">
-            <IconCalendar size={16} style={{ marginTop: 3 }} />
-            <Box>
-              <Text fw={500} size="sm">
-                {t("Timeline")}
-              </Text>
-              <Popover position="bottom" withArrow shadow="md">
-                <Popover.Target>
-                  <Group gap="xs" style={{ cursor: "pointer" }}>
-                    <Text size="sm" color={startDate ? "inherit" : "dimmed"}>
-                      {startDate
-                        ? startDate.toLocaleDateString()
-                        : t("Set start date")}
-                    </Text>
-                    <Text size="sm"> - </Text>
-                    <Text size="sm" color={endDate ? "inherit" : "dimmed"}>
-                      {endDate
-                        ? endDate.toLocaleDateString()
-                        : t("Set due date")}
-                    </Text>
-                  </Group>
-                </Popover.Target>
-                <Popover.Dropdown>
-                  <Stack>
-                    <DateInput
-                      value={startDate}
-                      onChange={setStartDate}
-                      label={t("Start date")}
-                      placeholder={t("Pick start date")}
-                      clearable
-                    />
-                    <DateInput
-                      value={endDate}
-                      onChange={setEndDate}
-                      label={t("Due date")}
-                      placeholder={t("Pick due date")}
-                      clearable
-                      minDate={startDate || undefined}
-                    />
-                    <Button
-                      onClick={handleDatesUpdate}
-                      fullWidth
-                      disabled={
-                        startDate ===
-                          (project.startDate
-                            ? new Date(project.startDate)
-                            : null) &&
-                        endDate ===
-                          (project.endDate ? new Date(project.endDate) : null)
-                      }
-                    >
-                      {t("Save")}
-                    </Button>
-                  </Stack>
-                </Popover.Dropdown>
-              </Popover>
+      <Stack mt="md" gap="xl">
+        {/* Property section with drag and drop */}
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <Droppable droppableId="properties">
+            {(provided) => (
+              <div {...provided.droppableProps} ref={provided.innerRef}>
+                {propertyOrder.map((property, index) =>
+                  renderPropertyRow(property.id, index)
+                )}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
+
+        {/* Property management buttons */}
+        <Group mt="md">
+          {getHiddenPropertiesCount() > 0 && (
+            <Button
+              variant="subtle"
+              leftSection={
+                showAllProperties ? (
+                  <IconChevronDown size={14} />
+                ) : (
+                  <IconChevronRight size={14} />
+                )
+              }
+              onClick={() => setShowAllProperties(!showAllProperties)}
+              size="xs"
+              style={{ border: "none", padding: "0" }}
+            >
+              {showAllProperties
+                ? t("Hide {{count}} properties", {
+                    count: getHiddenPropertiesCount(),
+                  })
+                : t("Show {{count}} more properties", {
+                    count: getHiddenPropertiesCount(),
+                  })}
+            </Button>
+          )}
+
+          <Button
+            variant="subtle"
+            leftSection={<IconPlus size={14} />}
+            onClick={addCustomProperty}
+            size="xs"
+            style={{ border: "none", padding: "0" }}
+          >
+            {t("Add a property")}
+          </Button>
+        </Group>
+
+        {/* Comments Section */}
+        <Divider
+          my="xl"
+          label={<Text fw={500}>{t("Comments")}</Text>}
+          labelPosition="left"
+        />
+
+        <Paper withBorder p="md" radius="md">
+          <Group align="flex-start" style={{ flexWrap: "nowrap" }}>
+            {/* User Avatar */}
+            <CustomAvatar
+              radius="xl"
+              size="md"
+              avatarUrl={currentUser?.user?.avatarUrl}
+              name={currentUser?.user?.name}
+            />
+
+            {/* Comment Input Area with inline buttons */}
+            <Box style={{ flex: 1, position: "relative" }}>
+              <Group align="flex-end" style={{ flexWrap: "nowrap" }}>
+                <Textarea
+                  placeholder={t("Add a comment...")}
+                  minRows={2}
+                  autosize
+                  style={{ flex: 1 }}
+                  styles={{
+                    input: {
+                      border: "none",
+                      "&:focus": {
+                        borderColor: "transparent",
+                      },
+                    },
+                    wrapper: {
+                      display: "flex",
+                      alignItems: "center",
+                    },
+                  }}
+                />
+
+                {/* Action Buttons - inline with input */}
+                <Group gap="xs" style={{ marginBottom: "8px" }}>
+                  <Tooltip label={t("Attach files")}>
+                    <ActionIcon color="gray">
+                      <IconPaperclip size={18} />
+                    </ActionIcon>
+                  </Tooltip>
+
+                  <Tooltip label={t("Mention someone")}>
+                    <ActionIcon color="gray">
+                      <IconAt size={18} />
+                    </ActionIcon>
+                  </Tooltip>
+
+                  <Tooltip label={t("Submit")}>
+                    <ActionIcon color="blue" variant="filled">
+                      <IconSend size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+              </Group>
             </Box>
           </Group>
-        </Grid.Col>
+        </Paper>
+      </Stack>
 
-        {/* Priority */}
-        <Grid.Col span={6}>
-          <Group align="flex-start" gap="xs">
-            <IconFlag size={16} style={{ marginTop: 3 }} />
-            <Box>
-              <Text fw={500} size="sm">
-                {t("Priority")}
-              </Text>
-              <Select
-                size="xs"
-                data={priorityOptions}
-                value={priority}
-                onChange={(value: TaskPriority) => setPriority(value)}
-                styles={{
-                  input: {
-                    border: "none",
-                    padding: 0,
-                    backgroundColor: "transparent",
-                  },
-                }}
-              />
-            </Box>
-          </Group>
-        </Grid.Col>
+      {/* Properties Management Modal */}
+      <Modal
+        opened={propertiesModalOpened}
+        onClose={() => setPropertiesModalOpened(false)}
+        title={t("Manage Properties")}
+      >
+        <Stack gap="md">
+          <Text size="sm">{t("Show or hide project properties:")}</Text>
 
-        {/* Members */}
-        <Grid.Col span={6}>
-          <Group align="flex-start" gap="xs">
-            <IconUsers size={16} style={{ marginTop: 3 }} />
-            <Box>
-              <Text fw={500} size="sm">
-                {t("Members")}
-              </Text>
-              <Popover position="bottom" withArrow shadow="md">
-                <Popover.Target>
-                  <Group gap={-8} style={{ cursor: "pointer" }}>
-                    {selectedMembers.length > 0 ? (
-                      selectedMembers.slice(0, 3).map((memberId) => {
-                        const user = typedUsers.find((u) => u.id === memberId);
-                        return (
-                          <Avatar
-                            key={memberId}
-                            src={user?.avatarUrl}
-                            radius="xl"
-                            size="sm"
-                          />
-                        );
-                      })
-                    ) : (
-                      <Text size="sm" color="dimmed">
-                        {t("Add members")}
-                      </Text>
-                    )}
-                    {selectedMembers.length > 3 && (
-                      <Avatar radius="xl" size="sm">
-                        +{selectedMembers.length - 3}
-                      </Avatar>
-                    )}
-                  </Group>
-                </Popover.Target>
-                <Popover.Dropdown>
-                  <MultiSelect
-                    label={t("Project members")}
-                    data={typedUsers.map((user) => ({
-                      value: user.id,
-                      label: user.name || user.email,
-                    }))}
-                    value={selectedMembers}
-                    onChange={setSelectedMembers}
-                    placeholder={t("Select members")}
-                    searchable
-                    clearable
+          {/* Built-in properties */}
+          <Stack gap="xs">
+            <Checkbox
+              label={t("Timeline")}
+              checked={visibleProperties.timeline}
+              onChange={() => togglePropertyVisibility("timeline")}
+            />
+            <Checkbox
+              label={t("Priority")}
+              checked={visibleProperties.priority}
+              onChange={() => togglePropertyVisibility("priority")}
+            />
+            <Checkbox
+              label={t("Members")}
+              checked={visibleProperties.members}
+              onChange={() => togglePropertyVisibility("members")}
+            />
+            <Checkbox
+              label={t("Tags")}
+              checked={visibleProperties.tags}
+              onChange={() => togglePropertyVisibility("tags")}
+            />
+          </Stack>
+
+          <Divider label={t("Custom Properties")} labelPosition="center" />
+
+          {/* Custom properties list */}
+          {customProperties.length > 0 ? (
+            <Stack gap="sm">
+              {customProperties.map((prop) => (
+                <Group key={prop.id} justify="space-between">
+                  <TextInput
+                    value={prop.name}
+                    onChange={(e) =>
+                      updateCustomProperty(prop.id, "name", e.target.value)
+                    }
+                    size="sm"
+                    placeholder={t("Property name")}
+                    style={{ flex: 1 }}
                   />
-                </Popover.Dropdown>
-              </Popover>
-            </Box>
-          </Group>
-        </Grid.Col>
+                  <ActionIcon
+                    color="red"
+                    onClick={() => removeCustomProperty(prop.id)}
+                  >
+                    <IconX size={16} />
+                  </ActionIcon>
+                </Group>
+              ))}
+            </Stack>
+          ) : (
+            <Text color="dimmed" size="sm" ta="center">
+              {t("No custom properties added yet")}
+            </Text>
+          )}
 
-        {/* Labels/Tags */}
-        <Grid.Col span={6}>
-          <Group align="flex-start" gap="xs">
-            <IconTags size={16} style={{ marginTop: 3 }} />
-            <Box>
-              <Text fw={500} size="sm">
-                {t("Tags")}
-              </Text>
-              <Popover position="bottom" withArrow shadow="md">
-                <Popover.Target>
-                  <Group gap={5} style={{ cursor: "pointer" }}>
-                    {selectedLabels.length > 0 ? (
-                      selectedLabels.slice(0, 3).map((labelId) => {
-                        const label = labels.find((l) => l.id === labelId);
-                        return label ? (
-                          <Badge key={labelId} color={label.color} size="sm">
-                            {label.name}
-                          </Badge>
-                        ) : null;
-                      })
-                    ) : (
-                      <Text size="sm" color="dimmed">
-                        {t("Add tags")}
-                      </Text>
-                    )}
-                    {selectedLabels.length > 3 && (
-                      <Badge size="sm">+{selectedLabels.length - 3}</Badge>
-                    )}
-                  </Group>
-                </Popover.Target>
-                <Popover.Dropdown>
-                  <MultiSelect
-                    label={t("Project tags")}
-                    data={labels.map((label) => ({
-                      value: label.id,
-                      label: label.name,
-                      group: "Existing Tags",
-                    }))}
-                    value={selectedLabels}
-                    onChange={setSelectedLabels}
-                    placeholder={t("Select tags")}
-                    searchable
-                    clearable
-                  />
-                </Popover.Dropdown>
-              </Popover>
-            </Box>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={addCustomProperty}
+            fullWidth
+            variant="light"
+          >
+            {t("Add Custom Property")}
+          </Button>
+
+          <Group justify="flex-end" mt="md">
+            <Button onClick={() => setPropertiesModalOpened(false)}>
+              {t("Done")}
+            </Button>
           </Group>
-        </Grid.Col>
-      </Grid>
+        </Stack>
+      </Modal>
 
       {/* Cover image modal */}
       <Modal
@@ -809,7 +1345,11 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
           )}
 
           <Group justify="space-between">
-            <Button variant="outline" onClick={handleModalClose}>
+            <Button
+              variant="outline"
+              onClick={handleModalClose}
+              disabled={isUploadingCover}
+            >
               {t("Cancel")}
             </Button>
             <Button
@@ -822,9 +1362,10 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
                   handleModalClose();
                 }
               }}
-              disabled={!coverImageFile && !coverImageUrl}
+              disabled={isUploadingCover || (!coverImageFile && !coverImageUrl)}
+              loading={isUploadingCover}
             >
-              {t("Add cover")}
+              {isUploadingCover ? t("Uploading...") : t("Add cover")}
             </Button>
           </Group>
         </Stack>

@@ -136,7 +136,8 @@ export class AttachmentService {
     type:
       | AttachmentType.Avatar
       | AttachmentType.WorkspaceLogo
-      | AttachmentType.SpaceLogo,
+      | AttachmentType.SpaceLogo
+      | AttachmentType.ProjectCover,
     userId: string,
     workspaceId: string,
     spaceId?: string,
@@ -202,6 +203,14 @@ export class AttachmentService {
             workspaceId,
             trx,
           );
+        } else if (type === AttachmentType.ProjectCover) {
+          // For project cover images, we just create the attachment
+          // No need to update any other entities
+          if (!spaceId) {
+            throw new BadRequestException(
+              'spaceId is required for project cover image',
+            );
+          }
         } else {
           throw new BadRequestException(`Image upload aborted.`);
         }
