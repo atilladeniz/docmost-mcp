@@ -25,9 +25,12 @@ import {
   IconMessage,
   IconAdjustments,
   IconSquarePlus,
+  IconArticle,
+  IconFileText,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface TaskCardProps {
   task: Task;
@@ -44,6 +47,7 @@ export function TaskCard({
 }: TaskCardProps) {
   const { t } = useTranslation();
   const theme = useMantineTheme();
+  const navigate = useNavigate();
   const [hovered, setHovered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
@@ -77,6 +81,20 @@ export function TaskCard({
     e.stopPropagation();
   };
 
+  // Open the linked page when clicking on the page icon
+  const handlePageIconClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (task.pageId) {
+      // If we have a page link in the description, extract it
+      const pageUrlMatch = task.description?.match(
+        /\[View page details\]\(([^)]+)\)/
+      );
+      if (pageUrlMatch && pageUrlMatch[1]) {
+        navigate(pageUrlMatch[1]);
+      }
+    }
+  };
+
   return (
     <Card
       shadow="xs"
@@ -101,18 +119,28 @@ export function TaskCard({
           }}
           style={{ flexShrink: 0, width: 24 }}
         >
-          <ActionIcon
-            color={task.status === "done" ? "teal" : "gray"}
-            variant={task.status === "done" ? "filled" : "outline"}
-            radius="xl"
-            size="sm"
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 22,
+              height: 22,
+              borderRadius: "50%",
+              backgroundColor:
+                task.status === "done" ? theme.colors.teal[5] : "transparent",
+              border:
+                task.status === "done"
+                  ? "none"
+                  : `1px solid ${theme.colors.gray[5]}`,
+            }}
           >
             {task.status === "done" ? (
-              <IconCheck size={14} />
+              <IconCheck size={14} color="white" />
             ) : (
               <div style={{ width: 14, height: 14 }} />
             )}
-          </ActionIcon>
+          </div>
         </UnstyledButton>
 
         {/* Task title or editing input */}
@@ -128,9 +156,25 @@ export function TaskCard({
             style={{ flex: 1 }}
           />
         ) : (
-          <Text fw={500} size="sm" lineClamp={1} style={{ flex: 1 }}>
-            {task.title}
-          </Text>
+          <Group gap="xs" style={{ flex: 1 }}>
+            <Text fw={500} size="sm" lineClamp={1} style={{ flex: 1 }}>
+              {task.title}
+            </Text>
+
+            {/* Page indicator */}
+            {task.pageId && (
+              <Tooltip label={t("This task has a linked page")}>
+                <ActionIcon
+                  size="xs"
+                  variant="subtle"
+                  color="blue"
+                  onClick={handlePageIconClick}
+                >
+                  <IconFileText size={14} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </Group>
         )}
 
         {/* Hover actions */}

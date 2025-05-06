@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Modal,
   Button,
@@ -11,6 +11,9 @@ import {
   Flex,
   Box,
   Text,
+  Tabs,
+  Switch,
+  Divider,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import {
@@ -20,10 +23,18 @@ import {
 } from "../hooks/use-tasks";
 import { Task, TaskPriority, TaskStatus } from "../types";
 import { useTranslation } from "react-i18next";
-import { IconSearch, IconUserCircle, IconX } from "@tabler/icons-react";
-import { useState } from "react";
+import {
+  IconSearch,
+  IconUserCircle,
+  IconX,
+  IconArticle,
+  IconChecklist,
+} from "@tabler/icons-react";
 import { useSearchUsers } from "@/features/user/hooks/use-search-users";
 import { UserSelect } from "@/features/user/components/user-select";
+import { useCreatePageMutation } from "@/features/page/queries/page-query";
+import { useCurrentWorkspace } from "@/features/workspace/hooks/use-current-workspace";
+import { useNavigate } from "react-router-dom";
 
 interface TaskFormModalProps {
   opened: boolean;
@@ -56,69 +67,95 @@ export default function TaskFormModal({
   task,
 }: TaskFormModalProps) {
   const { t } = useTranslation();
-  const isEditing = !!(task && task.id);
-  const [assigneeId, setAssigneeId] = useState<string | null>(
-    task?.assigneeId || null
-  );
-  const formInitializedRef = useRef(false);
-
-  const form = useForm({
-    initialValues: {
-      title: "",
-      description: "",
-      status: "todo" as TaskStatus,
-      priority: "medium" as TaskPriority,
-      dueDate: null as Date | null,
-    },
-    validate: {
-      title: (value) => (value.trim() === "" ? t("Title is required") : null),
-    },
-  });
-
   const createTaskMutation = useCreateTaskMutation();
   const updateTaskMutation = useUpdateTaskMutation();
   const assignTaskMutation = useAssignTaskMutation();
+  const [assigneeId, setAssigneeId] = useState<string | null>(
+    task?.assigneeId || null
+  );
+  const [isCreatingPage, setIsCreatingPage] = useState(true);
+  const currentWorkspace = useCurrentWorkspace();
+  const createPageMutation = useCreatePageMutation();
+  const navigate = useNavigate();
+
+  const isEditing = !!task;
+
+  const form = useForm({
+    initialValues: {
+      title: task?.title || "",
+      description: task?.description || "",
+      status: task?.status || ("todo" as TaskStatus),
+      priority: task?.priority || ("medium" as TaskPriority),
+      dueDate: task?.dueDate ? new Date(task.dueDate) : null,
+      estimatedTime: task?.estimatedTime || undefined,
+    },
+    validate: {
+      title: (value) => (value ? null : t("Title is required")),
+    },
+  });
 
   useEffect(() => {
-    if (opened && task) {
+    if (task) {
       form.setValues({
-        title: task.title || "",
+        title: task.title,
         description: task.description || "",
         status: task.status || "todo",
         priority: task.priority || "medium",
         dueDate: task.dueDate ? new Date(task.dueDate) : null,
+        estimatedTime: task.estimatedTime,
       });
       setAssigneeId(task.assigneeId || null);
-      formInitializedRef.current = true;
-    } else if (opened && !task) {
+    } else {
       form.reset();
       setAssigneeId(null);
-      formInitializedRef.current = true;
     }
+  }, [task]);
 
-    if (!opened) {
-      formInitializedRef.current = false;
+  useEffect(() => {
+    if (opened && !isEditing) {
+      form.reset();
+      setAssigneeId(null);
     }
-  }, [opened, task, form]);
+  }, [opened, isEditing]);
 
-  const handleSubmit = form.onSubmit((values) => {
+  const handleSubmit = form.onSubmit(async (values) => {
+    // Validate status
+    const validStatus = STATUS_OPTIONS.some(
+      (option) => option.value === values.status
+    )
+      ? values.status
+      : "todo";
+
     if (isEditing && task) {
+      // Update existing task
       updateTaskMutation.mutate(
         {
           taskId: task.id,
-          ...values,
+          title: values.title,
+          description: values.description,
+          status: validStatus,
+          priority: values.priority,
+          dueDate: values.dueDate,
+          estimatedTime: values.estimatedTime,
+          pageId: task.pageId, // Preserve existing pageId when updating
         },
         {
-          onSuccess: () => {
+          onSuccess: (data) => {
+            console.log("Task updated successfully:", data);
+            // Handle assignee update if changed
             if (assigneeId !== task.assigneeId) {
               assignTaskMutation.mutate(
                 {
                   taskId: task.id,
-                  assigneeId,
+                  assigneeId: assigneeId,
                 },
                 {
                   onSuccess: () => {
+                    console.log("Assignee updated successfully");
                     onClose();
+                  },
+                  onError: (error) => {
+                    console.error("Error updating assignee:", error);
                   },
                 }
               );
@@ -126,61 +163,89 @@ export default function TaskFormModal({
               onClose();
             }
           },
+          onError: (error) => {
+            console.error("Error updating task:", error);
+          },
         }
       );
     } else {
-      console.log("Creating new task with values:", {
-        ...values,
-        projectId,
-        spaceId,
-        assigneeId: assigneeId || undefined,
-      });
+      // Create new task
+      if (isCreatingPage) {
+        try {
+          // First create a new page
+          const pageData = {
+            title: values.title,
+            content: JSON.stringify({
+              type: "doc",
+              content: [
+                {
+                  type: "paragraph",
+                  content: values.description
+                    ? [{ type: "text", text: values.description }]
+                    : [],
+                },
+              ],
+            }),
+            spaceId,
+            parentPageId: "", // Could link to project page in the future
+            icon: "📝",
+          };
 
-      if (!projectId) {
-        console.error("Error: projectId is missing or invalid", projectId);
-      }
+          const newPage = await createPageMutation.mutateAsync(pageData);
 
-      if (!spaceId) {
-        console.error("Error: spaceId is missing or invalid", spaceId);
-      }
+          if (newPage) {
+            // Then create a task linked to the page
+            const taskData = {
+              title: values.title,
+              description: values.description,
+              status: validStatus,
+              priority: values.priority,
+              dueDate: values.dueDate,
+              projectId,
+              spaceId,
+              assigneeId: assigneeId || undefined,
+              estimatedTime: values.estimatedTime,
+              pageId: newPage.id, // Link the task to the page directly
+            };
 
-      const validStatus = [
-        "todo",
-        "in_progress",
-        "in_review",
-        "done",
-        "blocked",
-      ].includes(values.status)
-        ? values.status
-        : "todo";
+            const newTask = await createTaskMutation.mutateAsync(taskData);
 
-      createTaskMutation.mutate(
-        {
-          ...values,
-          status: validStatus,
-          projectId,
-          spaceId,
-          assigneeId: assigneeId || undefined,
-        },
-        {
-          onSuccess: (data) => {
-            console.log("Task created successfully:", data);
+            // Make sure to close the form
             onClose();
-          },
-          onError: (error) => {
-            console.error("Error creating task:", error);
-            try {
-              if (error && typeof error === "object" && "response" in error) {
-                const errorResponse = error.response as any;
-                console.error("Response data:", errorResponse?.data);
-                console.error("Response status:", errorResponse?.status);
-              }
-            } catch (e) {
-              console.error("Error parsing error response", e);
+
+            // Navigate to the new page
+            if (newPage.slugId) {
+              navigate(`/s/${spaceId}/p/${newPage.slugId}`);
             }
-          },
+          }
+        } catch (error) {
+          console.error("Error creating task and page:", error);
         }
-      );
+      } else {
+        // Create task only without a page
+        createTaskMutation.mutate(
+          {
+            title: values.title,
+            description: values.description,
+            status: validStatus,
+            priority: values.priority,
+            dueDate: values.dueDate,
+            projectId,
+            spaceId,
+            assigneeId: assigneeId || undefined,
+            estimatedTime: values.estimatedTime,
+          },
+          {
+            onSuccess: (data) => {
+              console.log("Task created successfully:", data);
+              onClose();
+            },
+            onError: (error) => {
+              console.error("Error creating task:", error);
+            },
+          }
+        );
+      }
     }
   });
 
@@ -195,7 +260,8 @@ export default function TaskFormModal({
   const loading =
     createTaskMutation.isPending ||
     updateTaskMutation.isPending ||
-    assignTaskMutation.isPending;
+    assignTaskMutation.isPending ||
+    createPageMutation.isPending;
 
   return (
     <Modal
@@ -267,6 +333,40 @@ export default function TaskFormModal({
               leftSection={<IconUserCircle size={16} />}
             />
           </Box>
+
+          {!isEditing && (
+            <>
+              <Divider label={t("Task Type")} labelPosition="center" />
+
+              <Group justify="space-between">
+                <Flex align="center" gap="md">
+                  {isCreatingPage ? (
+                    <IconArticle size={18} />
+                  ) : (
+                    <IconChecklist size={18} />
+                  )}
+                  <Text size="sm">
+                    {isCreatingPage
+                      ? t("Create as page (like Notion)")
+                      : t("Create as simple task")}
+                  </Text>
+                </Flex>
+                <Switch
+                  checked={isCreatingPage}
+                  onChange={(e) => setIsCreatingPage(e.currentTarget.checked)}
+                  size="md"
+                />
+              </Group>
+
+              {isCreatingPage && (
+                <Text size="xs" color="dimmed">
+                  {t(
+                    "This will create a dedicated page for this task with its own content editor."
+                  )}
+                </Text>
+              )}
+            </>
+          )}
 
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={onClose}>

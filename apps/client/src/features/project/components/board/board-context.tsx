@@ -74,6 +74,13 @@ export function BoardProvider({
   project,
   onBack,
 }: BoardProviderProps) {
+  // Debug log
+  console.log(
+    "BoardProvider rendering with project:",
+    project?.id,
+    project?.name
+  );
+
   // View and grouping state
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
   const [groupBy, setGroupBy] = useState<GroupBy>("status");

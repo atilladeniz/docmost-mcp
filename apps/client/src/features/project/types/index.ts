@@ -160,6 +160,7 @@ export interface UpdateTaskParams {
   dueDate?: Date | null;
   assigneeId?: string | null;
   estimatedTime?: number | null;
+  pageId?: string | null;
 }
 
 export interface CreateLabelParams {

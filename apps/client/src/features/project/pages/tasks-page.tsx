@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Box,
   Container,
@@ -9,17 +9,13 @@ import {
   Anchor,
   Button,
   Card,
-  Loader,
-  Stack,
 } from "@mantine/core";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useCurrentSpace } from "@/features/space/hooks/use-current-space";
 import { useCurrentWorkspace } from "@/features/workspace/hooks/use-current-workspace";
 import { useProjects } from "../hooks/use-projects";
-import { useTasksBySpace, useTasksByProject } from "../hooks/use-tasks";
-import { ProjectBoard } from "../components/project-board";
-import { Task, TaskStatus, TaskPriority } from "../types";
+import { ProjectView } from "../components/project-view";
 
 export function TasksPage() {
   const { t } = useTranslation();
@@ -44,78 +40,6 @@ export function TasksPage() {
 
   const projectData =
     projectId && projectsData?.items?.find((p) => p.id === projectId);
-
-  // Get tasks based on spaceId or projectId
-  const { data: spaceTasksData, isLoading: isSpaceTasksLoading } =
-    useTasksBySpace({
-      spaceId: spaceId || "",
-    });
-
-  const { data: projectTasksData, isLoading: isProjectTasksLoading } =
-    useTasksByProject({
-      projectId: projectId || "",
-    });
-
-  // Combine tasks data based on source
-  const tasksData = projectId ? projectTasksData : spaceTasksData;
-  const isLoading = projectId ? isProjectTasksLoading : isSpaceTasksLoading;
-
-  // Create state to store filtered tasks
-  const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
-
-  // Update filtered tasks when tasksData or filter parameters change
-  useEffect(() => {
-    if (!tasksData?.items) {
-      setFilteredTasks([]);
-      return;
-    }
-
-    let filtered = [...tasksData.items];
-
-    if (filterType === "all") {
-      // No filtering needed
-    } else if (filterType === "status" && filterValue) {
-      filtered = filtered.filter(
-        (task) => task.status === (filterValue as TaskStatus)
-      );
-    } else if (filterType === "priority" && filterValue) {
-      filtered = filtered.filter(
-        (task) => task.priority === (filterValue as TaskPriority)
-      );
-    } else if (filterType === "dueDate") {
-      if (filterValue === "overdue") {
-        const now = new Date();
-        filtered = filtered.filter(
-          (task) =>
-            task.dueDate &&
-            new Date(task.dueDate) < now &&
-            task.status !== "done"
-        );
-      } else if (filterValue === "upcoming") {
-        const now = new Date();
-        const sevenDaysFromNow = new Date();
-        sevenDaysFromNow.setDate(now.getDate() + 7);
-
-        filtered = filtered.filter(
-          (task) =>
-            task.dueDate &&
-            new Date(task.dueDate) > now &&
-            new Date(task.dueDate) <= sevenDaysFromNow &&
-            task.status !== "done"
-        );
-      }
-    }
-
-    setFilteredTasks(filtered);
-  }, [tasksData, filterType, filterValue]);
-
-  if (!spaceId || !spaceData || !workspaceData) {
-    return (
-      <Container my="xl">
-        <Text>{t("Loading...")}</Text>
-      </Container>
-    );
-  }
 
   // Generate page title based on filters
   const getPageTitle = () => {
@@ -144,8 +68,8 @@ export function TasksPage() {
 
   const renderBreadcrumbs = () => {
     const items = [
-      { title: workspaceData.name, href: "/dashboard" },
-      { title: spaceData.name, href: `/spaces/${spaceId}` },
+      { title: workspaceData?.name || "Workspace", href: "/dashboard" },
+      { title: spaceData?.name || "Space", href: `/spaces/${spaceId}` },
       { title: t("Projects"), href: `/spaces/${spaceId}/projects` },
     ];
 
@@ -182,6 +106,14 @@ export function TasksPage() {
     navigate(`/spaces/${spaceId}/projects`);
   };
 
+  if (!spaceId) {
+    return (
+      <Container my="xl">
+        <Text>{t("Missing space ID")}</Text>
+      </Container>
+    );
+  }
+
   return (
     <Container size="xl" my="xl">
       {renderBreadcrumbs()}
@@ -194,44 +126,14 @@ export function TasksPage() {
           </Button>
         </Group>
 
-        {isLoading ? (
-          <Card p="xl" withBorder>
-            <Stack align="center" py="xl">
-              <Loader size="md" />
-              <Text>{t("Loading tasks...")}</Text>
-            </Stack>
-          </Card>
-        ) : filteredTasks.length === 0 ? (
+        {!projectId ? (
           <Card p="xl" withBorder>
             <Text ta="center" py="xl">
-              {t("No tasks match the selected filters")}
+              {t("Please select a project to view tasks")}
             </Text>
           </Card>
         ) : (
-          <Card p="md" withBorder>
-            <Text size="sm" mb="md">
-              {t("Showing {{count}} tasks", { count: filteredTasks.length })}
-            </Text>
-
-            {/* Task list goes here */}
-            <Stack>
-              {filteredTasks.map((task) => (
-                <Card key={task.id} p="sm" withBorder>
-                  <Group justify="space-between">
-                    <Text fw={500}>{task.title}</Text>
-                    <Text size="xs" c="dimmed">
-                      {task.status.toUpperCase()}
-                    </Text>
-                  </Group>
-                  {task.description && (
-                    <Text size="sm" lineClamp={2} mt="xs">
-                      {task.description}
-                    </Text>
-                  )}
-                </Card>
-              ))}
-            </Stack>
-          </Card>
+          <ProjectView projectId={projectId} spaceId={spaceId} />
         )}
       </Box>
     </Container>

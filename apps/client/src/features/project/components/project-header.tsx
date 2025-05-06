@@ -580,7 +580,8 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
 
   // Handle property reordering
   const handleDragEnd = (result: any) => {
-    if (!result?.destination) return;
+    // Skip if no destination or if not dragging a property
+    if (!result?.destination || result?.type !== "PROPERTY") return;
 
     const items = Array.from(propertyOrder);
     const [reorderedItem] = items.splice(result.source.index, 1);
@@ -689,283 +690,268 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
 
     if (!isVisible && !showAllProperties) return null;
 
+    // Replace Draggable with a regular div to avoid the drag-and-drop errors
     return (
-      <Draggable key={propertyId} draggableId={propertyId} index={index}>
-        {(provided, snapshot) => (
+      <div
+        key={propertyId}
+        style={{
+          opacity: !isVisible ? 0.5 : 1,
+        }}
+      >
+        <Group align="center" mb="xs" style={{ position: "relative" }}>
           <div
-            ref={provided.innerRef}
-            {...provided.draggableProps}
             style={{
-              ...provided.draggableProps.style,
-              opacity: !isVisible ? 0.5 : 1,
+              display: "flex",
+              alignItems: "center",
+              cursor: "grab",
+              marginRight: "4px",
+              opacity: 0.5,
             }}
           >
-            <Group align="center" mb="xs" style={{ position: "relative" }}>
-              <div
-                {...provided.dragHandleProps}
+            <IconGripVertical size={16} />
+          </div>
+
+          <Text fw={500} size="sm" style={{ width: "100px" }}>
+            {property.name}
+          </Text>
+
+          {propertyId === "timeline" && (
+            <Popover position="bottom" withArrow shadow="md">
+              <Popover.Target>
+                <Group gap="xs" style={{ cursor: "pointer" }}>
+                  <Text size="sm" color={startDate ? "inherit" : "dimmed"}>
+                    {startDate
+                      ? startDate.toLocaleDateString()
+                      : t("Set start date")}
+                  </Text>
+                  <Text size="sm"> - </Text>
+                  <Text size="sm" color={endDate ? "inherit" : "dimmed"}>
+                    {endDate ? endDate.toLocaleDateString() : t("Set due date")}
+                  </Text>
+                </Group>
+              </Popover.Target>
+              <Popover.Dropdown>
+                <Stack>
+                  <DateInput
+                    value={startDate}
+                    onChange={setStartDate}
+                    label={t("Start date")}
+                    placeholder={t("Pick start date")}
+                    clearable
+                  />
+                  <DateInput
+                    value={endDate}
+                    onChange={setEndDate}
+                    label={t("Due date")}
+                    placeholder={t("Pick due date")}
+                    clearable
+                    minDate={startDate || undefined}
+                  />
+                  <Button
+                    onClick={handleDatesUpdate}
+                    fullWidth
+                    disabled={
+                      startDate ===
+                        (project.startDate
+                          ? new Date(project.startDate)
+                          : null) &&
+                      endDate ===
+                        (project.endDate ? new Date(project.endDate) : null)
+                    }
+                  >
+                    {t("Save")}
+                  </Button>
+                </Stack>
+              </Popover.Dropdown>
+            </Popover>
+          )}
+
+          {propertyId === "priority" && (
+            <Select
+              size="xs"
+              data={priorityOptions}
+              value={priority}
+              onChange={(value: TaskPriority) => setPriority(value)}
+              styles={{
+                input: {
+                  border: "none",
+                  padding: 0,
+                  backgroundColor: "transparent",
+                },
+              }}
+            />
+          )}
+
+          {propertyId === "members" && (
+            <Popover position="bottom" withArrow shadow="md">
+              <Popover.Target>
+                <Group gap={-8} style={{ cursor: "pointer" }}>
+                  {selectedMembers.length > 0 ? (
+                    selectedMembers.slice(0, 3).map((memberId) => {
+                      const user = typedUsers.find((u) => u.id === memberId);
+                      return (
+                        <CustomAvatar
+                          key={memberId}
+                          avatarUrl={user?.avatarUrl}
+                          name={user?.name || ""}
+                          radius="xl"
+                          size="sm"
+                        />
+                      );
+                    })
+                  ) : (
+                    <Text size="sm" color="dimmed">
+                      {t("Add members")}
+                    </Text>
+                  )}
+                  {selectedMembers.length > 3 && (
+                    <Avatar radius="xl" size="sm">
+                      +{selectedMembers.length - 3}
+                    </Avatar>
+                  )}
+                </Group>
+              </Popover.Target>
+              <Popover.Dropdown>
+                <MultiSelect
+                  label={t("Project members")}
+                  data={typedUsers.map((user) => ({
+                    value: user.id,
+                    label: user.name || user.email,
+                  }))}
+                  value={selectedMembers}
+                  onChange={setSelectedMembers}
+                  placeholder={t("Select members")}
+                  searchable
+                  clearable
+                />
+              </Popover.Dropdown>
+            </Popover>
+          )}
+
+          {propertyId === "tags" && (
+            <Popover position="bottom" withArrow shadow="md">
+              <Popover.Target>
+                <Group gap={5} style={{ cursor: "pointer" }}>
+                  {selectedLabels.length > 0 ? (
+                    selectedLabels.slice(0, 3).map((labelId) => {
+                      const label = labels.find((l) => l.id === labelId);
+                      return label ? (
+                        <Badge key={labelId} color={label.color} size="sm">
+                          {label.name}
+                        </Badge>
+                      ) : null;
+                    })
+                  ) : (
+                    <Text size="sm" color="dimmed">
+                      {t("Add tags")}
+                    </Text>
+                  )}
+                  {selectedLabels.length > 3 && (
+                    <Badge size="sm">+{selectedLabels.length - 3}</Badge>
+                  )}
+                </Group>
+              </Popover.Target>
+              <Popover.Dropdown>
+                <MultiSelect
+                  label={t("Project tags")}
+                  data={labels.map((label) => ({
+                    value: label.id,
+                    label: label.name,
+                    group: "Existing Tags",
+                  }))}
+                  value={selectedLabels}
+                  onChange={setSelectedLabels}
+                  placeholder={t("Select tags")}
+                  searchable
+                  clearable
+                />
+              </Popover.Dropdown>
+            </Popover>
+          )}
+
+          {property.type === "custom" && (
+            <TextInput
+              value={
+                customProperties.find((p) => p.id === propertyId)?.value || ""
+              }
+              onChange={(e) =>
+                updateCustomProperty(propertyId, "value", e.target.value)
+              }
+              size="xs"
+              placeholder={t("Enter value")}
+              styles={{
+                input: {
+                  border: "none",
+                  padding: 0,
+                  backgroundColor: "transparent",
+                },
+                root: {
+                  width: "auto",
+                  flex: 1,
+                },
+              }}
+            />
+          )}
+
+          <Menu shadow="md" position="bottom-end">
+            <Menu.Target>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  cursor: "grab",
-                  marginRight: "4px",
                   opacity: 0.5,
+                  position: "absolute",
+                  right: 0,
                 }}
               >
-                <IconGripVertical size={16} />
-              </div>
+                <IconDotsVertical size={16} />
+              </ActionIcon>
+            </Menu.Target>
 
-              <Text fw={500} size="sm" style={{ width: "100px" }}>
-                {property.name}
-              </Text>
+            <Menu.Dropdown>
+              <Menu.Label>{property.name}</Menu.Label>
+              <Menu.Item leftSection={<IconEdit size={14} />}>
+                {t("Rename")}
+              </Menu.Item>
+              <Menu.Item leftSection={<IconEdit size={14} />}>
+                {t("Edit property")}
+              </Menu.Item>
 
-              {propertyId === "timeline" && (
-                <Popover position="bottom" withArrow shadow="md">
-                  <Popover.Target>
-                    <Group gap="xs" style={{ cursor: "pointer" }}>
-                      <Text size="sm" color={startDate ? "inherit" : "dimmed"}>
-                        {startDate
-                          ? startDate.toLocaleDateString()
-                          : t("Set start date")}
-                      </Text>
-                      <Text size="sm"> - </Text>
-                      <Text size="sm" color={endDate ? "inherit" : "dimmed"}>
-                        {endDate
-                          ? endDate.toLocaleDateString()
-                          : t("Set due date")}
-                      </Text>
-                    </Group>
-                  </Popover.Target>
-                  <Popover.Dropdown>
-                    <Stack>
-                      <DateInput
-                        value={startDate}
-                        onChange={setStartDate}
-                        label={t("Start date")}
-                        placeholder={t("Pick start date")}
-                        clearable
-                      />
-                      <DateInput
-                        value={endDate}
-                        onChange={setEndDate}
-                        label={t("Due date")}
-                        placeholder={t("Pick due date")}
-                        clearable
-                        minDate={startDate || undefined}
-                      />
-                      <Button
-                        onClick={handleDatesUpdate}
-                        fullWidth
-                        disabled={
-                          startDate ===
-                            (project.startDate
-                              ? new Date(project.startDate)
-                              : null) &&
-                          endDate ===
-                            (project.endDate ? new Date(project.endDate) : null)
-                        }
-                      >
-                        {t("Save")}
-                      </Button>
-                    </Stack>
-                  </Popover.Dropdown>
-                </Popover>
-              )}
+              <Menu.Divider />
 
-              {propertyId === "priority" && (
-                <Select
-                  size="xs"
-                  data={priorityOptions}
-                  value={priority}
-                  onChange={(value: TaskPriority) => setPriority(value)}
-                  styles={{
-                    input: {
-                      border: "none",
-                      padding: 0,
-                      backgroundColor: "transparent",
-                    },
-                  }}
-                />
-              )}
+              <Menu.Label>{t("Property visibility")}</Menu.Label>
+              <Menu.Item
+                leftSection={
+                  isVisible ? <IconEyeOff size={14} /> : <IconEye size={14} />
+                }
+                onClick={() => togglePropertyVisibility(propertyId)}
+              >
+                {isVisible ? t("Always hide") : t("Always show")}
+              </Menu.Item>
 
-              {propertyId === "members" && (
-                <Popover position="bottom" withArrow shadow="md">
-                  <Popover.Target>
-                    <Group gap={-8} style={{ cursor: "pointer" }}>
-                      {selectedMembers.length > 0 ? (
-                        selectedMembers.slice(0, 3).map((memberId) => {
-                          const user = typedUsers.find(
-                            (u) => u.id === memberId
-                          );
-                          return (
-                            <CustomAvatar
-                              key={memberId}
-                              avatarUrl={user?.avatarUrl}
-                              name={user?.name || ""}
-                              radius="xl"
-                              size="sm"
-                            />
-                          );
-                        })
-                      ) : (
-                        <Text size="sm" color="dimmed">
-                          {t("Add members")}
-                        </Text>
-                      )}
-                      {selectedMembers.length > 3 && (
-                        <Avatar radius="xl" size="sm">
-                          +{selectedMembers.length - 3}
-                        </Avatar>
-                      )}
-                    </Group>
-                  </Popover.Target>
-                  <Popover.Dropdown>
-                    <MultiSelect
-                      label={t("Project members")}
-                      data={typedUsers.map((user) => ({
-                        value: user.id,
-                        label: user.name || user.email,
-                      }))}
-                      value={selectedMembers}
-                      onChange={setSelectedMembers}
-                      placeholder={t("Select members")}
-                      searchable
-                      clearable
-                    />
-                  </Popover.Dropdown>
-                </Popover>
-              )}
-
-              {propertyId === "tags" && (
-                <Popover position="bottom" withArrow shadow="md">
-                  <Popover.Target>
-                    <Group gap={5} style={{ cursor: "pointer" }}>
-                      {selectedLabels.length > 0 ? (
-                        selectedLabels.slice(0, 3).map((labelId) => {
-                          const label = labels.find((l) => l.id === labelId);
-                          return label ? (
-                            <Badge key={labelId} color={label.color} size="sm">
-                              {label.name}
-                            </Badge>
-                          ) : null;
-                        })
-                      ) : (
-                        <Text size="sm" color="dimmed">
-                          {t("Add tags")}
-                        </Text>
-                      )}
-                      {selectedLabels.length > 3 && (
-                        <Badge size="sm">+{selectedLabels.length - 3}</Badge>
-                      )}
-                    </Group>
-                  </Popover.Target>
-                  <Popover.Dropdown>
-                    <MultiSelect
-                      label={t("Project tags")}
-                      data={labels.map((label) => ({
-                        value: label.id,
-                        label: label.name,
-                        group: "Existing Tags",
-                      }))}
-                      value={selectedLabels}
-                      onChange={setSelectedLabels}
-                      placeholder={t("Select tags")}
-                      searchable
-                      clearable
-                    />
-                  </Popover.Dropdown>
-                </Popover>
-              )}
+              <Menu.Divider />
 
               {property.type === "custom" && (
-                <TextInput
-                  value={
-                    customProperties.find((p) => p.id === propertyId)?.value ||
-                    ""
-                  }
-                  onChange={(e) =>
-                    updateCustomProperty(propertyId, "value", e.target.value)
-                  }
-                  size="xs"
-                  placeholder={t("Enter value")}
-                  styles={{
-                    input: {
-                      border: "none",
-                      padding: 0,
-                      backgroundColor: "transparent",
-                    },
-                    root: {
-                      width: "auto",
-                      flex: 1,
-                    },
-                  }}
-                />
-              )}
-
-              <Menu shadow="md" position="bottom-end">
-                <Menu.Target>
-                  <ActionIcon
-                    variant="subtle"
-                    color="gray"
-                    style={{
-                      opacity: 0.5,
-                      position: "absolute",
-                      right: 0,
-                    }}
-                  >
-                    <IconDotsVertical size={16} />
-                  </ActionIcon>
-                </Menu.Target>
-
-                <Menu.Dropdown>
-                  <Menu.Label>{property.name}</Menu.Label>
-                  <Menu.Item leftSection={<IconEdit size={14} />}>
-                    {t("Rename")}
-                  </Menu.Item>
-                  <Menu.Item leftSection={<IconEdit size={14} />}>
-                    {t("Edit property")}
-                  </Menu.Item>
-
-                  <Menu.Divider />
-
-                  <Menu.Label>{t("Property visibility")}</Menu.Label>
+                <>
                   <Menu.Item
-                    leftSection={
-                      isVisible ? (
-                        <IconEyeOff size={14} />
-                      ) : (
-                        <IconEye size={14} />
-                      )
-                    }
-                    onClick={() => togglePropertyVisibility(propertyId)}
+                    leftSection={<IconCopy size={14} />}
+                    onClick={() => duplicateProperty(propertyId)}
                   >
-                    {isVisible ? t("Always hide") : t("Always show")}
+                    {t("Duplicate property")}
                   </Menu.Item>
-
-                  <Menu.Divider />
-
-                  {property.type === "custom" && (
-                    <>
-                      <Menu.Item
-                        leftSection={<IconCopy size={14} />}
-                        onClick={() => duplicateProperty(propertyId)}
-                      >
-                        {t("Duplicate property")}
-                      </Menu.Item>
-                      <Menu.Item
-                        leftSection={<IconTrash size={14} />}
-                        color="red"
-                        onClick={() => removeCustomProperty(propertyId)}
-                      >
-                        {t("Delete property")}
-                      </Menu.Item>
-                    </>
-                  )}
-                </Menu.Dropdown>
-              </Menu>
-            </Group>
-          </div>
-        )}
-      </Draggable>
+                  <Menu.Item
+                    leftSection={<IconTrash size={14} />}
+                    color="red"
+                    onClick={() => removeCustomProperty(propertyId)}
+                  >
+                    {t("Delete property")}
+                  </Menu.Item>
+                </>
+              )}
+            </Menu.Dropdown>
+          </Menu>
+        </Group>
+      </div>
     );
   };
 
@@ -1095,7 +1081,7 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
       <Stack mt="md" gap="xl">
         {/* Property section with drag and drop */}
         <DragDropContext onDragEnd={handleDragEnd}>
-          <Droppable droppableId="properties">
+          <Droppable droppableId="properties" type="PROPERTY">
             {(provided) => (
               <div {...provided.droppableProps} ref={provided.innerRef}>
                 {propertyOrder.map((property, index) =>

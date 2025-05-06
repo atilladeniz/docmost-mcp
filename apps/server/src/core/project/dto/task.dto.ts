@@ -97,6 +97,10 @@ export class UpdateTaskDto {
   @IsOptional()
   assigneeId?: string | null;
 
+  @IsUUID()
+  @IsOptional()
+  pageId?: string | null;
+
   @IsInt()
   @Min(0)
   @IsOptional()
