@@ -61,7 +61,10 @@ import { TaskPriority } from "../types";
 import { useTranslation } from "react-i18next";
 import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { useUpdateProjectMutation } from "../hooks/use-projects";
+import {
+  useUpdateProjectMutation,
+  useSilentUpdateProjectMutation,
+} from "../hooks/use-projects";
 import { useWorkspaceUsers } from "@/features/user/hooks/use-workspace-users";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
 import { useAtom } from "jotai";
@@ -291,6 +294,7 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
 
   // Mutations
   const updateProjectMutation = useUpdateProjectMutation();
+  const silentUpdateProjectMutation = useSilentUpdateProjectMutation();
 
   // Get workspace users
   const { data: workspaceUsers = [] } = useWorkspaceUsers({
@@ -358,7 +362,7 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
     },
   ];
 
-  // Helper to update project
+  // Helper to update project (with notifications)
   const updateProject = (data: any) => {
     conditionalLog("Updating project with data:", data);
     // Log the full project details including the ID
@@ -393,6 +397,17 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
         },
       }
     );
+  };
+
+  // Helper to update project silently (without notifications)
+  const updateProjectSilently = (data: any) => {
+    conditionalLog("Silently updating project with data:", data);
+
+    // Use the silent mutation hook instead of the regular one
+    silentUpdateProjectMutation.mutate({
+      projectId: project.id,
+      ...data,
+    });
   };
 
   // Handle title update
@@ -747,24 +762,21 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
     };
 
     // Update the project with the new metadata - silently without toast notifications
-    updateProjectMutation.mutate(
+    silentUpdateProjectMutation.mutate(
       {
         projectId: project.id,
         metadata,
       },
       {
-        onSuccess: () => {
-          // Silent success - no notification
-          conditionalLog("Property config saved successfully");
-        },
-        onError: (error) => {
-          conditionalErrorLog("Error saving property config:", error);
-          // Only show notification on error
-          notifications.show({
-            title: t("Error"),
-            message: t("Failed to save property configuration"),
-            color: "red",
-          });
+        onError: (error: any) => {
+          // Only show notification for severe errors
+          if (error?.response?.status >= 500) {
+            notifications.show({
+              title: t("Error"),
+              message: t("Failed to save property configuration"),
+              color: "red",
+            });
+          }
         },
       }
     );
@@ -869,24 +881,38 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
     // Use Draggable to enable drag and drop
     return (
       <Draggable draggableId={propertyId} index={index} key={propertyId}>
-        {(provided) => (
+        {(provided, snapshot) => (
           <div
             ref={provided.innerRef}
             {...provided.draggableProps}
             style={{
               ...provided.draggableProps.style,
               opacity: !isVisible ? 0.5 : 1,
+              transition: snapshot.isDragging ? "all 0.01s" : "all 0.2s ease",
+              background: snapshot.isDragging
+                ? "rgba(0, 0, 0, 0.03)"
+                : "transparent",
+              borderRadius: theme.radius.sm,
+              marginBottom: 8, // Consistent spacing between items
+              ...(snapshot.isDragging && {
+                boxShadow: theme.shadows.sm,
+              }),
             }}
           >
-            <Group align="center" mb={5} style={{ position: "relative" }}>
+            <Group
+              align="center"
+              mb={0}
+              style={{ position: "relative", padding: "4px 8px" }}
+            >
               <div
                 {...provided.dragHandleProps}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   cursor: "grab",
-                  marginRight: "4px",
-                  opacity: 0.5,
+                  marginRight: "8px",
+                  opacity: snapshot.isDragging ? 0.8 : 0.5,
+                  transition: "opacity 0.2s ease",
                 }}
               >
                 <IconGripVertical size={16} />
@@ -1274,11 +1300,23 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
         {/* Property section with drag and drop */}
         <DragDropContext onDragEnd={handleDragEnd}>
           <Droppable droppableId="properties" type="PROPERTY">
-            {(provided) => (
+            {(provided, snapshot) => (
               <div
                 {...provided.droppableProps}
                 ref={provided.innerRef}
-                style={{ marginBottom: 0 }}
+                style={{
+                  marginBottom: 0,
+                  minHeight: "50px",
+                  transition: "background-color 0.2s ease",
+                  background: snapshot.isDraggingOver
+                    ? "rgba(0, 0, 0, 0.03)"
+                    : "transparent",
+                  borderRadius: theme.radius.md,
+                  padding: snapshot.isDraggingOver ? 8 : 0,
+                  boxShadow: snapshot.isDraggingOver
+                    ? "inset 0 0 0 1px rgba(0, 0, 0, 0.06)"
+                    : "none",
+                }}
               >
                 {propertyOrder.map((property, index) =>
                   renderPropertyRow(property.id, index)

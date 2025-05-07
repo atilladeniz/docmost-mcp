@@ -294,3 +294,25 @@ export function useDeleteProjectMutation() {
     },
   });
 }
+
+export function useSilentUpdateProjectMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: UpdateProjectParams) =>
+      projectService.updateProject(params),
+    onSuccess: (data) => {
+      // Silently invalidate queries without showing notifications
+      queryClient.invalidateQueries({
+        queryKey: [PROJECT_QUERY_KEY, data.id],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PROJECTS_QUERY_KEY, { spaceId: data.spaceId }],
+      });
+    },
+    // No onError notification - only log the error
+    onError: (error) => {
+      conditionalErrorLog("Silent project update error:", error);
+    },
+  });
+}
