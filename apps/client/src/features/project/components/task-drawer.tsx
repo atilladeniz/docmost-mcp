@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense, lazy } from "react";
 import {
   Drawer,
   Button,
@@ -19,11 +19,19 @@ import {
   Title,
   rem,
   useMantineTheme,
+  Image,
+  Paper,
+  useMantineColorScheme,
+  Tooltip,
+  Center,
+  Modal,
+  FileInput,
 } from "@mantine/core";
 import { Task, TaskPriority, TaskStatus } from "../types";
 import { useTranslation } from "react-i18next";
 import {
   IconChevronLeft,
+  IconChevronRight,
   IconCheck,
   IconMaximize,
   IconMinimize,
@@ -35,6 +43,31 @@ import {
   IconListDetails,
   IconEdit,
   IconExternalLink,
+  IconPhoto,
+  IconPlus,
+  IconBrandGithub,
+  IconFlag,
+  IconSubtask,
+  IconFolder,
+  IconDotsVertical,
+  IconPaperclip,
+  IconAt,
+  IconSend,
+  IconGripVertical,
+  IconMoodSmile,
+  IconArticle,
+  IconShare,
+  IconMessageCircle,
+  IconStar,
+  IconStarFilled,
+  IconLock,
+  IconCopy,
+  IconCopyPlus,
+  IconArrowRight,
+  IconTrash,
+  IconFileImport,
+  IconFileExport,
+  IconLink,
 } from "@tabler/icons-react";
 import {
   useUpdateTaskMutation,
@@ -45,6 +78,17 @@ import {
 import { UserSelect } from "@/features/user/components/user-select";
 import { useNavigate, useParams } from "react-router-dom";
 import { useForm } from "@mantine/form";
+import { DateInput } from "@mantine/dates";
+import { CustomAvatar } from "@/components/ui/custom-avatar";
+import { useAtom } from "jotai";
+import { currentUserAtom } from "@/features/user/atoms/current-user-atom";
+import { formatDistanceToNow } from "date-fns";
+import { useDisclosure } from "@mantine/hooks";
+import EmojiPicker from "@/components/ui/emoji-picker";
+import { api } from "@/lib/api";
+import { notifications } from "@mantine/notifications";
+// Lazy load Picker from emoji-mart to avoid SSR issues
+const Picker = lazy(() => import("@emoji-mart/react"));
 
 interface TaskDrawerProps {
   taskId?: string | null;
@@ -92,10 +136,35 @@ export function TaskDrawer({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const theme = useMantineTheme();
+  const { colorScheme } = useMantineColorScheme();
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [wordCount, setWordCount] = useState(0);
+  const [lastEditedBy, setLastEditedBy] = useState<string | null>(null);
+  const [lastEditedAt, setLastEditedAt] = useState<Date | null>(null);
+  const [newComment, setNewComment] = useState("");
+  const [comments, setComments] = useState([]);
+  const [currentUser, setCurrentUser] = useState<{
+    name: string;
+    avatar: string | null;
+  }>({
+    name: "Current User",
+    avatar: null,
+  });
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
+  const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [coverModalOpened, { open: openCoverModal, close: closeCoverModal }] =
+    useDisclosure(false);
+  const [
+    emojiPickerOpened,
+    { open: openEmojiPicker, close: closeEmojiPicker },
+  ] = useDisclosure(false);
 
   // Use the useTask hook to fetch task data
   const { data: task, isLoading, refetch } = useTask(taskId);
@@ -108,6 +177,13 @@ export function TaskDrawer({
   useEffect(() => {
     if (task) {
       setAssigneeId(task.assigneeId || null);
+    }
+  }, [task]);
+
+  // Set initial cover image if task has one
+  useEffect(() => {
+    if (task?.coverImage) {
+      setCoverImageUrl(task.coverImage);
     }
   }, [task]);
 
@@ -265,81 +341,453 @@ export function TaskDrawer({
     );
   };
 
+  // Handle emoji selection
+  const handleEmojiSelect = (emoji: any) => {
+    if (!task) return;
+
+    updateTaskMutation.mutate(
+      {
+        taskId: task.id,
+        icon: emoji.native,
+      },
+      {
+        onSuccess: () => {
+          refetch();
+        },
+      }
+    );
+  };
+
+  // Handle emoji picker click
+  const handleEmojiPickerClick = () => {
+    openEmojiPicker();
+  };
+
+  // Handle removing emoji
+  const handleRemoveEmoji = () => {
+    if (!task) return;
+
+    updateTaskMutation.mutate(
+      {
+        taskId: task.id,
+        icon: null,
+      },
+      {
+        onSuccess: () => {
+          refetch();
+        },
+      }
+    );
+  };
+
+  // Clean up when modal closes
+  const handleModalClose = () => {
+    // Only revoke if we're not using the image
+    if (objectUrl && !coverImageUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(objectUrl);
+      setObjectUrl(null);
+    }
+    closeCoverModal();
+  };
+
+  // Handle file upload
+  const handleFileUpload = (file: File | null) => {
+    if (file) {
+      setCoverImageFile(file);
+
+      // Clean up previous object URL if it exists
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+
+      // Create a local object URL for preview only
+      const newObjectUrl = URL.createObjectURL(file);
+      setObjectUrl(newObjectUrl);
+      setCoverImageUrl(newObjectUrl);
+    } else {
+      // If file is cleared, also clear the object URL
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        setObjectUrl(null);
+      }
+      // Only clear the URL if it's an object URL (not an external URL)
+      if (coverImageUrl && coverImageUrl.startsWith("blob:")) {
+        setCoverImageUrl(null);
+      }
+      setCoverImageFile(null);
+    }
+  };
+
+  // Process image URL function
+  const processImageUrl = async (url: string) => {
+    if (!url) return;
+
+    // Define a consistent toast ID
+    const toastId = "validate-image-url-toast";
+
+    try {
+      // First, clear any existing toasts with this ID
+      notifications.hide(toastId);
+
+      // Set upload state to prevent double uploads
+      setIsUploadingCover(true);
+
+      // Show loading notification
+      notifications.show({
+        id: toastId,
+        title: t("Validating image URL"),
+        message: t("Please wait while we validate the image URL..."),
+        color: "blue",
+        loading: true,
+      });
+
+      // Check if the URL is valid by loading the image
+      const isValid = await new Promise<boolean>((resolve) => {
+        const img = document.createElement("img");
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(false);
+        img.src = url;
+      });
+
+      if (isValid) {
+        // Update UI
+        setCoverImageUrl(url);
+
+        // Save to database
+        updateTaskMutation.mutate(
+          {
+            taskId: task!.id,
+            coverImage: url,
+          },
+          {
+            onSuccess: () => {
+              refetch();
+            },
+          }
+        );
+
+        // Success notification
+        notifications.update({
+          id: toastId,
+          title: t("Image URL validated"),
+          message: t("The image URL has been set as your cover image"),
+          color: "green",
+          loading: false,
+          autoClose: 3000,
+        });
+
+        // Close the modal
+        closeCoverModal();
+      } else {
+        throw new Error("Invalid image URL");
+      }
+    } catch (error) {
+      // Error notification
+      notifications.update({
+        id: toastId,
+        title: t("Error"),
+        message: t("The provided URL is not a valid image"),
+        color: "red",
+        loading: false,
+        autoClose: 3000,
+      });
+    } finally {
+      // Reset the upload state
+      setIsUploadingCover(false);
+    }
+  };
+
+  // Upload file to server
+  const uploadFileToServer = async (file: File) => {
+    // Define a consistent toast ID
+    const toastId = "upload-cover-image-toast";
+
+    try {
+      // First, clear any existing upload toasts
+      notifications.hide(toastId);
+
+      // Set upload state to prevent double uploads
+      setIsUploadingCover(true);
+
+      // Verify spaceId exists before attempting upload
+      if (!spaceId) {
+        console.error("Missing spaceId for task:", task);
+        throw new Error("Space ID is required for image upload");
+      }
+
+      // Create a FormData instance
+      const formData = new FormData();
+
+      // Order matters! Add non-file fields first
+      formData.append("type", "task-cover");
+      formData.append("spaceId", spaceId);
+
+      // Add file last for FastifyMultipart to parse correctly
+      formData.append("file", file);
+
+      // Show loading notification with the consistent ID
+      notifications.show({
+        id: toastId,
+        loading: true,
+        title: t("Uploading image"),
+        message: t("Please wait while we upload your image"),
+        autoClose: false,
+        withCloseButton: false,
+      });
+
+      // Upload the file using the attachment API
+      const response = await api.post("/attachments/upload-image", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      // Success notification - update the existing toast
+      notifications.update({
+        id: toastId,
+        color: "green",
+        title: t("Upload complete"),
+        message: t("The image has been uploaded successfully"),
+        loading: false,
+        autoClose: 3000,
+      });
+
+      // Get the URL from the response
+      if (response && typeof response === "object") {
+        // Construct a direct URL to the image based on the response
+        let imageUrl;
+
+        if ("fileName" in response) {
+          // Use the standardized path format based on attachment type
+          imageUrl = `/api/attachments/img/task-cover/${response.fileName}`;
+        } else if ("filePath" in response) {
+          // If we have a full file path, use it directly
+          imageUrl = `/api/attachments/img/task-cover/${(response.filePath as string).split("/").pop()}`;
+        } else {
+          throw new Error("Invalid response format from server");
+        }
+
+        // Wait a moment before updating the cover image to avoid conflicts
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        // Only update if we actually have a valid URL
+        if (imageUrl) {
+          // We need to prevent the local object URL from being revoked
+          // since we still want to display the image
+          setObjectUrl(null);
+
+          setCoverImageUrl(imageUrl);
+
+          // Update the task with the actual image URL from the server
+          updateTaskMutation.mutate(
+            {
+              taskId: task!.id,
+              coverImage: imageUrl,
+            },
+            {
+              onSuccess: () => {
+                refetch();
+              },
+            }
+          );
+        }
+      } else {
+        throw new Error("Invalid response format from server");
+      }
+
+      handleModalClose();
+    } catch (error) {
+      // Error notification - update the existing toast
+      notifications.update({
+        id: toastId,
+        color: "red",
+        title: t("Upload failed"),
+        message:
+          error?.response?.data?.message ||
+          t("There was a problem uploading your image"),
+        loading: false,
+        autoClose: 3000,
+      });
+      console.error("Error uploading file:", error);
+    } finally {
+      // Reset the upload state regardless of success or failure
+      setIsUploadingCover(false);
+    }
+  };
+
+  // Handle removing the cover image
+  const handleRemoveCoverImage = () => {
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+      setObjectUrl(null);
+    }
+    setCoverImageUrl(null);
+    setCoverImageFile(null);
+
+    // Save the change to the database
+    if (task) {
+      updateTaskMutation.mutate(
+        {
+          taskId: task.id,
+          coverImage: null,
+        },
+        {
+          onSuccess: () => {
+            refetch();
+          },
+        }
+      );
+    }
+
+    // Success notification
+    notifications.show({
+      title: t("Cover image removed"),
+      message: t("The cover image has been removed successfully"),
+      color: "green",
+      autoClose: 3000,
+    });
+  };
+
   if (isLoading || !task) {
     // Loading state
     return (
       <Drawer
         opened={opened}
         onClose={onClose}
-        size={isFullScreen ? "100%" : "xl"}
-        title={t("Task Details")}
         position="right"
+        size={isFullScreen ? "100%" : "xl"}
+        styles={{
+          header: {
+            margin: 0,
+            padding: 0,
+          },
+          body: {
+            padding: 0,
+          },
+        }}
       >
-        <Box
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            height: "50vh",
-          }}
-        >
-          <Text>{t("Loading task...")}</Text>
-        </Box>
+        {isLoading ? (
+          <Center h="100%">
+            <Text>Loading task...</Text>
+          </Center>
+        ) : (
+          <>
+            <Box
+              p="md"
+              style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}
+            >
+              <Flex justify="space-between" align="center">
+                <Group gap="xs">
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    onClick={onClose}
+                    aria-label="Close drawer"
+                  >
+                    <IconX size={20} />
+                  </ActionIcon>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    onClick={toggleFullScreen}
+                    aria-label={
+                      isFullScreen ? "Exit fullscreen" : "Enter fullscreen"
+                    }
+                  >
+                    <IconMaximize size={20} />
+                  </ActionIcon>
+                </Group>
+                <Group gap="xs">
+                  <ActionIcon variant="subtle" color="gray" aria-label="Share">
+                    <IconShare size={20} />
+                  </ActionIcon>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    aria-label="Comments"
+                  >
+                    <IconMessageCircle size={20} />
+                  </ActionIcon>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    aria-label="Add to favorites"
+                  >
+                    <IconStar size={20} />
+                  </ActionIcon>
+                  <Menu position="bottom-end">
+                    <Menu.Target>
+                      <ActionIcon
+                        variant="subtle"
+                        color="gray"
+                        aria-label="More options"
+                      >
+                        <IconDotsVertical size={20} />
+                      </ActionIcon>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item leftSection={<IconLock size={16} />}>
+                        Lock page
+                      </Menu.Item>
+                      <Menu.Item leftSection={<IconLink size={16} />}>
+                        Copy link
+                      </Menu.Item>
+                      <Menu.Item leftSection={<IconCopy size={16} />}>
+                        Duplicate
+                      </Menu.Item>
+                      <Menu.Item leftSection={<IconArrowRight size={16} />}>
+                        Move to
+                      </Menu.Item>
+                      <Menu.Divider />
+                      <Menu.Item leftSection={<IconFileImport size={16} />}>
+                        Import
+                      </Menu.Item>
+                      <Menu.Item leftSection={<IconFileExport size={16} />}>
+                        Export
+                      </Menu.Item>
+                      <Menu.Divider />
+                      <Menu.Item
+                        leftSection={<IconTrash size={16} />}
+                        color="red"
+                      >
+                        Move to trash
+                      </Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
+                </Group>
+              </Flex>
+            </Box>
+          </>
+        )}
       </Drawer>
     );
   }
 
   return (
     <Drawer
-      opened={opened && !!task}
+      opened={opened}
       onClose={onClose}
-      size={isFullScreen ? "100%" : "xl"}
       position="right"
-      styles={{
-        header: {
-          padding: theme.spacing.md,
-        },
-        body: {
-          padding: 0,
-        },
-      }}
+      size={isFullScreen ? "100%" : "xl"}
       title={
-        <Group gap="xs">
-          <ActionIcon variant="subtle" onClick={onClose} aria-label="Close">
-            <IconX size={18} />
-          </ActionIcon>
-          <Text fw={500}>{t("Task")}</Text>
-        </Group>
-      }
-      closeButtonProps={{ display: "none" }}
-    >
-      {task && (
-        <Box p="md">
-          <Stack gap="lg">
-            {/* Top bar with full screen toggle */}
-            <Group justify="space-between">
-              <Group gap="sm">
-                <ActionIcon
-                  variant="outline"
-                  color={task.status === "done" ? "teal" : "gray"}
-                  radius="xl"
-                  onClick={handleCompletionToggle}
-                >
-                  {task.status === "done" ? <IconCheck size={16} /> : <div />}
-                </ActionIcon>
-
-                {task.pageId && (
-                  <Button
-                    variant="light"
-                    size="xs"
-                    onClick={openAsFullPage}
-                    leftSection={<IconExternalLink size={14} />}
-                  >
-                    {t("Open as page")}
-                  </Button>
-                )}
-              </Group>
-
+        <Box
+          style={{
+            width: "100%",
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
+          <Group gap="xs">
+            <Tooltip label={t("Close")}>
+              <ActionIcon variant="subtle" onClick={onClose} aria-label="Close">
+                <IconChevronRight size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip
+              label={
+                isFullScreen ? t("Exit full screen") : t("Enter full screen")
+              }
+            >
               <ActionIcon
                 variant="subtle"
                 onClick={toggleFullScreen}
@@ -351,7 +799,317 @@ export function TaskDrawer({
                   <IconMaximize size={18} />
                 )}
               </ActionIcon>
+            </Tooltip>
+          </Group>
+          <Group gap="xs">
+            <Tooltip label={t("Share")}>
+              <ActionIcon variant="subtle" aria-label="Share">
+                <IconShare size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label={t("View all comments")}>
+              <ActionIcon variant="subtle" aria-label="View comments">
+                <IconMessageCircle size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip
+              label={
+                isFavorited ? t("Remove from favorites") : t("Add to favorites")
+              }
+            >
+              <ActionIcon
+                variant="subtle"
+                aria-label="Favorite"
+                onClick={() => setIsFavorited(!isFavorited)}
+              >
+                {isFavorited ? (
+                  <IconStarFilled size={18} />
+                ) : (
+                  <IconStar size={18} />
+                )}
+              </ActionIcon>
+            </Tooltip>
+            <Menu position="bottom-end" withinPortal>
+              <Menu.Target>
+                <Tooltip label={t("More options")}>
+                  <ActionIcon variant="subtle" aria-label="More options">
+                    <IconDotsVertical size={18} />
+                  </ActionIcon>
+                </Tooltip>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item
+                  leftSection={<IconLock size={16} />}
+                  onClick={() => setIsLocked(!isLocked)}
+                >
+                  {isLocked ? t("Unlock page") : t("Lock page")}
+                </Menu.Item>
+                <Menu.Item leftSection={<IconCopy size={16} />}>
+                  {t("Copy link")}
+                </Menu.Item>
+                <Menu.Item leftSection={<IconCopyPlus size={16} />}>
+                  {t("Duplicate")}
+                </Menu.Item>
+                <Menu.Item leftSection={<IconArrowRight size={16} />}>
+                  {t("Move to")}
+                </Menu.Item>
+                <Menu.Item leftSection={<IconFileImport size={16} />}>
+                  {t("Import")}
+                </Menu.Item>
+                <Menu.Item leftSection={<IconFileExport size={16} />}>
+                  {t("Export")}
+                </Menu.Item>
+                <Menu.Divider />
+                <Menu.Item color="red" leftSection={<IconTrash size={16} />}>
+                  {t("Move to trash")}
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          </Group>
+        </Box>
+      }
+      styles={{
+        header: {
+          margin: 0,
+          padding: "1rem",
+          borderBottom: `1px solid ${colorScheme === "dark" ? theme.colors.dark[4] : theme.colors.gray[3]}`,
+        },
+        title: {
+          display: "contents",
+          width: "100%",
+          margin: 0,
+          padding: 0,
+        },
+        body: {
+          padding: 0,
+        },
+        root: {
+          ".add-cover-button": {
+            border: "none !important",
+            outline: "none !important",
+            boxShadow: "none !important",
+            backgroundColor: "transparent !important",
+            "--button-bd": "none !important",
+            "--button-shadow": "none !important",
+          },
+        },
+      }}
+      closeButtonProps={{ display: "none" }}
+      className="task-drawer-component"
+    >
+      {task && (
+        <Box p="md">
+          <Stack gap="lg">
+            {/* Top actions bar */}
+            <Group justify="apart">
+              <Group>
+                <span
+                  onClick={handleEmojiPickerClick}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "30px",
+                    height: "30px",
+                    cursor: "pointer",
+                    backgroundColor: "transparent",
+                    borderRadius: "4px",
+                    color: "var(--mantine-color-electricBlue-light-color)",
+                  }}
+                >
+                  {task.icon ? (
+                    <span style={{ fontSize: "20px" }}>{task.icon}</span>
+                  ) : (
+                    <IconMoodSmile
+                      size={20}
+                      color="var(--mantine-color-electricBlue-light-color)"
+                    />
+                  )}
+                </span>
+                <span
+                  onClick={openCoverModal}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    backgroundColor: "transparent",
+                    padding: "4px 6px",
+                    borderRadius: "4px",
+                    gap: "4px",
+                    color: "var(--mantine-color-electricBlue-light-color)",
+                  }}
+                >
+                  <IconPhoto
+                    size={16}
+                    color="var(--mantine-color-electricBlue-light-color)"
+                  />
+                  <span style={{ fontSize: theme.fontSizes.sm }}>
+                    {t("Add Cover")}
+                  </span>
+                </span>
+              </Group>
             </Group>
+
+            {/* Cover image (conditionally rendered) */}
+            {coverImageUrl && (
+              <Box pos="relative">
+                <Image
+                  src={coverImageUrl}
+                  alt={task.title}
+                  height={150}
+                  radius="md"
+                  fit="cover"
+                />
+                <Group
+                  justify="flex-end"
+                  style={{ position: "absolute", top: 10, right: 10 }}
+                >
+                  <ActionIcon
+                    variant="filled"
+                    color="dark"
+                    radius="xl"
+                    onClick={openCoverModal}
+                    title={t("Change Cover")}
+                  >
+                    <IconEdit size={16} />
+                  </ActionIcon>
+                  <ActionIcon
+                    variant="filled"
+                    color="red"
+                    radius="xl"
+                    onClick={handleRemoveCoverImage}
+                    title={t("Remove Cover")}
+                  >
+                    <IconX size={16} />
+                  </ActionIcon>
+                </Group>
+              </Box>
+            )}
+
+            {/* Cover Image Modal */}
+            <Modal
+              opened={coverModalOpened}
+              onClose={handleModalClose}
+              title={t("Cover Image")}
+            >
+              <Stack>
+                <Text size="sm" fw={500}>
+                  {t("Upload from your device:")}
+                </Text>
+                <FileInput
+                  placeholder={t("Select image file")}
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  clearable
+                />
+
+                {coverImageFile && (
+                  <Text size="xs" c="dimmed">
+                    {coverImageFile.name} (
+                    {Math.round(coverImageFile.size / 1024)} KB)
+                  </Text>
+                )}
+
+                <Divider label={t("OR")} labelPosition="center" my="xs" />
+
+                <Text size="sm" fw={500}>
+                  {t("Enter image URL:")}
+                </Text>
+                <TextInput
+                  placeholder="https://example.com/image.jpg"
+                  value={coverImageUrl || ""}
+                  onChange={(e) => setCoverImageUrl(e.target.value)}
+                />
+
+                {/* Preview section */}
+                {(coverImageUrl || coverImageFile) && (
+                  <Box>
+                    <Text size="sm" fw={500}>
+                      {t("Preview:")}
+                    </Text>
+                    <Image
+                      src={coverImageUrl}
+                      height={150}
+                      fit="contain"
+                      my="xs"
+                      radius="sm"
+                      onError={() => {
+                        // Don't show error here, we'll handle it when they click Add cover
+                      }}
+                    />
+                  </Box>
+                )}
+
+                <Group justify="space-between">
+                  <Button
+                    variant="outline"
+                    onClick={handleModalClose}
+                    disabled={isUploadingCover}
+                  >
+                    {t("Cancel")}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (coverImageFile) {
+                        uploadFileToServer(coverImageFile);
+                      } else if (coverImageUrl) {
+                        processImageUrl(coverImageUrl);
+                      } else {
+                        handleModalClose();
+                      }
+                    }}
+                    disabled={
+                      isUploadingCover || (!coverImageFile && !coverImageUrl)
+                    }
+                    loading={isUploadingCover}
+                  >
+                    {isUploadingCover ? t("Uploading...") : t("Add cover")}
+                  </Button>
+                </Group>
+              </Stack>
+            </Modal>
+
+            {/* Emoji Picker Modal */}
+            <Modal
+              opened={emojiPickerOpened}
+              onClose={closeEmojiPicker}
+              title={t("Select Emoji")}
+              size="sm"
+              centered
+            >
+              <Suspense
+                fallback={
+                  <Center p="xl">
+                    <Text>{t("Loading emoji picker...")}</Text>
+                  </Center>
+                }
+              >
+                <div style={{ position: "relative" }}>
+                  <Picker
+                    data={async () =>
+                      (await import("@emoji-mart/data")).default
+                    }
+                    onEmojiSelect={handleEmojiSelect}
+                    perLine={8}
+                    theme={colorScheme}
+                  />
+                  <Button
+                    variant="default"
+                    size="xs"
+                    style={{
+                      position: "absolute",
+                      zIndex: 2,
+                      bottom: "1rem",
+                      right: "1rem",
+                    }}
+                    onClick={handleRemoveEmoji}
+                  >
+                    {t("Remove")}
+                  </Button>
+                </div>
+              </Suspense>
+            </Modal>
 
             {/* Task title */}
             <div>
@@ -363,7 +1121,7 @@ export function TaskDrawer({
                   }}
                 >
                   <TextInput
-                    size="lg"
+                    size="xl"
                     placeholder={t("Task title")}
                     {...form.getInputProps("title")}
                     autoFocus
@@ -379,146 +1137,305 @@ export function TaskDrawer({
                   />
                 </form>
               ) : (
-                <Title
-                  order={2}
-                  style={{ cursor: "pointer" }}
-                  onClick={() => setIsEditingTitle(true)}
-                >
-                  {task.title}
-                </Title>
+                <Group align="center">
+                  <Title
+                    order={2}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => setIsEditingTitle(true)}
+                  >
+                    {task.title}
+                  </Title>
+                  <ActionIcon
+                    variant="subtle"
+                    onClick={() => setIsEditingTitle(true)}
+                  >
+                    <IconEdit size={18} />
+                  </ActionIcon>
+                </Group>
               )}
             </div>
 
-            {/* Task properties */}
-            <Group align="start" gap="lg">
-              <Stack gap="md" style={{ flex: 1 }}>
-                {/* Status dropdown */}
-                <Box>
-                  <Text size="sm" fw={500} mb={5}>
-                    {t("Status")}
-                  </Text>
-                  <Select
-                    data={STATUS_OPTIONS}
-                    value={task.status}
-                    onChange={handleStatusChange}
-                    size="sm"
-                  />
-                </Box>
+            {/* Task properties - Header styled like the project header */}
+            <Stack gap="md">
+              {/* Properties section with similar styling to project header */}
+              <Group justify="apart" mb="xs">
+                <Text fw={500} size="sm" style={{ width: "100px" }}>
+                  {t("Status")}
+                </Text>
+                <Select
+                  data={STATUS_OPTIONS}
+                  value={task.status}
+                  onChange={handleStatusChange}
+                  size="sm"
+                  styles={{
+                    input: {
+                      border: "none",
+                      padding: 0,
+                      backgroundColor: "transparent",
+                    },
+                  }}
+                />
+              </Group>
 
-                {/* Priority dropdown */}
-                <Box>
-                  <Text size="sm" fw={500} mb={5}>
-                    {t("Priority")}
-                  </Text>
-                  <Select
-                    data={PRIORITY_OPTIONS}
-                    value={task.priority}
-                    onChange={handlePriorityChange}
-                    size="sm"
-                  />
-                </Box>
+              <Group justify="apart" mb="xs">
+                <Text fw={500} size="sm" style={{ width: "100px" }}>
+                  {t("Priority")}
+                </Text>
+                <Select
+                  data={PRIORITY_OPTIONS}
+                  value={task.priority}
+                  onChange={handlePriorityChange}
+                  size="sm"
+                  styles={{
+                    input: {
+                      border: "none",
+                      padding: 0,
+                      backgroundColor: "transparent",
+                    },
+                  }}
+                />
+              </Group>
 
-                {/* Assignee */}
-                <Box>
-                  <Flex justify="space-between" align="center" mb={5}>
-                    <Text size="sm" fw={500}>
-                      {t("Assignee")}
-                    </Text>
-                    {assigneeId && (
-                      <ActionIcon
-                        size="xs"
-                        onClick={clearAssignee}
-                        color="gray"
-                        variant="subtle"
-                      >
-                        <IconX size={12} />
-                      </ActionIcon>
-                    )}
-                  </Flex>
+              <Group justify="apart" mb="xs">
+                <Text fw={500} size="sm" style={{ width: "100px" }}>
+                  {t("Due Date")}
+                </Text>
+                <DateInput
+                  value={form.values.dueDate}
+                  onChange={(date) => {
+                    form.setFieldValue("dueDate", date);
+                    if (!task) return;
+                    updateTaskMutation.mutate(
+                      {
+                        taskId: task.id,
+                        dueDate: date,
+                      },
+                      {
+                        onSuccess: () => refetch(),
+                      }
+                    );
+                  }}
+                  placeholder={t("Set due date")}
+                  clearable
+                  valueFormat="MMM DD, YYYY"
+                  size="sm"
+                  styles={{
+                    input: {
+                      border: "none",
+                      backgroundColor: "transparent",
+                    },
+                  }}
+                />
+              </Group>
+
+              <Group justify="apart" mb="xs">
+                <Text fw={500} size="sm" style={{ width: "100px" }}>
+                  {t("Assignee")}
+                </Text>
+                <Flex style={{ flex: 1 }}>
                   <UserSelect
                     value={assigneeId}
                     onChange={handleAssigneeChange}
                     placeholder={t("Assign to...")}
-                    leftSection={<IconUserCircle size={16} />}
+                    styles={{
+                      input: {
+                        border: "none",
+                        backgroundColor: "transparent",
+                      },
+                    }}
                   />
-                </Box>
-              </Stack>
+                  {assigneeId && (
+                    <ActionIcon
+                      size="xs"
+                      onClick={clearAssignee}
+                      color="gray"
+                      variant="subtle"
+                    >
+                      <IconX size={12} />
+                    </ActionIcon>
+                  )}
+                </Flex>
+              </Group>
 
-              {/* Description section */}
-              <Box style={{ flex: 2 }}>
-                <Text size="sm" fw={500} mb={5}>
-                  {t("Description")}
-                </Text>
-                {isEditingDescription ? (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleSubmit();
-                    }}
-                  >
-                    <Textarea
-                      placeholder={t("Add a more detailed description...")}
-                      {...form.getInputProps("description")}
-                      autoFocus
-                      minRows={5}
-                      onBlur={() => setIsEditingDescription(false)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape") {
-                          form.setFieldValue(
-                            "description",
-                            task.description || ""
-                          );
-                          setIsEditingDescription(false);
-                        }
-                      }}
-                    />
-                    <Group justify="flex-end" mt="xs">
-                      <Button
-                        variant="subtle"
-                        size="xs"
-                        onClick={() => setIsEditingDescription(false)}
-                      >
-                        {t("Cancel")}
-                      </Button>
-                      <Button size="xs" onClick={() => handleSubmit()}>
-                        {t("Save")}
-                      </Button>
-                    </Group>
-                  </form>
-                ) : (
-                  <Box
-                    style={{
-                      cursor: "pointer",
-                      padding: theme.spacing.sm,
-                      borderRadius: theme.radius.sm,
-                      minHeight: rem(100),
-                      backgroundColor: "var(--mantine-color-gray-0)",
-                    }}
-                    onClick={() => setIsEditingDescription(true)}
-                  >
-                    {task.description ? (
-                      <Text>{task.description}</Text>
-                    ) : (
-                      <Text color="dimmed" fs="italic">
-                        {t("Add a more detailed description...")}
+              <Button
+                variant="subtle"
+                leftSection={<IconPlus size={14} />}
+                size="xs"
+                style={{
+                  alignSelf: "flex-start",
+                  border: "none",
+                  padding: "0",
+                }}
+              >
+                {t("Add a property")}
+              </Button>
+            </Stack>
+
+            {/* Comments Section */}
+            <Box mt="md">
+              <Text size="sm" fw={500} mb="xs">
+                {t("Comments")}
+              </Text>
+              <Box>
+                {comments.length > 0 &&
+                  comments.map((comment) => (
+                    <Box key={comment.id} mb="sm">
+                      <Group gap="xs" mb={4}>
+                        <Avatar
+                          src={comment.user?.avatar}
+                          alt={comment.user?.name || ""}
+                          size="sm"
+                          radius="xl"
+                        />
+                        <Text size="sm" fw={500}>
+                          {comment.user?.name}
+                        </Text>
+                      </Group>
+                      <Text size="sm" ml={36}>
+                        {comment.content}
                       </Text>
-                    )}
-                  </Box>
-                )}
-              </Box>
-            </Group>
+                    </Box>
+                  ))}
 
-            {/* Comments section placeholder */}
-            <Box mt="xl">
-              <Divider label={t("Comments")} labelPosition="center" />
-              <Box py="md">
-                <Textarea placeholder={t("Add a comment...")} minRows={2} />
-                <Group justify="flex-end" mt="xs">
-                  <Button size="sm">{t("Comment")}</Button>
+                <Group gap="xs" align="center" mt="xs">
+                  <Avatar
+                    src={currentUser?.avatar}
+                    alt={currentUser?.name || t("You")}
+                    size="sm"
+                    radius="xl"
+                  />
+                  <TextInput
+                    placeholder={t("Add a comment...")}
+                    variant="unstyled"
+                    size="sm"
+                    style={{ flex: 1 }}
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.currentTarget.value)}
+                  />
+
+                  {newComment.trim() && (
+                    <Group gap={4}>
+                      <ActionIcon variant="subtle" color="gray" size="sm">
+                        <IconAt size={16} />
+                      </ActionIcon>
+                      <ActionIcon variant="subtle" color="gray" size="sm">
+                        <IconPaperclip size={16} />
+                      </ActionIcon>
+                      <ActionIcon variant="subtle" color="blue" size="sm">
+                        <IconSend size={16} />
+                      </ActionIcon>
+                    </Group>
+                  )}
                 </Group>
               </Box>
             </Box>
+
+            {/* Main Content Editor Section */}
+            <Box
+              p="md"
+              style={{
+                backgroundColor:
+                  colorScheme === "dark"
+                    ? theme.colors.dark[6]
+                    : theme.colors.gray[0],
+                minHeight: "300px",
+                borderRadius: theme.radius.sm,
+                marginTop: theme.spacing.xl,
+              }}
+            >
+              {task.pageId ? (
+                <Box>
+                  <Text mb="md" size="sm" color="dimmed">
+                    {task.description || t("Type '/' for commands")}
+                  </Text>
+                  <Box
+                    style={{
+                      cursor: "text",
+                      padding: theme.spacing.sm,
+                      minHeight: "200px",
+                      backgroundColor:
+                        colorScheme === "dark"
+                          ? theme.colors.dark[7]
+                          : theme.white,
+                      borderRadius: theme.radius.sm,
+                    }}
+                    onClick={openAsFullPage}
+                  >
+                    {/* This is a placeholder for the actual editor */}
+                    <Text size="sm">
+                      {t("Click to edit content (opens page editor)")}
+                    </Text>
+                  </Box>
+                </Box>
+              ) : (
+                <Box>
+                  <Text mb="md" size="sm" color="dimmed">
+                    {t("Type '/' for commands")}
+                  </Text>
+                  <Box
+                    style={{
+                      cursor: "text",
+                      padding: theme.spacing.sm,
+                      minHeight: "200px",
+                      backgroundColor:
+                        colorScheme === "dark"
+                          ? theme.colors.dark[7]
+                          : theme.white,
+                      borderRadius: theme.radius.sm,
+                    }}
+                    onClick={() => {
+                      // TODO: Create or open page editor
+                      console.log("Create new page for task");
+                    }}
+                  >
+                    {/* This is a placeholder for the actual editor */}
+                    <Text size="sm">{t("Click to add content")}</Text>
+                  </Box>
+                </Box>
+              )}
+            </Box>
           </Stack>
+
+          {/* Footer with metadata */}
+          <Box
+            style={{
+              position: "fixed",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              padding: theme.spacing.md,
+              backgroundColor:
+                colorScheme === "dark" ? theme.colors.dark[7] : theme.white,
+              borderTop: `1px solid ${colorScheme === "dark" ? theme.colors.dark[4] : theme.colors.gray[3]}`,
+            }}
+          >
+            <Group justify="space-between">
+              <Text size="sm" color="dimmed">
+                {wordCount} {t("words")}
+              </Text>
+              <Group gap="xs">
+                {lastEditedBy && (
+                  <Group gap={4}>
+                    <CustomAvatar
+                      radius="xl"
+                      size="xs"
+                      avatarUrl={null}
+                      name={lastEditedBy}
+                    />
+                    <Text size="sm" color="dimmed">
+                      {lastEditedBy}
+                    </Text>
+                  </Group>
+                )}
+                {lastEditedAt && (
+                  <Text size="sm" color="dimmed">
+                    {t("edited")}{" "}
+                    {formatDistanceToNow(lastEditedAt, { addSuffix: true })}
+                  </Text>
+                )}
+              </Group>
+            </Group>
+          </Box>
         </Box>
       )}
     </Drawer>

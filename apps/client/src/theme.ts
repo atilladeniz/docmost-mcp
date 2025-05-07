@@ -406,6 +406,86 @@ export const mantineCssResolver: CSSVariablesResolver = (theme) => ({
     "--docmost-text-size-small": theme.fontSizes.sm,
     "--docmost-text-size-description": theme.fontSizes.sm,
   },
-  light: {},
-  dark: {},
+  light: {
+    "[data-theme='project89-tron'] .mantine-Button-root": {
+      border: "none",
+      boxShadow: "none",
+    },
+    // Global overrides for specific button classes to ensure no border/shadow
+    ".add-cover-button, .task-drawer-component .mantine-Button-root.add-cover-button":
+      {
+        border: "none !important",
+        boxShadow: "none !important",
+        "--button-bd": "none !important",
+        "--button-shadow": "none !important",
+        backgroundColor: "transparent !important",
+        color: `var(--mantine-color-${theme.primaryColor}-6) !important`,
+      },
+    // Emoji picker styling
+    ".task-drawer-component .mantine-ActionIcon-root[aria-label='Add emoji']": {
+      color: `var(--mantine-color-${theme.primaryColor}-6) !important`,
+    },
+    ".task-drawer-component .mantine-ActionIcon-root svg": {
+      color: `var(--mantine-color-${theme.primaryColor}-6) !important`,
+    },
+    ".task-emoji-picker .mantine-ActionIcon-root": {
+      color: `var(--mantine-color-${theme.primaryColor}-6) !important`,
+    },
+    ".task-emoji-picker .mantine-ActionIcon-root svg": {
+      color: `var(--mantine-color-${theme.primaryColor}-6) !important`,
+    },
+    // Comment section styling
+    ".task-drawer-component .mantine-Paper-root": {
+      border: "none !important",
+      boxShadow: "none !important",
+      backgroundColor: "transparent !important",
+    },
+    ".task-drawer-component .mantine-TextInput-wrapper, .task-drawer-component .mantine-TextInput-input":
+      {
+        backgroundColor: "transparent !important",
+        border: "none !important",
+        boxShadow: "none !important",
+      },
+  },
+  dark: {
+    "[data-theme='project89-tron'] .mantine-Button-root": {
+      border: "none",
+      boxShadow: "none",
+    },
+    // Global overrides for specific button classes to ensure no border/shadow
+    ".add-cover-button, .task-drawer-component .mantine-Button-root.add-cover-button":
+      {
+        border: "none !important",
+        boxShadow: "none !important",
+        "--button-bd": "none !important",
+        "--button-shadow": "none !important",
+        backgroundColor: "transparent !important",
+        color: `var(--mantine-color-${theme.primaryColor}-6) !important`,
+      },
+    // Emoji picker styling
+    ".task-drawer-component .mantine-ActionIcon-root[aria-label='Add emoji']": {
+      color: `var(--mantine-color-${theme.primaryColor}-6) !important`,
+    },
+    ".task-drawer-component .mantine-ActionIcon-root svg": {
+      color: `var(--mantine-color-${theme.primaryColor}-6) !important`,
+    },
+    ".task-emoji-picker .mantine-ActionIcon-root": {
+      color: `var(--mantine-color-${theme.primaryColor}-6) !important`,
+    },
+    ".task-emoji-picker .mantine-ActionIcon-root svg": {
+      color: `var(--mantine-color-${theme.primaryColor}-6) !important`,
+    },
+    // Comment section styling
+    ".task-drawer-component .mantine-Paper-root": {
+      border: "none !important",
+      boxShadow: "none !important",
+      backgroundColor: "transparent !important",
+    },
+    ".task-drawer-component .mantine-TextInput-wrapper, .task-drawer-component .mantine-TextInput-input":
+      {
+        backgroundColor: "transparent !important",
+        border: "none !important",
+        boxShadow: "none !important",
+      },
+  },
 });
