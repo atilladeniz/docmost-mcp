@@ -27,13 +27,14 @@ import { BoardColumn } from "./BoardColumn";
 import { BoardSwimlane } from "./BoardSwimlane";
 import { BoardList } from "./BoardList";
 import { BoardTimeline } from "./BoardTimeline";
+import { BoardColumns } from "./BoardColumns";
 import {
   useFilteredTasks,
   useGroupedTasks,
   useTaskOperations,
 } from "../board-hooks";
 import { TaskCard } from "../../../components/task-card";
-import { Task, Project } from "../../../types";
+import { Task } from "../../../types";
 import { useDisclosure } from "@mantine/hooks";
 import { useWorkspaceUsers } from "@/features/user/hooks/use-workspace-users";
 import { ProjectHeader } from "@/features/project/components/project-header.tsx";
@@ -44,6 +45,13 @@ import { TaskDrawer } from "../../../components/task-drawer";
 
 // CSS class name for when we need to disable scrolling
 const NO_SCROLL_CLASS = "docmost-board-no-scroll";
+
+// Basic Project interface
+interface Project {
+  id: string;
+  name: string;
+  workspaceId: string;
+}
 
 interface BoardProps {
   project: Project;
@@ -353,6 +361,15 @@ function BoardContent({ project, spaceId }) {
       case "timeline":
         return (
           <BoardTimeline
+            tasks={tasks}
+            users={users}
+            onEditTask={handleEditTask}
+            onCreateTask={handleCreateTaskWithoutStatus}
+          />
+        );
+      case "columns":
+        return (
+          <BoardColumns
             tasks={tasks}
             users={users}
             onEditTask={handleEditTask}

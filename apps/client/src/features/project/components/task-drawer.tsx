@@ -165,6 +165,7 @@ export function TaskDrawer({
     emojiPickerOpened,
     { open: openEmojiPicker, close: closeEmojiPicker },
   ] = useDisclosure(false);
+  const [isHoveringEmoji, setIsHoveringEmoji] = useState(false);
 
   // Use the useTask hook to fetch task data
   const { data: task, isLoading, refetch } = useTask(taskId);
@@ -184,6 +185,12 @@ export function TaskDrawer({
   useEffect(() => {
     if (task?.coverImage) {
       setCoverImageUrl(task.coverImage);
+    } else if (task?.id) {
+      // Try to get from localStorage if server didn't return it
+      const savedCoverImage = localStorage.getItem(`task-cover-${task.id}`);
+      if (savedCoverImage) {
+        setCoverImageUrl(savedCoverImage);
+      }
     }
   }, [task]);
 
@@ -271,8 +278,11 @@ export function TaskDrawer({
   // Handle assignee change
   const handleAssigneeChange = (userId: string) => {
     if (!task) return;
+
+    // Update local state immediately for responsive UI
     setAssigneeId(userId);
 
+    // Use the mutation
     assignTaskMutation.mutate(
       {
         taskId: task.id,
@@ -280,7 +290,14 @@ export function TaskDrawer({
       },
       {
         onSuccess: () => {
-          refetch();
+          // Successful update, refetch to synchronize
+          setTimeout(() => {
+            refetch();
+          }, 300);
+        },
+        onError: () => {
+          // Restore the previous assignee ID on error
+          setAssigneeId(task.assigneeId);
         },
       }
     );
@@ -326,8 +343,11 @@ export function TaskDrawer({
   // Clear assignee
   const clearAssignee = () => {
     if (!task) return;
+
+    // Update local state immediately for responsive UI
     setAssigneeId(null);
 
+    // Use the mutation
     assignTaskMutation.mutate(
       {
         taskId: task.id,
@@ -335,7 +355,14 @@ export function TaskDrawer({
       },
       {
         onSuccess: () => {
-          refetch();
+          // Successful update, refetch to synchronize
+          setTimeout(() => {
+            refetch();
+          }, 300);
+        },
+        onError: () => {
+          // Restore the previous assignee ID on error
+          setAssigneeId(task.assigneeId);
         },
       }
     );
@@ -461,6 +488,15 @@ export function TaskDrawer({
           },
           {
             onSuccess: () => {
+              // Save to localStorage as backup
+              localStorage.setItem(`task-cover-${task!.id}`, url);
+              // Custom notification with proper message
+              notifications.show({
+                title: t("Cover image added"),
+                message: t("The cover image has been set successfully"),
+                color: "green",
+                autoClose: 3000,
+              });
               refetch();
             },
           }
@@ -519,10 +555,10 @@ export function TaskDrawer({
       const formData = new FormData();
 
       // Order matters! Add non-file fields first
-      formData.append("type", "task-cover");
+      formData.append("type", "project-cover");
       formData.append("spaceId", spaceId);
 
-      // Add file last for FastifyMultipart to parse correctly
+      // Add file with the field name the server expects
       formData.append("file", file);
 
       // Show loading notification with the consistent ID
@@ -542,6 +578,8 @@ export function TaskDrawer({
         },
       });
 
+      console.log("Upload response:", response);
+
       // Success notification - update the existing toast
       notifications.update({
         id: toastId,
@@ -559,10 +597,10 @@ export function TaskDrawer({
 
         if ("fileName" in response) {
           // Use the standardized path format based on attachment type
-          imageUrl = `/api/attachments/img/task-cover/${response.fileName}`;
+          imageUrl = `/api/attachments/img/project-cover/${response.fileName}`;
         } else if ("filePath" in response) {
           // If we have a full file path, use it directly
-          imageUrl = `/api/attachments/img/task-cover/${(response.filePath as string).split("/").pop()}`;
+          imageUrl = `/api/attachments/img/project-cover/${(response.filePath as string).split("/").pop()}`;
         } else {
           throw new Error("Invalid response format from server");
         }
@@ -586,6 +624,15 @@ export function TaskDrawer({
             },
             {
               onSuccess: () => {
+                // Save to localStorage as backup
+                localStorage.setItem(`task-cover-${task!.id}`, imageUrl);
+                // Custom notification with proper message
+                notifications.show({
+                  title: t("Cover image added"),
+                  message: t("The cover image has been set successfully"),
+                  color: "green",
+                  autoClose: 3000,
+                });
                 refetch();
               },
             }
@@ -633,19 +680,20 @@ export function TaskDrawer({
         },
         {
           onSuccess: () => {
+            // Remove from localStorage
+            localStorage.removeItem(`task-cover-${task.id}`);
+            // Custom notification with proper message
+            notifications.show({
+              title: t("Cover image removed"),
+              message: t("The cover image has been removed successfully"),
+              color: "green",
+              autoClose: 3000,
+            });
             refetch();
           },
         }
       );
     }
-
-    // Success notification
-    notifications.show({
-      title: t("Cover image removed"),
-      message: t("The cover image has been removed successfully"),
-      color: "green",
-      autoClose: 3000,
-    });
   };
 
   if (isLoading || !task) {
@@ -838,6 +886,9 @@ export function TaskDrawer({
                 </Tooltip>
               </Menu.Target>
               <Menu.Dropdown>
+                <Menu.Label>
+                  {wordCount} {t("words")}
+                </Menu.Label>
                 <Menu.Item
                   leftSection={<IconLock size={16} />}
                   onClick={() => setIsLocked(!isLocked)}
@@ -900,55 +951,9 @@ export function TaskDrawer({
       {task && (
         <Box p="md">
           <Stack gap="lg">
-            {/* Top actions bar */}
+            {/* Top actions bar - empty when not needed */}
             <Group justify="apart">
-              <Group>
-                <span
-                  onClick={handleEmojiPickerClick}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: "30px",
-                    height: "30px",
-                    cursor: "pointer",
-                    backgroundColor: "transparent",
-                    borderRadius: "4px",
-                    color: "var(--mantine-color-electricBlue-light-color)",
-                  }}
-                >
-                  {task.icon ? (
-                    <span style={{ fontSize: "20px" }}>{task.icon}</span>
-                  ) : (
-                    <IconMoodSmile
-                      size={20}
-                      color="var(--mantine-color-electricBlue-light-color)"
-                    />
-                  )}
-                </span>
-                <span
-                  onClick={openCoverModal}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    backgroundColor: "transparent",
-                    padding: "4px 6px",
-                    borderRadius: "4px",
-                    gap: "4px",
-                    color: "var(--mantine-color-electricBlue-light-color)",
-                  }}
-                >
-                  <IconPhoto
-                    size={16}
-                    color="var(--mantine-color-electricBlue-light-color)"
-                  />
-                  <span style={{ fontSize: theme.fontSizes.sm }}>
-                    {t("Add Cover")}
-                  </span>
-                </span>
-              </Group>
+              <Group></Group>
             </Group>
 
             {/* Cover image (conditionally rendered) */}
@@ -986,6 +991,78 @@ export function TaskDrawer({
                 </Group>
               </Box>
             )}
+
+            {/* Emoji picker row - includes Add Cover when no cover exists */}
+            <Group align="center">
+              {/* Emoji picker */}
+              <Box
+                className="emoji-picker-container"
+                style={{
+                  position: "relative",
+                  padding: "8px 0",
+                }}
+                onMouseEnter={() => setIsHoveringEmoji(true)}
+                onMouseLeave={() => setIsHoveringEmoji(false)}
+              >
+                {task.icon ? (
+                  <span style={{ fontSize: "24px", marginLeft: "8px" }}>
+                    {task.icon}
+                  </span>
+                ) : null}
+
+                <span
+                  className="emoji-picker-button"
+                  onClick={handleEmojiPickerClick}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "30px",
+                    height: "30px",
+                    cursor: "pointer",
+                    backgroundColor: "transparent",
+                    borderRadius: "4px",
+                    color: "var(--mantine-color-electricBlue-light-color)",
+                    opacity: task.icon && !isHoveringEmoji ? 0 : 1,
+                    position: task.icon ? "absolute" : "relative",
+                    left: task.icon ? "8px" : "auto",
+                    top: task.icon ? "8px" : "auto",
+                    transition: "opacity 0.2s ease-in-out",
+                  }}
+                >
+                  <IconMoodSmile
+                    size={20}
+                    color="var(--mantine-color-electricBlue-light-color)"
+                  />
+                </span>
+              </Box>
+
+              {/* Add Cover button - only shown when no cover exists */}
+              {!coverImageUrl && (
+                <span
+                  onClick={openCoverModal}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    backgroundColor: "transparent",
+                    padding: "4px 6px",
+                    borderRadius: "4px",
+                    gap: "4px",
+                    color: "var(--mantine-color-electricBlue-light-color)",
+                  }}
+                >
+                  <IconPhoto
+                    size={16}
+                    color="var(--mantine-color-electricBlue-light-color)"
+                  />
+                  <span style={{ fontSize: theme.fontSizes.sm }}>
+                    {t("Add Cover")}
+                  </span>
+                </span>
+              )}
+            </Group>
 
             {/* Cover Image Modal */}
             <Modal
@@ -1335,9 +1412,7 @@ export function TaskDrawer({
               p="md"
               style={{
                 backgroundColor:
-                  colorScheme === "dark"
-                    ? theme.colors.dark[6]
-                    : theme.colors.gray[0],
+                  colorScheme === "dark" ? theme.colors.dark[7] : theme.white,
                 minHeight: "300px",
                 borderRadius: theme.radius.sm,
                 marginTop: theme.spacing.xl,
@@ -1353,11 +1428,8 @@ export function TaskDrawer({
                       cursor: "text",
                       padding: theme.spacing.sm,
                       minHeight: "200px",
-                      backgroundColor:
-                        colorScheme === "dark"
-                          ? theme.colors.dark[7]
-                          : theme.white,
                       borderRadius: theme.radius.sm,
+                      border: `1px solid ${colorScheme === "dark" ? theme.colors.dark[4] : theme.colors.gray[3]}`,
                     }}
                     onClick={openAsFullPage}
                   >
@@ -1377,11 +1449,8 @@ export function TaskDrawer({
                       cursor: "text",
                       padding: theme.spacing.sm,
                       minHeight: "200px",
-                      backgroundColor:
-                        colorScheme === "dark"
-                          ? theme.colors.dark[7]
-                          : theme.white,
                       borderRadius: theme.radius.sm,
+                      border: `1px solid ${colorScheme === "dark" ? theme.colors.dark[4] : theme.colors.gray[3]}`,
                     }}
                     onClick={() => {
                       // TODO: Create or open page editor
@@ -1409,10 +1478,7 @@ export function TaskDrawer({
               borderTop: `1px solid ${colorScheme === "dark" ? theme.colors.dark[4] : theme.colors.gray[3]}`,
             }}
           >
-            <Group justify="space-between">
-              <Text size="sm" color="dimmed">
-                {wordCount} {t("words")}
-              </Text>
+            <Group justify="flex-end">
               <Group gap="xs">
                 {lastEditedBy && (
                   <Group gap={4}>

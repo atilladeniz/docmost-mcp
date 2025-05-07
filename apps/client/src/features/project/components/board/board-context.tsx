@@ -1,7 +1,16 @@
 import { createContext, useContext, useState, ReactNode } from "react";
-import { Task, TaskPriority, TaskStatus, Project } from "../../types";
+import { Task, TaskPriority, TaskStatus } from "../../types";
 
-type ViewMode = "kanban" | "swimlane" | "list" | "timeline";
+// Basic Project interface
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  workspaceId: string;
+}
+
+type ViewMode = "kanban" | "swimlane" | "list" | "timeline" | "columns";
 type GroupBy = "status" | "assignee" | "priority" | "date" | "labels";
 type SortBy = "priority" | "dueDate" | "createdAt" | "title";
 type SortOrder = "asc" | "desc";

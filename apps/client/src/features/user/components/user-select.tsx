@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Select,
   Avatar,
@@ -28,11 +28,32 @@ export function UserSelect({ value, onChange, ...props }: UserSelectProps) {
   const [users, setUsers] = useState<UserOption[]>([]);
   const [search, setSearch] = useState("");
   const [debouncedSearch] = useDebouncedValue(search, 300);
+  const [isLoading, setIsLoading] = useState(false);
+  const loadingTimeoutRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
 
   const { data, isFetching } = useSearchUsers({
     query: debouncedSearch || undefined,
     limit: 20,
   });
+
+  // Set loading state based on isFetching, but with protection against stuck state
+  useEffect(() => {
+    if (isFetching) {
+      setIsLoading(true);
+    } else {
+      // Add a small delay to prevent flickering
+      if (loadingTimeoutRef.current) {
+        window.clearTimeout(loadingTimeoutRef.current);
+      }
+
+      loadingTimeoutRef.current = window.setTimeout(() => {
+        if (mountedRef.current) {
+          setIsLoading(false);
+        }
+      }, 300);
+    }
+  }, [isFetching]);
 
   // Map API response to Select options
   useEffect(() => {
@@ -48,18 +69,51 @@ export function UserSelect({ value, onChange, ...props }: UserSelectProps) {
     }
   }, [data]);
 
+  // Clean up when component unmounts
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (loadingTimeoutRef.current) {
+        window.clearTimeout(loadingTimeoutRef.current);
+      }
+      setIsLoading(false);
+    };
+  }, []);
+
+  // Handle selection change with loading state management
+  const handleSelectionChange = (selectedValue: string | null) => {
+    if (selectedValue === null) return onChange(selectedValue as string);
+
+    // Set loading temporarily to indicate selection is being processed
+    setIsLoading(true);
+
+    // Call the parent handler
+    onChange(selectedValue as string);
+
+    // Clear loading state after a short delay
+    if (loadingTimeoutRef.current) {
+      window.clearTimeout(loadingTimeoutRef.current);
+    }
+
+    loadingTimeoutRef.current = window.setTimeout(() => {
+      if (mountedRef.current) {
+        setIsLoading(false);
+      }
+    }, 500);
+  };
+
   return (
     <Select
       searchable
       data={users}
       value={value}
-      onChange={(value) => onChange(value as string)}
+      onChange={handleSelectionChange}
       onSearchChange={setSearch}
       searchValue={search}
       nothingFoundMessage="No users found"
       maxDropdownHeight={280}
       clearable
-      rightSection={isFetching ? <Loader size="xs" /> : null}
+      rightSection={isLoading ? <Loader size="xs" /> : null}
       renderOption={({ option }) => {
         const userOption = option as unknown as UserOption;
         return (

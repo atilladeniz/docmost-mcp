@@ -22,5 +22,11 @@ export function useSearchUsers({
     queryKey: [USERS_QUERY_KEY, { query, page, limit }],
     queryFn: () => getWorkspaceUsers({ query, page, limit }),
     enabled,
+    staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh
+    gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    refetchOnMount: false, // Don't refetch when component mounts if data exists
+    refetchOnReconnect: false, // Don't refetch on network reconnection if data exists
+    retry: 1, // Only retry once on failure
   });
 }

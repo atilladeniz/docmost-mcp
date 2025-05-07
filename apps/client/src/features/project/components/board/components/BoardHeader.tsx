@@ -13,6 +13,7 @@ import {
   IconLayoutColumns,
   IconLayoutRows,
   IconList,
+  IconTable,
 } from "@tabler/icons-react";
 import { useBoardContext } from "../board-context";
 import { useTranslation } from "react-i18next";
@@ -66,6 +67,15 @@ export function BoardHeader({ onToggleFilters }: BoardHeaderProps) {
                 <Group gap={5}>
                   <IconCalendar size={16} />
                   <Text size="sm">{t("Timeline")}</Text>
+                </Group>
+              ),
+            },
+            {
+              value: "columns",
+              label: (
+                <Group gap={5}>
+                  <IconTable size={16} />
+                  <Text size="sm">{t("Columns")}</Text>
                 </Group>
               ),
             },
