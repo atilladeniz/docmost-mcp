@@ -1173,6 +1173,49 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
     );
   };
 
+  // State for comments
+  const [newComment, setNewComment] = useState("");
+  const [comments, setComments] = useState<
+    Array<{
+      id: string;
+      content: string;
+      createdAt: string;
+      user?: {
+        id: string;
+        name?: string;
+        avatarUrl?: string;
+      };
+    }>
+  >([]);
+
+  // Handle comment submission
+  const handleCommentSubmit = () => {
+    if (!newComment.trim()) return;
+
+    // Add comment to local state
+    const newCommentObj = {
+      id: `comment-${Date.now()}`,
+      content: newComment,
+      createdAt: new Date().toISOString(),
+      user: {
+        id: currentUser?.user?.id || "unknown",
+        name: currentUser?.user?.name || "Anonymous",
+        avatarUrl: currentUser?.user?.avatarUrl,
+      },
+    };
+
+    setComments([...comments, newCommentObj]);
+    setNewComment("");
+
+    // In a real implementation, you would send this to the server
+    // For now, we'll just show a notification
+    notifications.show({
+      title: t("Comment added"),
+      message: t("Your comment has been added"),
+      color: "green",
+    });
+  };
+
   return (
     <Box mb="lg">
       {/* Cover image (if exists) */}
@@ -1378,8 +1421,38 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
         </Group>
 
         {/* Comments Section */}
+        <Box>
+          {comments.length > 0 && (
+            <Stack gap="xs" mb="md">
+              {comments.map((comment) => (
+                <Group
+                  key={comment.id}
+                  align="flex-start"
+                  wrap="nowrap"
+                  gap="sm"
+                >
+                  <CustomAvatar
+                    radius="xl"
+                    size="md"
+                    avatarUrl={comment.user?.avatarUrl}
+                    name={comment.user?.name || ""}
+                  />
+                  <Box style={{ flex: 1 }}>
+                    <Group gap="xs">
+                      <Text size="sm" fw={500}>
+                        {comment.user?.name}
+                      </Text>
+                      <Text size="xs" color="dimmed">
+                        {new Date(comment.createdAt).toLocaleDateString()}
+                      </Text>
+                    </Group>
+                    <Text size="sm">{comment.content}</Text>
+                  </Box>
+                </Group>
+              ))}
+            </Stack>
+          )}
 
-        <Paper withBorder p="md" radius="md">
           <Group align="flex-start" style={{ flexWrap: "nowrap" }}>
             {/* User Avatar */}
             <CustomAvatar
@@ -1397,6 +1470,8 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
                   minRows={2}
                   autosize
                   style={{ flex: 1 }}
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
                   styles={{
                     input: {
                       border: "none",
@@ -1409,32 +1484,48 @@ export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
                       alignItems: "center",
                     },
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleCommentSubmit();
+                    }
+                  }}
                 />
 
-                {/* Action Buttons - inline with input */}
-                <Group gap="xs" style={{ marginBottom: "8px" }}>
-                  <Tooltip label={t("Attach files")}>
-                    <ActionIcon color="gray">
-                      <IconPaperclip size={18} />
-                    </ActionIcon>
-                  </Tooltip>
+                {/* Action Buttons - show when there's text or existing comments */}
+                {(newComment.trim() || comments.length > 0) && (
+                  <Group gap="xs" style={{ marginBottom: "8px" }}>
+                    <Tooltip label={t("Attach files")}>
+                      <ActionIcon color="gray">
+                        <IconPaperclip size={18} />
+                      </ActionIcon>
+                    </Tooltip>
 
-                  <Tooltip label={t("Mention someone")}>
-                    <ActionIcon color="gray">
-                      <IconAt size={18} />
-                    </ActionIcon>
-                  </Tooltip>
+                    <Tooltip label={t("Mention someone")}>
+                      <ActionIcon color="gray">
+                        <IconAt size={18} />
+                      </ActionIcon>
+                    </Tooltip>
 
-                  <Tooltip label={t("Submit")}>
-                    <ActionIcon color="blue" variant="filled">
-                      <IconSend size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Group>
+                    <Tooltip label={t("Submit")}>
+                      <ActionIcon
+                        color="blue"
+                        variant="filled"
+                        onClick={handleCommentSubmit}
+                        disabled={!newComment.trim()}
+                      >
+                        <IconSend size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Group>
+                )}
               </Group>
             </Box>
           </Group>
-        </Paper>
+        </Box>
+
+        {/* Divider between header and body content */}
+        <Divider my="lg" />
       </Stack>
 
       {/* Properties Management Modal */}
