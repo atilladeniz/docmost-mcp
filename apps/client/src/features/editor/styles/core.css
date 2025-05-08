@@ -15,7 +15,7 @@
   padding-left: 3rem;
   padding-right: 3rem;
 
-  @media (max-width: $mantine-breakpoint-sm) {
+  @media (max-width: 576px) {
     padding-left: 1rem;
     padding-right: 1rem;
   }
@@ -35,6 +35,8 @@
   p {
     margin-top: 0.65em;
     margin-bottom: 0.65em;
+    padding: 0.15em 0;
+    border-radius: 0.2em;
   }
 
   ul,
@@ -57,6 +59,41 @@
   h5,
   h6 {
     line-height: 1.1;
+    padding: 0.15em 0;
+    border-radius: 0.2em;
+  }
+
+  /* Target specific node types with custom selection highlight */
+  p.ProseMirror-selectednode,
+  h1.ProseMirror-selectednode,
+  h2.ProseMirror-selectednode,
+  h3.ProseMirror-selectednode,
+  h4.ProseMirror-selectednode,
+  h5.ProseMirror-selectednode,
+  h6.ProseMirror-selectednode,
+  li.ProseMirror-selectednode {
+    background-color: transparent !important;
+    outline: none !important;
+  }
+
+  /* Add small highlight indicator instead of full background */
+  p.ProseMirror-selectednode::before,
+  h1.ProseMirror-selectednode::before,
+  h2.ProseMirror-selectednode::before,
+  h3.ProseMirror-selectednode::before,
+  h4.ProseMirror-selectednode::before,
+  h5.ProseMirror-selectednode::before,
+  h6.ProseMirror-selectednode::before,
+  li.ProseMirror-selectednode::before {
+    content: '';
+    position: absolute;
+    left: -1.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0.3rem;
+    height: 1.2em;
+    background-color: var(--mantine-primary-color-filled);
+    border-radius: 1px;
   }
 
   code {
@@ -134,9 +171,14 @@
     display: inline;
   }
 
+  /* Highlight only the selected text, not the entire line */
   .selection,
   *::selection {
-    background-color: light-dark(var(--mantine-color-gray-2), var(--mantine-color-gray-7));
+    background-color: light-dark(
+      rgba(0, 120, 215, 0.2),
+      rgba(0, 120, 215, 0.3)
+    );
+    border-radius: 0.15em;
   }
 
   .comment-mark {

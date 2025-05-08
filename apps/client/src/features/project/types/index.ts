@@ -158,9 +158,9 @@ export interface UpdateTaskParams {
   status?: TaskStatus;
   priority?: TaskPriority;
   dueDate?: Date | null;
-  assigneeId?: string | null;
   estimatedTime?: number | null;
-  pageId?: string | null;
+  assigneeId?: string | null;
+  position?: string;
 }
 
 export interface CreateLabelParams {

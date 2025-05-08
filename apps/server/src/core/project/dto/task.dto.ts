@@ -105,6 +105,10 @@ export class UpdateTaskDto {
   @Min(0)
   @IsOptional()
   estimatedTime?: number;
+
+  @IsString()
+  @IsOptional()
+  position?: string;
 }
 
 export class TaskListByProjectDto extends PaginationOptionsDto {

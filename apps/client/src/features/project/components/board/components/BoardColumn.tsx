@@ -11,6 +11,8 @@ import {
   Menu,
   Tooltip,
   Switch,
+  useMantineTheme,
+  useMantineColorScheme,
 } from "@mantine/core";
 import {
   IconPlus,
@@ -23,13 +25,15 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { useDroppable } from "@dnd-kit/core";
 import { SortableTask } from "../../../components/sortable-task";
 import { Task, TaskStatus } from "../../../types";
 import { useTranslation } from "react-i18next";
 import { getStatusLabel } from "../board-utils";
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo } from "react";
 import { useCreateTaskMutation } from "../../../hooks/use-tasks";
 import { useBoardContext } from "../board-context";
+import { TaskCard } from "../../../components/task-card";
 
 interface BoardColumnProps {
   status: TaskStatus;
@@ -51,8 +55,34 @@ export function BoardColumn({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [showCount, setShowCount] = useState(false);
-  const { project } = useBoardContext();
+  const { project, sortBy, sortOrder } = useBoardContext();
   const createTaskMutation = useCreateTaskMutation();
+  const theme = useMantineTheme();
+  const { colorScheme } = useMantineColorScheme();
+
+  // Make the column a droppable area
+  const { setNodeRef, isOver } = useDroppable({
+    id: `status-${status}`, // Unique ID for this column drop zone
+    data: { type: "column", status: status }, // Add data for context
+  });
+
+  // Get the status display name
+  const statusDisplay = useMemo(() => {
+    switch (status) {
+      case "todo":
+        return t("To Do");
+      case "in_progress":
+        return t("In Progress");
+      case "in_review":
+        return t("In Review");
+      case "done":
+        return t("Done");
+      case "blocked":
+        return t("Blocked");
+      default:
+        return status;
+    }
+  }, [status, t]);
 
   // Handle quick task creation
   const handleQuickCreateTask = () => {
@@ -60,7 +90,7 @@ export function BoardColumn({
       title: "New Task",
       status: status,
       projectId: project.id,
-      spaceId: project.spaceId,
+      spaceId: (project as any).spaceId,
       priority: "medium",
     });
   };
@@ -78,13 +108,15 @@ export function BoardColumn({
 
   return (
     <Box
-      ref={columnBoxRef}
+      ref={setNodeRef}
       style={{
         width: 280,
         minWidth: 280,
         flexShrink: 0,
         marginRight: 8,
         height: "100%",
+        border: isOver ? `2px dashed ${theme.colors.blue[5]}` : "none",
+        borderRadius: theme.radius.sm,
       }}
     >
       <Paper
@@ -95,6 +127,11 @@ export function BoardColumn({
           height: "100%",
           display: "flex",
           flexDirection: "column",
+          backgroundColor: isOver
+            ? colorScheme === "dark"
+              ? theme.colors.dark[5]
+              : theme.colors.gray[1]
+            : undefined,
         }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -190,16 +227,17 @@ export function BoardColumn({
             strategy={verticalListSortingStrategy}
           >
             <Stack gap="xs" p="xs">
-              {tasks.map((task) => (
-                <SortableTask
-                  key={task.id}
-                  id={task.id}
-                  task={task}
-                  onClick={() => onEditTask(task)}
-                  users={users}
-                />
-              ))}
-              {tasks.length === 0 && (
+              {tasks.length > 0 ? (
+                tasks.map((task) => (
+                  <SortableTask
+                    key={task.id}
+                    id={task.id}
+                    task={task}
+                    onClick={() => onEditTask(task)}
+                    users={users}
+                  />
+                ))
+              ) : (
                 <Text size="sm" c="dimmed" ta="center" py="md">
                   {t("No tasks in this status")}
                 </Text>

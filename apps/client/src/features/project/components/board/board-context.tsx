@@ -12,7 +12,7 @@ interface Project {
 
 type ViewMode = "kanban" | "swimlane" | "list" | "timeline" | "columns";
 type GroupBy = "status" | "assignee" | "priority" | "date" | "labels";
-type SortBy = "priority" | "dueDate" | "createdAt" | "title";
+type SortBy = "priority" | "dueDate" | "createdAt" | "title" | "position";
 type SortOrder = "asc" | "desc";
 
 interface BoardContextValue {

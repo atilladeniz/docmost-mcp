@@ -1,11 +1,30 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import {
   useTasksByProject,
   useUpdateTaskMutation,
+  useUpdateTaskPositionMutation,
 } from "../../hooks/use-tasks";
-import { Task, TaskPriority, TaskStatus } from "../../types";
+import {
+  Task,
+  TaskPriority,
+  TaskStatus,
+  Label,
+  UpdateTaskParams,
+} from "../../types";
 import { useWorkspaceUsers } from "@/features/user/hooks/use-workspace-users";
 import dayjs from "dayjs";
+import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
+import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
+import { useBoardContext } from "./board-context";
+
+// Add dayjs plugins
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
+
+// Define query key constants to match the ones in use-tasks.ts
+export const TASKS_KEY = "tasks";
+export const TASKS_BY_PROJECT_KEY = "project-tasks";
+export const TASKS_BY_SPACE_KEY = "space-tasks";
 
 /**
  * Custom hook to get filtered and sorted tasks for a project
@@ -30,7 +49,7 @@ export function useFilteredTasks({
   searchTerm: string;
   showCompletedTasks: boolean;
   dateRangeFilter: [Date | null, Date | null];
-  sortBy: "priority" | "dueDate" | "createdAt" | "title";
+  sortBy: "priority" | "dueDate" | "createdAt" | "title" | "position";
   sortOrder: "asc" | "desc";
 }) {
   const { data: tasksData, isLoading: isTasksLoading } = useTasksByProject({
@@ -38,6 +57,9 @@ export function useFilteredTasks({
   });
 
   const filteredTasks = useMemo(() => {
+    console.log(
+      `FILTER/SORT: Applying filters/sort. SortBy: ${sortBy}, SortOrder: ${sortOrder}`
+    );
     if (!tasksData) return [];
     let filtered = [...tasksData.items];
 
@@ -61,8 +83,8 @@ export function useFilteredTasks({
     if (labelFilter.length > 0) {
       filtered = filtered.filter(
         (task) =>
-          task.labels &&
-          task.labels.some((label) => labelFilter.includes(label.id))
+          (task as any).labels &&
+          (task as any).labels.some((label) => labelFilter.includes(label.id))
       );
     }
 
@@ -108,6 +130,9 @@ export function useFilteredTasks({
     }
 
     // Apply sorting
+    console.log(
+      `FILTER/SORT: Sorting ${filtered.length} tasks by ${sortBy} (${sortOrder})`
+    );
     filtered.sort((a, b) => {
       if (sortBy === "priority") {
         const priorityOrder = { urgent: 4, high: 3, medium: 2, low: 1 };
@@ -125,9 +150,15 @@ export function useFilteredTasks({
         const bDate = new Date(b.dueDate).getTime();
         return sortOrder === "asc" ? aDate - bDate : bDate - aDate;
       } else if (sortBy === "createdAt") {
-        const aDate = new Date(a.createdAt).getTime();
-        const bDate = new Date(b.createdAt).getTime();
+        const aDate = new Date((a as any).createdAt || Date.now()).getTime();
+        const bDate = new Date((b as any).createdAt || Date.now()).getTime();
         return sortOrder === "asc" ? aDate - bDate : bDate - aDate;
+      } else if (sortBy === "position") {
+        // Use position if available, otherwise fall back to ID
+        const aPos = (a as any).position || a.id;
+        const bPos = (b as any).position || b.id;
+        // Position is always sorted ascending (lexicographically)
+        return aPos.localeCompare(bPos);
       } else {
         // title
         return sortOrder === "asc"
@@ -136,6 +167,9 @@ export function useFilteredTasks({
       }
     });
 
+    console.log(
+      `FILTER/SORT: Final filtered/sorted task count: ${filtered.length}`
+    );
     return filtered;
   }, [
     tasksData,
@@ -268,10 +302,10 @@ export function useGroupedTasks({
       const noLabels: Task[] = [];
 
       tasks.forEach((task) => {
-        if (!task.labels || task.labels.length === 0) {
+        if (!(task as any).labels || (task as any).labels.length === 0) {
           noLabels.push(task);
         } else {
-          task.labels.forEach((label) => {
+          (task as any).labels.forEach((label) => {
             if (!labelGroups[label.id]) {
               labelGroups[label.id] = [];
             }
@@ -296,39 +330,79 @@ export function useGroupedTasks({
 }
 
 /**
- * Custom hook for task operations
+ * Hook for task operations (update status, position, etc.)
  */
 export function useTaskOperations() {
+  const { project } = useBoardContext();
   const updateTaskMutation = useUpdateTaskMutation();
+  const updatePositionMutation = useUpdateTaskPositionMutation();
 
-  const updateTaskStatus = async (taskId: string, status: TaskStatus) => {
-    return updateTaskMutation.mutate({
-      taskId,
-      status,
-    });
-  };
+  const updateTaskStatus = useCallback(
+    (taskId: string, status: TaskStatus) => {
+      // Log for debugging
+      console.log(`Updating task status: ${taskId} to ${status}`);
 
-  const updateTaskAssignee = async (
-    taskId: string,
-    assigneeId: string | null
-  ) => {
-    return updateTaskMutation.mutate({
-      taskId,
-      assigneeId,
-    });
-  };
+      updateTaskMutation.mutate({
+        taskId,
+        status,
+      });
+    },
+    [updateTaskMutation]
+  );
 
-  const updateTaskPriority = async (taskId: string, priority: TaskPriority) => {
-    return updateTaskMutation.mutate({
-      taskId,
-      priority,
-    });
-  };
+  const updateTaskPosition = useCallback(
+    (
+      taskId: string,
+      position: string,
+      projectId?: string,
+      spaceId?: string
+    ) => {
+      // Log position for debugging
+      console.log(`Updating position for task ${taskId}:`, {
+        position,
+        projectId,
+        spaceId,
+      });
+
+      // Make sure we're sending the position field in the payload
+      updatePositionMutation.mutate({
+        taskId,
+        position,
+        projectId,
+        spaceId,
+      });
+    },
+    [updatePositionMutation]
+  );
+
+  const updateTaskPriority = useCallback(
+    (taskId: string, priority: TaskPriority) => {
+      updateTaskMutation.mutate({
+        taskId,
+        priority,
+      });
+    },
+    [updateTaskMutation]
+  );
+
+  const updateTaskAssignee = useCallback(
+    (taskId: string, assigneeId: string | null) => {
+      return updateTaskMutation.mutate({
+        taskId,
+        assigneeId,
+      });
+    },
+    [updateTaskMutation]
+  );
 
   return {
+    updateTask: (params: Parameters<typeof updateTaskMutation.mutate>[0]) =>
+      updateTaskMutation.mutate(params),
     updateTaskStatus,
     updateTaskAssignee,
     updateTaskPriority,
-    isUpdating: updateTaskMutation.isPending,
+    updateTaskPosition,
+    isUpdating:
+      updateTaskMutation.isPending || updatePositionMutation.isPending,
   };
 }

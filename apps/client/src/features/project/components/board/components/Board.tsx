@@ -32,9 +32,11 @@ import {
   useFilteredTasks,
   useGroupedTasks,
   useTaskOperations,
+  TASKS_BY_PROJECT_KEY,
 } from "../board-hooks";
 import { TaskCard } from "../../../components/task-card";
-import { Task } from "../../../types";
+import { Task, TaskStatus } from "../../../types";
+import { Project } from "../../../types/index";
 import { useDisclosure } from "@mantine/hooks";
 import { useWorkspaceUsers } from "@/features/user/hooks/use-workspace-users";
 import { ProjectHeader } from "@/features/project/components/project-header.tsx";
@@ -42,15 +44,15 @@ import { IconArrowLeft } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import TaskFormModal from "../../../components/task-form-modal";
 import { TaskDrawer } from "../../../components/task-drawer";
+import { useQueryClient } from "@tanstack/react-query";
 
 // CSS class name for when we need to disable scrolling
 const NO_SCROLL_CLASS = "docmost-board-no-scroll";
 
-// Basic Project interface
-interface Project {
-  id: string;
-  name: string;
-  workspaceId: string;
+// Define an extended Task interface that includes position for type-checking
+interface TaskWithPosition extends Task {
+  position?: string;
+  createdAt: string;
 }
 
 interface BoardProps {
@@ -71,6 +73,7 @@ export function Board({ project, onBack }: BoardProps) {
 
 function BoardContent({ project, spaceId }) {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
 
   console.log(
     "BoardContent rendering with project:",
@@ -101,7 +104,11 @@ function BoardContent({ project, spaceId }) {
   } = useBoardContext();
 
   // Get the tasks based on the project and filters
-  const { tasks, isLoading: isTasksLoading } = useFilteredTasks({
+  const {
+    tasks,
+    isLoading: isTasksLoading,
+    rawTasks: tasksData,
+  } = useFilteredTasks({
     projectId: project.id,
     statusFilter,
     priorityFilter,
@@ -121,7 +128,7 @@ function BoardContent({ project, spaceId }) {
   const users = usersData?.items || [];
 
   // Get the task update operations
-  const { updateTaskStatus } = useTaskOperations();
+  const { updateTaskStatus, updateTaskPosition } = useTaskOperations();
 
   // Group tasks by the selected grouping method
   const { groupedTasks } = useGroupedTasks({
@@ -293,19 +300,270 @@ function BoardContent({ project, spaceId }) {
     setActiveDragData(draggedTask || null);
   };
 
+  // Improved position generation function
+  function generatePositionBetween(
+    before: string | null,
+    after: string | null
+  ): string {
+    console.log(`POS_GEN: Inputs - Before: ${before}, After: ${after}`);
+
+    // Simplified LexoRank-like key generation (using lowercase alphabet a-z)
+    const alphabet = "abcdefghijklmnopqrstuvwxyz";
+    const midChar = alphabet[Math.floor(alphabet.length / 2)]; // 'm'
+
+    // Case 1: No neighbors (first item in an empty list)
+    if (!before && !after) {
+      console.log("POS_GEN: Case 1 - First item");
+      return midChar; // 'm'
+    }
+
+    // Case 2: Insert at the beginning
+    if (!before) {
+      // If 'after' looks like an ID (long hex string), generate position before 'm'
+      if (after && after.length > 10 && /^[a-f0-9-]+$/.test(after)) {
+        console.log("POS_GEN: Case 2a - Before ID, placing before 'm'");
+        return alphabet[Math.floor(alphabet.indexOf(midChar) / 2)]; // e.g., 'f'
+      }
+      // If 'after' is a valid position string
+      const firstChar = after![0];
+      const prevCharIndex = alphabet.indexOf(firstChar) - 1;
+      if (prevCharIndex >= 0) {
+        console.log(
+          `POS_GEN: Case 2b - Before valid pos '${after}', placing one char before`
+        );
+        return alphabet[prevCharIndex];
+      } else {
+        console.log(
+          `POS_GEN: Case 2c - Before smallest pos '${after}', prepending 'a'`
+        );
+        return "a" + after; // Cannot go before 'a', so prepend 'a'
+      }
+    }
+
+    // Case 3: Insert at the end
+    if (!after) {
+      // If 'before' looks like an ID, generate position after 'm'
+      if (before && before.length > 10 && /^[a-f0-9-]+$/.test(before)) {
+        console.log("POS_GEN: Case 3a - After ID, placing after 'm'");
+        return alphabet[
+          Math.floor((alphabet.indexOf(midChar) + alphabet.length) / 2)
+        ]; // e.g., 't'
+      }
+      // If 'before' is a valid position string
+      const lastChar = before[before.length - 1];
+      const nextCharIndex = alphabet.indexOf(lastChar) + 1;
+      if (nextCharIndex < alphabet.length) {
+        console.log(
+          `POS_GEN: Case 3b - After valid pos '${before}', placing one char after`
+        );
+        return before.substring(0, before.length - 1) + alphabet[nextCharIndex];
+      } else {
+        console.log(
+          `POS_GEN: Case 3c - After largest pos '${before}', appending 'z'`
+        );
+        return before + "z"; // Cannot go after 'z', so append 'z'
+      }
+    }
+
+    // Case 4: Insert between two valid position strings (or IDs treated as boundaries)
+    // This requires a more complex fractional indexing or string comparison logic
+    // For simplicity here, let's just append the midChar to the 'before' string
+    // This isn't perfectly balanced but avoids the ID prefix issue.
+    console.log(
+      `POS_GEN: Case 4 - Between '${before}' and '${after}', simple append`
+    );
+    // Basic check: If inputs look like IDs, return something predictable
+    if (
+      (before.length > 10 && /^[a-f0-9-]+$/.test(before)) ||
+      (after.length > 10 && /^[a-f0-9-]+$/.test(after))
+    ) {
+      console.log(
+        "POS_GEN: Case 4a - Inputs look like IDs, returning predictable middle"
+      );
+      return before + midChar; // Append 'm' to the 'before' ID (crude but avoids prefix issue)
+    }
+
+    // Simplified midpoint logic for actual position strings
+    let prefix = "";
+    let i = 0;
+    while (i < before.length && i < after.length && before[i] === after[i]) {
+      prefix += before[i];
+      i++;
+    }
+
+    const charBefore = i < before.length ? before[i] : "a"; // Assume 'a' if prefix matches 'before' fully
+    const charAfter = i < after.length ? after[i] : "z"; // Assume 'z' if prefix matches 'after' fully
+
+    const indexBefore = alphabet.indexOf(charBefore);
+    const indexAfter = alphabet.indexOf(charAfter);
+
+    if (indexAfter - indexBefore > 1) {
+      const midIndex = Math.floor((indexBefore + indexAfter) / 2);
+      console.log(
+        `POS_GEN: Case 4b - Found space, middle char: ${alphabet[midIndex]}`
+      );
+      return prefix + alphabet[midIndex];
+    } else {
+      // No space, extend 'before' by adding the middle character
+      console.log(
+        `POS_GEN: Case 4c - No space, extending before with '${midChar}'`
+      );
+      return before + midChar;
+    }
+  }
+
   // Handle drag end
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    console.log("DRAG_END: Event received", { active, over });
 
-    if (over && active.id !== over.id) {
-      // Get the container ID to identify where the task was dropped
-      const overId = String(over.id);
+    if (!active || !over) {
+      console.log("DRAG_END: No active or over, exiting.");
+      setActiveId(null);
+      setActiveDragData(null);
+      return;
+    }
 
-      // Update task status based on where it was dropped
-      if (overId.startsWith("status-")) {
-        const status = overId.replace("status-", "") as any;
-        const taskId = String(active.id);
-        updateTaskStatus(taskId, status);
+    // Don't do anything if dropped in the same place
+    // (This check might need refinement depending on exact desired behavior)
+    // if (active.id === over.id) return;
+
+    const activeId = active.id.toString();
+    const overId = over.id.toString();
+    const activeTask = tasks.find(
+      (task) => task.id === activeId
+    ) as TaskWithPosition;
+
+    if (!activeTask) {
+      console.error("DRAG_END: Active task not found!");
+      setActiveId(null);
+      setActiveDragData(null);
+      return;
+    }
+
+    console.log(
+      `DRAG_END: Active Task ID: ${activeId}, Status: ${activeTask.status}`
+    );
+    console.log(`DRAG_END: Over ID: ${overId}`);
+
+    // Check if dropping onto a different column drop zone
+    if (overId.startsWith("status-")) {
+      const newStatus = overId.replace("status-", "") as TaskStatus;
+      if (activeTask.status !== newStatus) {
+        console.log(
+          `DRAG_END: *** Status Change Detected *** Moving task ${activeId} from ${activeTask.status} to ${newStatus}`
+        );
+        updateTaskStatus(activeId, newStatus);
+      } else {
+        console.log(
+          `DRAG_END: Dropped on same status column (${newStatus}), no status change needed.`
+        );
+        // Potentially handle dropping onto the column header vs. a task for reordering to top/bottom?
+        // For now, we assume reordering only happens when dropping ON another task.
+      }
+    }
+    // Check if dropping onto another task for reordering within the same column
+    else {
+      const overTask = tasks.find(
+        (task) => task.id === overId
+      ) as TaskWithPosition;
+      if (overTask && activeTask.status === overTask.status) {
+        console.log(
+          `DRAG_END: *** Reorder Detected *** Reordering task ${activeId} relative to ${overId} in status ${activeTask.status}`
+        );
+
+        // --- Reordering Logic ---
+        const columnTasks = tasks.filter(
+          (task) => task.status === activeTask.status
+        ) as TaskWithPosition[];
+
+        // Sort tasks by position (default to ID if no position)
+        const sortedTasks = [...columnTasks].sort((a, b) => {
+          const aPos = a.position || a.id; // Fallback to ID
+          const bPos = b.position || b.id; // Fallback to ID
+          return aPos.localeCompare(bPos);
+        });
+
+        const activeIndex = sortedTasks.findIndex((t) => t.id === activeId);
+        const overIndex = sortedTasks.findIndex((t) => t.id === overId);
+
+        if (activeIndex === -1 || overIndex === -1) {
+          console.error("DRAG_END: Reorder failed - task index not found.");
+          setActiveId(null);
+          setActiveDragData(null);
+          return;
+        }
+
+        // Prevent reordering with self if active.id === over.id check is removed
+        if (activeIndex === overIndex) {
+          console.log("DRAG_END: Dropped on self, no reorder needed.");
+          setActiveId(null);
+          setActiveDragData(null);
+          return;
+        }
+
+        let newPosition: string;
+        const targetIndex = activeIndex < overIndex ? overIndex : overIndex;
+
+        console.log(
+          `DRAG_END: Reorder indices - Active: ${activeIndex}, Over: ${overIndex}, Target for calculation: ${targetIndex}`
+        );
+
+        if (targetIndex === 0) {
+          const afterTask = sortedTasks[0];
+          const afterPosition = afterTask.position || afterTask.id; // Use fallback
+          console.log(
+            `DRAG_END: Reordering to top. Before: null, After: ${afterPosition}`
+          );
+          newPosition = generatePositionBetween(null, afterPosition);
+        } else {
+          const beforeTask = sortedTasks[targetIndex - 1];
+          const afterTask = sortedTasks[targetIndex];
+          const beforePosition = beforeTask.position || beforeTask.id; // Use fallback
+          const afterPosition = afterTask
+            ? afterTask.position || afterTask.id
+            : null; // Use fallback
+          console.log(
+            `DRAG_END: Reordering between/end. Before: ${beforePosition}, After: ${afterPosition}`
+          );
+          newPosition = generatePositionBetween(beforePosition, afterPosition);
+        }
+
+        console.log(
+          `DRAG_END: Generated new position: ${newPosition} for task ${activeId}`
+        );
+        console.log(
+          `DRAG_END: Calling updateTaskPosition with taskId: ${activeId}, newPosition: ${newPosition}`
+        );
+        updateTaskPosition(activeId, newPosition);
+
+        // --- Optimistic Update ---
+        const updatedTasks = tasks.map((task) => {
+          if (task.id === activeId) {
+            return { ...task, position: newPosition }; // Update position
+          }
+          return task;
+        });
+
+        // Use the rawTasks structure if it contains pagination, otherwise mock it
+        const currentData = queryClient.getQueryData<{
+          items: Task[];
+          pagination: any;
+        }>([TASKS_BY_PROJECT_KEY, { projectId: project.id }]);
+
+        queryClient.setQueryData(
+          [TASKS_BY_PROJECT_KEY, { projectId: project.id }],
+          {
+            items: updatedTasks,
+            // Use pagination from existing cache data if available, else default
+            pagination: currentData?.pagination || {
+              page: 1,
+              limit: 100,
+              total: updatedTasks.length,
+              totalPages: 1,
+            },
+          }
+        );
       }
     }
 

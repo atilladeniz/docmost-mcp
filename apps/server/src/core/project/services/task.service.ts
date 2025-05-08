@@ -240,6 +240,7 @@ export class TaskService {
       dueDate?: Date | null;
       assigneeId?: string | null;
       estimatedTime?: number | null;
+      position?: string;
     },
   ): Promise<Task | undefined> {
     const task = await this.taskRepo.findById(taskId);

@@ -222,20 +222,57 @@ export function TaskDrawer({
   const handleSubmit = form.onSubmit((values) => {
     if (!task) return;
 
+    // Always save title changes, even if they appear to be the same
+    // This ensures any whitespace changes or invisible changes are captured
+    const newTitle = values.title.trim();
+
+    // Show loading notification
+    const toastId = "update-task-title";
+    notifications.show({
+      id: toastId,
+      loading: true,
+      title: t("Updating task"),
+      message: t("Saving changes..."),
+      autoClose: false,
+      withCloseButton: false,
+    });
+
     updateTaskMutation.mutate(
       {
         taskId: task.id,
-        title: values.title,
+        title: newTitle,
         description: values.description,
         status: values.status,
         priority: values.priority,
         dueDate: values.dueDate,
       },
       {
-        onSuccess: () => {
+        onSuccess: (updatedTask) => {
+          // Update toast notification
+          notifications.update({
+            id: toastId,
+            color: "green",
+            title: t("Task updated"),
+            message: t("Task title has been saved"),
+            loading: false,
+            autoClose: 3000,
+          });
+
+          // Update local state immediately
           refetch();
           setIsEditingTitle(false);
           setIsEditingDescription(false);
+        },
+        onError: (error) => {
+          // Show error toast
+          notifications.update({
+            id: toastId,
+            color: "red",
+            title: t("Error"),
+            message: t("Failed to update task title"),
+            loading: false,
+            autoClose: 3000,
+          });
         },
       }
     );
@@ -1202,7 +1239,10 @@ export function TaskDrawer({
                     placeholder={t("Task title")}
                     {...form.getInputProps("title")}
                     autoFocus
-                    onBlur={() => setIsEditingTitle(false)}
+                    onBlur={() => {
+                      // Ensure form is submitted on blur
+                      handleSubmit();
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         handleSubmit();

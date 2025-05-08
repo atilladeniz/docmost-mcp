@@ -13,7 +13,11 @@ import {
   useMantineTheme,
 } from "@mantine/core";
 import { useTranslation } from "react-i18next";
-import { useTasksByProject, useUpdateTaskMutation } from "../hooks/use-tasks";
+import {
+  useTasksByProject,
+  useUpdateTaskMutation,
+  useUpdateTaskPositionMutation,
+} from "../hooks/use-tasks";
 import { TaskCard } from "./task-card";
 import { Task, TaskStatus } from "../types";
 import { IconPlus } from "@tabler/icons-react";
@@ -44,6 +48,7 @@ export function TaskKanban({
   const theme = useMantineTheme();
   const [opened, { open, close }] = useDisclosure(false);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+  const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
 
   // Fetch tasks for the project
   const {
@@ -54,20 +59,36 @@ export function TaskKanban({
     projectId,
   });
 
-  // Update task mutation
+  // Update task mutations
   const updateTaskMutation = useUpdateTaskMutation();
+  const updateTaskPositionMutation = useUpdateTaskPositionMutation();
 
   // Refetch tasks when mutations complete
   useEffect(() => {
-    if (updateTaskMutation.isSuccess) {
+    if (updateTaskMutation.isSuccess || updateTaskPositionMutation.isSuccess) {
       refetch();
     }
-  }, [updateTaskMutation.isSuccess, refetch]);
+  }, [
+    updateTaskMutation.isSuccess,
+    updateTaskPositionMutation.isSuccess,
+    refetch,
+  ]);
 
   // Group tasks by status
   const getTasksByStatus = (status: TaskStatus) => {
     if (!taskData || !taskData.items) return [];
-    return taskData.items.filter((task) => task.status === status);
+
+    // Sort by position if available, then by creation date
+    return taskData.items
+      .filter((task) => task.status === status)
+      .sort((a, b) => {
+        if (a.position && b.position) {
+          return a.position.localeCompare(b.position);
+        }
+        return (
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+      });
   };
 
   // Handle drag start
@@ -78,6 +99,16 @@ export function TaskKanban({
   // Handle drag over
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+  };
+
+  // Handle drag over a task
+  const handleDragOverTask = (
+    e: React.DragEvent<HTMLDivElement>,
+    taskId: string
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTaskId(taskId);
   };
 
   // Handle drop
@@ -95,37 +126,152 @@ export function TaskKanban({
     }
 
     setDraggedTask(null);
+    setDragOverTaskId(null);
   };
 
-  // Get color for column
+  // Handle drop on a task (for reordering)
+  const handleDropOnTask = (
+    e: React.DragEvent<HTMLDivElement>,
+    targetTask: Task
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!draggedTask) return;
+
+    if (draggedTask.id !== targetTask.id) {
+      // If status is different, update status first
+      if (draggedTask.status !== targetTask.status) {
+        updateTaskMutation.mutate({
+          taskId: draggedTask.id,
+          status: targetTask.status,
+        });
+      }
+
+      // Generate a position value between tasks
+      const columnTasks = getTasksByStatus(targetTask.status);
+      const positionValue = generatePositionBetween(
+        columnTasks,
+        draggedTask.id,
+        targetTask.id
+      );
+
+      if (positionValue) {
+        // Update the task position
+        updateTaskPositionMutation.mutate({
+          taskId: draggedTask.id,
+          position: positionValue,
+          projectId: projectId,
+          spaceId: spaceId,
+        });
+      }
+    }
+
+    setDraggedTask(null);
+    setDragOverTaskId(null);
+  };
+
+  // Generate a position string between two tasks
+  const generatePositionBetween = (
+    tasksInColumn: Task[],
+    activeTaskId: string,
+    targetTaskId: string
+  ): string | null => {
+    // Find the indices of the tasks in the sorted array
+    const sortedTasks = tasksInColumn.map((t) => ({
+      id: t.id,
+      position: t.position || "",
+    }));
+    const targetIndex = sortedTasks.findIndex((t) => t.id === targetTaskId);
+
+    if (targetIndex === -1) return null;
+
+    // Determine if we're moving before or after the target
+    let beforePosition: string | undefined;
+    let afterPosition: string | undefined;
+
+    if (targetIndex === 0) {
+      // Moving to the start of the list
+      afterPosition = sortedTasks[0].position;
+      beforePosition = "";
+    } else if (targetIndex === sortedTasks.length - 1) {
+      // Moving to the end of the list
+      beforePosition = sortedTasks[targetIndex].position;
+      afterPosition = "";
+    } else {
+      // Moving between two items
+      beforePosition = sortedTasks[targetIndex - 1].position;
+      afterPosition = sortedTasks[targetIndex].position;
+    }
+
+    // Generate a position string between the two positions
+    if (!beforePosition) beforePosition = "";
+    if (!afterPosition) afterPosition = "z".repeat(10);
+
+    const length = Math.max(beforePosition.length, afterPosition.length);
+    const beforeVal = beforePosition.padEnd(length, "0");
+    const afterVal = afterPosition.padEnd(length, "z");
+
+    // Find a position string between the two values
+    let midPosition = "";
+    for (let i = 0; i < length; i++) {
+      const beforeChar = beforeVal.charCodeAt(i) || 48; // '0' is 48
+      const afterChar = afterVal.charCodeAt(i) || 122; // 'z' is 122
+
+      if (beforeChar === afterChar) {
+        midPosition += String.fromCharCode(beforeChar);
+        continue;
+      }
+
+      // Find the middle value between the two characters
+      const midChar = Math.floor((beforeChar + afterChar) / 2);
+      midPosition += String.fromCharCode(midChar);
+      break;
+    }
+
+    return midPosition || beforePosition + "m";
+  };
+
+  // Helper functions for UI color
   const getColumnColor = (status: TaskStatus) => {
     switch (status) {
       case "todo":
-        return theme.colors.blue[0];
+        return theme.colorScheme === "dark"
+          ? theme.colors.dark[6]
+          : theme.colors.gray[0];
       case "in_progress":
-        return theme.colors.yellow[0];
+        return theme.colorScheme === "dark"
+          ? theme.colors.blue[9]
+          : theme.colors.blue[0];
       case "in_review":
-        return theme.colors.violet[0];
+        return theme.colorScheme === "dark"
+          ? theme.colors.indigo[9]
+          : theme.colors.indigo[0];
       case "done":
-        return theme.colors.teal[0];
+        return theme.colorScheme === "dark"
+          ? theme.colors.green[9]
+          : theme.colors.green[0];
       case "blocked":
-        return theme.colors.red[0];
+        return theme.colorScheme === "dark"
+          ? theme.colors.red[9]
+          : theme.colors.red[0];
       default:
-        return theme.colors.gray[0];
+        return theme.colorScheme === "dark"
+          ? theme.colors.dark[6]
+          : theme.colors.gray[0];
     }
   };
 
-  // Get badge color for column
   const getBadgeColor = (status: TaskStatus) => {
     switch (status) {
       case "todo":
-        return "blue";
+        return "gray";
       case "in_progress":
-        return "yellow";
+        return "blue";
       case "in_review":
-        return "violet";
+        return "indigo";
       case "done":
-        return "teal";
+        return "green";
       case "blocked":
         return "red";
       default:
@@ -200,6 +346,15 @@ export function TaskKanban({
                           key={task.id}
                           draggable
                           onDragStart={() => handleDragStart(task)}
+                          onDragOver={(e) => handleDragOverTask(e, task.id)}
+                          onDrop={(e) => handleDropOnTask(e, task)}
+                          style={{
+                            opacity: draggedTask?.id === task.id ? 0.5 : 1,
+                            borderTop:
+                              dragOverTaskId === task.id
+                                ? "2px solid blue"
+                                : "none",
+                          }}
                         >
                           <TaskCard
                             task={task}

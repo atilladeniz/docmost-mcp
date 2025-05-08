@@ -251,3 +251,84 @@ export function useAssignTaskMutation() {
     },
   });
 }
+
+export function useUpdateTaskPositionMutation() {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: async (params: {
+      taskId: string;
+      position: string;
+      projectId?: string;
+      spaceId?: string;
+    }) => {
+      console.log("🔄 Updating task position:", params);
+
+      // Call the updateTask endpoint with position parameter
+      const result = await projectService.updateTask({
+        taskId: params.taskId,
+        position: params.position,
+      });
+
+      console.log("✅ Position update result:", result);
+      return result;
+    },
+
+    // Silent update - no notifications
+    onSuccess: (data, variables) => {
+      console.log("🎉 Position update success:", data);
+
+      // More aggressive cache invalidation to ensure UI updates
+      // Invalidate the specific task
+      queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY, data.id] });
+
+      // Invalidate project and space task lists
+      if (data.projectId) {
+        // Invalidate at multiple levels to ensure all task lists update
+        queryClient.invalidateQueries({
+          queryKey: [PROJECT_TASKS_QUERY_KEY],
+        });
+        queryClient.invalidateQueries({
+          queryKey: [PROJECT_TASKS_QUERY_KEY, data.projectId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: [PROJECT_TASKS_QUERY_KEY, { projectId: data.projectId }],
+        });
+      }
+
+      if (data.spaceId) {
+        // Invalidate at multiple levels to ensure all task lists update
+        queryClient.invalidateQueries({
+          queryKey: [SPACE_TASKS_QUERY_KEY],
+        });
+        queryClient.invalidateQueries({
+          queryKey: [SPACE_TASKS_QUERY_KEY, data.spaceId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: [SPACE_TASKS_QUERY_KEY, { spaceId: data.spaceId }],
+        });
+      }
+
+      // Also invalidate the general tasks queries
+      queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY] });
+
+      // Force refetch to ensure fresh data
+      if (data.projectId) {
+        queryClient.refetchQueries({
+          queryKey: [PROJECT_TASKS_QUERY_KEY, { projectId: data.projectId }],
+        });
+      }
+    },
+    onError: (error) => {
+      console.error("❌ Error updating task position:", error);
+
+      // Add user notification for position update failures
+      notifications.show({
+        title: t("Error updating task order"),
+        message: t("Please try again or refresh the page"),
+        color: "red",
+      });
+    },
+  });
+}
