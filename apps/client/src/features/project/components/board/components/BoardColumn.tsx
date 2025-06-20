@@ -125,6 +125,7 @@ export function BoardColumn({
         p="md"
         style={{
           height: "100%",
+          minHeight: "400px",
           display: "flex",
           flexDirection: "column",
           backgroundColor: isOver

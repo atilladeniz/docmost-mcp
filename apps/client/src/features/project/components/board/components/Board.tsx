@@ -19,6 +19,7 @@ import {
   useSensors,
   PointerSensor,
   KeyboardSensor,
+  rectIntersection,
 } from "@dnd-kit/core";
 import { BoardProvider, useBoardContext } from "../board-context";
 import { BoardHeader } from "./BoardHeader";
@@ -155,7 +156,7 @@ function BoardContent({ project, spaceId }) {
     return (
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={rectIntersection}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
@@ -415,7 +416,11 @@ function BoardContent({ project, spaceId }) {
   // Handle drag end
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    console.log("DRAG_END: Event received", { active, over });
+    // Add more detail to the initial log
+    console.log("DRAG_END: Event received", {
+      active: { id: active?.id, data: active?.data.current },
+      over: { id: over?.id, data: over?.data.current }, // Log data associated with the drop target
+    });
 
     if (!active || !over) {
       console.log("DRAG_END: No active or over, exiting.");
@@ -423,10 +428,6 @@ function BoardContent({ project, spaceId }) {
       setActiveDragData(null);
       return;
     }
-
-    // Don't do anything if dropped in the same place
-    // (This check might need refinement depending on exact desired behavior)
-    // if (active.id === over.id) return;
 
     const activeId = active.id.toString();
     const overId = over.id.toString();
@@ -444,43 +445,40 @@ function BoardContent({ project, spaceId }) {
     console.log(
       `DRAG_END: Active Task ID: ${activeId}, Status: ${activeTask.status}`
     );
-    console.log(`DRAG_END: Over ID: ${overId}`);
+    console.log(`DRAG_END: Over ID: ${overId}, Over Data:`, over.data.current);
 
-    // Check if dropping onto a different column drop zone
-    if (overId.startsWith("status-")) {
-      const newStatus = overId.replace("status-", "") as TaskStatus;
+    // Check if dropping onto a column drop zone (using the data we set in useDroppable)
+    if (over.data.current?.type === "column") {
+      const newStatus = over.data.current.status as TaskStatus;
       if (activeTask.status !== newStatus) {
         console.log(
-          `DRAG_END: *** Status Change Detected *** Moving task ${activeId} from ${activeTask.status} to ${newStatus}`
+          `DRAG_END: *** Status Change Detected *** Moving task ${activeId} from ${activeTask.status} to ${newStatus} (Dropped on column)`
         );
         updateTaskStatus(activeId, newStatus);
       } else {
         console.log(
           `DRAG_END: Dropped on same status column (${newStatus}), no status change needed.`
         );
-        // Potentially handle dropping onto the column header vs. a task for reordering to top/bottom?
-        // For now, we assume reordering only happens when dropping ON another task.
       }
     }
-    // Check if dropping onto another task for reordering within the same column
-    else {
+    // Check if dropping onto another task for reordering
+    else if (over.data.current?.type === "task" || !over.data.current?.type) {
+      // Assume it's a task if type is 'task' or undefined
       const overTask = tasks.find(
         (task) => task.id === overId
       ) as TaskWithPosition;
       if (overTask && activeTask.status === overTask.status) {
         console.log(
-          `DRAG_END: *** Reorder Detected *** Reordering task ${activeId} relative to ${overId} in status ${activeTask.status}`
+          `DRAG_END: *** Reorder Detected *** Reordering task ${activeId} relative to ${overId} in status ${activeTask.status} (Dropped on task)`
         );
-
         // --- Reordering Logic ---
         const columnTasks = tasks.filter(
           (task) => task.status === activeTask.status
         ) as TaskWithPosition[];
 
-        // Sort tasks by position (default to ID if no position)
         const sortedTasks = [...columnTasks].sort((a, b) => {
-          const aPos = a.position || a.id; // Fallback to ID
-          const bPos = b.position || b.id; // Fallback to ID
+          const aPos = a.position || a.id;
+          const bPos = b.position || b.id;
           return aPos.localeCompare(bPos);
         });
 
@@ -489,14 +487,14 @@ function BoardContent({ project, spaceId }) {
 
         if (activeIndex === -1 || overIndex === -1) {
           console.error("DRAG_END: Reorder failed - task index not found.");
+          // Reset state without returning might be needed
           setActiveId(null);
           setActiveDragData(null);
           return;
         }
-
-        // Prevent reordering with self if active.id === over.id check is removed
         if (activeIndex === overIndex) {
           console.log("DRAG_END: Dropped on self, no reorder needed.");
+          // Reset state without returning might be needed
           setActiveId(null);
           setActiveDragData(null);
           return;
@@ -504,14 +502,13 @@ function BoardContent({ project, spaceId }) {
 
         let newPosition: string;
         const targetIndex = activeIndex < overIndex ? overIndex : overIndex;
-
         console.log(
           `DRAG_END: Reorder indices - Active: ${activeIndex}, Over: ${overIndex}, Target for calculation: ${targetIndex}`
         );
 
         if (targetIndex === 0) {
           const afterTask = sortedTasks[0];
-          const afterPosition = afterTask.position || afterTask.id; // Use fallback
+          const afterPosition = afterTask.position || afterTask.id;
           console.log(
             `DRAG_END: Reordering to top. Before: null, After: ${afterPosition}`
           );
@@ -519,10 +516,10 @@ function BoardContent({ project, spaceId }) {
         } else {
           const beforeTask = sortedTasks[targetIndex - 1];
           const afterTask = sortedTasks[targetIndex];
-          const beforePosition = beforeTask.position || beforeTask.id; // Use fallback
+          const beforePosition = beforeTask.position || beforeTask.id;
           const afterPosition = afterTask
             ? afterTask.position || afterTask.id
-            : null; // Use fallback
+            : null;
           console.log(
             `DRAG_END: Reordering between/end. Before: ${beforePosition}, After: ${afterPosition}`
           );
@@ -540,22 +537,19 @@ function BoardContent({ project, spaceId }) {
         // --- Optimistic Update ---
         const updatedTasks = tasks.map((task) => {
           if (task.id === activeId) {
-            return { ...task, position: newPosition }; // Update position
+            return { ...task, position: newPosition };
           }
           return task;
         });
 
-        // Use the rawTasks structure if it contains pagination, otherwise mock it
         const currentData = queryClient.getQueryData<{
           items: Task[];
           pagination: any;
         }>([TASKS_BY_PROJECT_KEY, { projectId: project.id }]);
-
         queryClient.setQueryData(
           [TASKS_BY_PROJECT_KEY, { projectId: project.id }],
           {
             items: updatedTasks,
-            // Use pagination from existing cache data if available, else default
             pagination: currentData?.pagination || {
               page: 1,
               limit: 100,
@@ -564,9 +558,20 @@ function BoardContent({ project, spaceId }) {
             },
           }
         );
+      } else {
+        console.log(
+          `DRAG_END: Drop detected, but not a valid reorder target (different status or task not found). Over ID: ${overId}, Over Data:`,
+          over.data.current
+        );
       }
+    } else {
+      console.log(
+        `DRAG_END: Drop detected onto an unknown target type. Over ID: ${overId}, Over Data:`,
+        over.data.current
+      );
     }
 
+    // Reset drag state regardless
     setActiveId(null);
     setActiveDragData(null);
   };

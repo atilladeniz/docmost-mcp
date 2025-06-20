@@ -67,6 +67,8 @@ async function bootstrap() {
         '/api/sso/google',
         '/api/workspace/create',
         '/api/workspace/joined',
+        '/api/mcp',
+        '/api/api-keys/register',
       ];
 
       if (
