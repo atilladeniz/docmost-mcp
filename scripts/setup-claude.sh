@@ -28,6 +28,19 @@ if [[ $DOCMOST_URL != http*://* ]]; then
   exit 1
 fi
 
+# Normalize URL (strip trailing slash)
+DOCMOST_URL=${DOCMOST_URL%/}
+
+read -r -p "Docmost API prefix [/api]: " DOCMOST_API_PREFIX_INPUT
+DOCMOST_API_PREFIX=${DOCMOST_API_PREFIX_INPUT:-${DOCMOST_API_PREFIX:-/api}}
+
+if [[ -z "$DOCMOST_API_PREFIX" || "$DOCMOST_API_PREFIX" == "/" ]]; then
+  API_PREFIX=""
+else
+  API_PREFIX="/${DOCMOST_API_PREFIX#/}"
+  API_PREFIX=${API_PREFIX%/}
+fi
+
 if [[ -z "${APP_SECRET:-}" ]]; then
   read -r -s -p "Docmost APP_SECRET (hidden input): " APP_SECRET_INPUT
   echo ""
@@ -49,6 +62,16 @@ if [[ -z "$MCP_USER_ID" ]]; then
   exit 1
 fi
 
+if [[ "$MCP_USER_ID" == *@* ]]; then
+  echo "Error: The user ID must be the Docmost UUID, not an email address." >&2
+  exit 1
+fi
+
+if [[ ! $MCP_USER_ID =~ ^[0-9a-fA-F-]{10,}$ ]]; then
+  echo "Error: The user ID should look like a UUID (e.g. 01964ade-05df-...)." >&2
+  exit 1
+fi
+
 if [[ -z "${MCP_WORKSPACE_ID:-}" ]]; then
   read -r -p "Workspace ID for the API key: " MCP_WORKSPACE_ID_INPUT
   MCP_WORKSPACE_ID=${MCP_WORKSPACE_ID_INPUT:-}
@@ -56,6 +79,11 @@ fi
 
 if [[ -z "$MCP_WORKSPACE_ID" ]]; then
   echo "Error: Workspace ID is required." >&2
+  exit 1
+fi
+
+if [[ ! $MCP_WORKSPACE_ID =~ ^[0-9a-fA-F-]{10,}$ ]]; then
+  echo "Error: The workspace ID should look like a UUID (e.g. 01964ade-05e2-...)." >&2
   exit 1
 fi
 
@@ -84,7 +112,7 @@ case "$DEBUG_PROMPT" in
   *) MCP_DEBUG_VALUE=false ;;
 esac
 
-echo "\nRequesting API key from $DOCMOST_URL ..."
+echo "\nLooking for registration endpoint on $DOCMOST_URL ..."
 
 register_payload=$(
   NODE_USER_ID="$MCP_USER_ID" \
@@ -102,16 +130,71 @@ console.log(
 NODE
 )
 
-response=$(curl -sSf -X POST "$DOCMOST_URL/api/api-keys/register" \
-  -H "Content-Type: application/json" \
-  -H "x-registration-token: $APP_SECRET" \
-  -d "$register_payload")
+declare -a candidate_paths
+candidate_paths=()
 
-API_KEY=$(printf '%s' "$response" | node -e "const fs=require('fs');const data=fs.readFileSync(0,'utf8');try{const parsed=JSON.parse(data);if(parsed.key){process.stdout.write(parsed.key);}}catch(err){process.exit(1);}")
+if [[ -n "$API_PREFIX" ]]; then
+  candidate_paths+=("$API_PREFIX/api-keys/register")
+  candidate_paths+=("$API_PREFIX/mcp/api-keys/register")
+else
+  candidate_paths+=("/api-keys/register")
+  candidate_paths+=("/mcp/api-keys/register")
+fi
+
+# Always try the default paths as fallbacks
+candidate_paths+=("/api/api-keys/register")
+candidate_paths+=("/api/mcp/api-keys/register")
+
+response_body=""
+REGISTER_URL=""
+http_status=""
+
+for path in "${candidate_paths[@]}"; do
+  sanitized="/${path#/}"
+  attempt_url="$DOCMOST_URL$sanitized"
+
+  curl_response=$(curl -sS -w "\n%{http_code}" -X POST "$attempt_url" \
+    -H "Content-Type: application/json" \
+    -H "x-registration-token: $APP_SECRET" \
+    -d "$register_payload")
+
+  http_status=${curl_response##*$'\n'}
+  response_body=${curl_response%$'\n'*}
+
+  if [[ $http_status == 404 ]]; then
+    echo "  • $attempt_url -> 404 (not found), trying next option..."
+    continue
+  fi
+
+  REGISTER_URL=$attempt_url
+  break
+done
+
+if [[ -z "$REGISTER_URL" ]]; then
+  echo "Error: Could not find a working registration endpoint." >&2
+  echo "Tried the following paths:" >&2
+  printf '  - %s\n' "${candidate_paths[@]}" >&2
+  exit 1
+fi
+
+if [[ $http_status != 200 ]]; then
+  echo "Error: API key request failed with status $http_status" >&2
+  echo "Endpoint: $REGISTER_URL" >&2
+  echo "Response body: $response_body" >&2
+  echo "\nHints:" >&2
+  echo "  • Double-check that the APP_SECRET matches the server configuration." >&2
+  echo "  • Ensure the Docmost base URL and API prefix target the correct host." >&2
+  echo "  • Confirm the user and workspace IDs belong to the target instance." >&2
+  exit 1
+fi
+
+echo "  • Using registration endpoint: $REGISTER_URL"
+
+API_KEY=$(printf '%s' "$response_body" | node -e "const fs=require('fs');const data=fs.readFileSync(0,'utf8');try{const parsed=JSON.parse(data);if(parsed.key){process.stdout.write(parsed.key);}}catch(err){process.exit(1);}")
 
 if [[ -z "$API_KEY" ]]; then
   echo "Error: Could not extract API key from response:" >&2
-  echo "$response" >&2
+  echo "$response_body" >&2
   exit 1
 fi
 

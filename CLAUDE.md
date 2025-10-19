@@ -20,7 +20,7 @@ Run the interactive helper from the repository root:
 make claude-setup
 ```
 
-The script prompts for the Docmost base URL, `APP_SECRET`, user ID, and workspace ID, obtains an MCP API key from the remote instance, and registers the bridge with Claude Code under the chosen name (default `docmost`). You can re-run the command at any time to rotate the API key or change the configuration.
+The script prompts for the Docmost base URL, optional API prefix (default `/api`), `APP_SECRET`, user ID, and workspace ID, obtains an MCP API key from the remote instance, and registers the bridge with Claude Code under the chosen name (default `docmost`). You can re-run the command at any time to rotate the API key or change the configuration.
 
 Continue with the manual instructions below if you prefer to perform the steps yourself or need to customize the process further.
 
@@ -31,6 +31,7 @@ Claude authenticates against Docmost with an MCP-specific API key. Generate the 
 You'll need three values before you can call the registration endpoint:
 - **APP_SECRET** – The registration token configured on the Docmost server. If you host Docmost yourself, read it from the `.env` on the server or from the container's environment variables.
 - **USER_ID** – The Docmost user the key should impersonate. You can copy the ID from the database (`users` table), from the admin UI (user detail view shows the UUID), or via API (`GET /api/users/:id`).
+- _Tip_: The script needs the user UUID (for example `0199970d-646b-7164-97a9-6dbadc88b4d1`). Do not enter an email address.
 - **WORKSPACE_ID** – The workspace the key should be scoped to. Retrieve it from the database (`workspaces` table), the workspace settings URL, or via API (`GET /api/workspaces`).
 
 Keep these values secret—they grant the same permissions the corresponding user has.
@@ -56,7 +57,9 @@ The response contains a field named `key` (for example `mcp_xxx`). Copy it immed
 If you prefer using the helper script in this repository, export `DOCMOST_URL` before running it:
 
 ```bash
-DOCMOST_URL="https://docmost.nevuro.com" ./register-mcp-api-key.sh "Claude MCP Bridge"
+DOCMOST_URL="https://docmost.nevuro.com" \
+DOCMOST_API_PREFIX="/api" \
+./register-mcp-api-key.sh "Claude MCP Bridge"
 ```
 
 The script reads the same environment variables, prompts for any missing values, and hits the endpoint shown above.

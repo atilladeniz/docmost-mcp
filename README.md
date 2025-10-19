@@ -83,15 +83,19 @@ Before wiring any client, make sure your Docmost instance is reachable (for exam
 make claude-setup
 ```
 
-The helper walks you through collecting the `APP_SECRET`, user ID, workspace ID, and remote base URL, then provisions the API key and registers the bridge with Claude Code automatically.
+The helper walks you through collecting the `APP_SECRET`, user ID, workspace ID, remote base URL, and (optionally) a custom API prefix. It then provisions the API key and registers the bridge with Claude Code automatically.
 
 If you prefer the original manual flow, export your target instance before running the script:
 
 ```sh
-DOCMOST_URL="https://your-docmost.example" ./register-mcp-api-key.sh "Docmost MCP Bridge"
+DOCMOST_URL="https://your-docmost.example" \
+DOCMOST_API_PREFIX="/api" \
+./register-mcp-api-key.sh "Docmost MCP Bridge"
 ```
 
-The script returns an `MCP_API_KEY` you can reuse below. Optional environment variables include `MCP_USER_ID`, `MCP_WORKSPACE_ID`, and `MCP_USER_EMAIL` if you want to scope calls to a specific user/workspace.
+The script returns an `MCP_API_KEY` you can reuse below. Optional environment variables include `MCP_USER_ID`, `MCP_WORKSPACE_ID`, `MCP_USER_EMAIL`, and `DOCMOST_API_PREFIX` if you want to scope calls or override the API path.
+
+> **Important:** Provide the Docmost user UUID (for example `0199970d-646b-7164-97a9-6dbadc88b4d1`), not an email address, when prompted for the user ID. The workspace ID must also be the UUID format.
 
 ##### For Claude Code
 

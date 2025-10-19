@@ -38,6 +38,27 @@ else
   read -p "Enter workspace ID: " WORKSPACE_ID
 fi
 
+# Basic validation to catch common mistakes
+if [[ "$USER_ID" == *@* ]]; then
+  echo "Error: USER_ID must be the Docmost UUID, not an email address." >&2
+  exit 1
+fi
+
+if [[ ! $USER_ID =~ ^[0-9a-fA-F-]{10,}$ ]]; then
+  echo "Error: USER_ID should look like a UUID (e.g. 01964ade-05df-...)." >&2
+  exit 1
+fi
+
+if [ -z "$WORKSPACE_ID" ]; then
+  echo "Error: Workspace ID is required"
+  exit 1
+fi
+
+if [[ ! $WORKSPACE_ID =~ ^[0-9a-fA-F-]{10,}$ ]]; then
+  echo "Error: Workspace ID should look like a UUID (e.g. 01964ade-05e2-...)." >&2
+  exit 1
+fi
+
 # Prompt for API key name or use default
 if [ -z "$1" ]; then
   read -p "Enter a name for the API key: " KEY_NAME
@@ -48,18 +69,75 @@ fi
 
 # Determine which Docmost instance to talk to (default localhost)
 DOCMOST_URL=${DOCMOST_URL:-http://localhost:3000}
-echo "Using Docmost instance: $DOCMOST_URL"
+DOCMOST_URL=${DOCMOST_URL%/}
 
-# Make the request to register an API key
-echo "Registering API key..."
-response=$(curl -s -X POST "$DOCMOST_URL/api/api-keys/register" \
-  -H "Content-Type: application/json" \
-  -H "x-registration-token: $APP_SECRET" \
-  -d "{
-    \"userId\": \"$USER_ID\",
-    \"workspaceId\": \"$WORKSPACE_ID\",
-    \"name\": \"$KEY_NAME\"
-  }")
+DOCMOST_API_PREFIX=${DOCMOST_API_PREFIX:-/api}
+
+if [[ -z "$DOCMOST_API_PREFIX" || "$DOCMOST_API_PREFIX" == "/" ]]; then
+  API_PREFIX=""
+else
+  API_PREFIX="/${DOCMOST_API_PREFIX#/}"
+  API_PREFIX=${API_PREFIX%/}
+fi
+
+declare -a candidate_paths
+candidate_paths=()
+
+if [[ -n "$API_PREFIX" ]]; then
+  candidate_paths+=("$API_PREFIX/api-keys/register")
+  candidate_paths+=("$API_PREFIX/mcp/api-keys/register")
+else
+  candidate_paths+=("/api-keys/register")
+  candidate_paths+=("/mcp/api-keys/register")
+fi
+
+candidate_paths+=("/api/api-keys/register")
+candidate_paths+=("/api/mcp/api-keys/register")
+
+REGISTER_URL=""
+response=""
+http_status=""
+
+for path in "${candidate_paths[@]}"; do
+  sanitized="/${path#/}"
+  attempt_url="$DOCMOST_URL$sanitized"
+
+  curl_response=$(curl -sS -w "\n%{http_code}" -X POST "$attempt_url" \
+    -H "Content-Type: application/json" \
+    -H "x-registration-token: $APP_SECRET" \
+    -d "{
+      \"userId\": \"$USER_ID\",
+      \"workspaceId\": \"$WORKSPACE_ID\",
+      \"name\": \"$KEY_NAME\"
+    }")
+
+  http_status=${curl_response##*$'\n'}
+  response=${curl_response%$'\n'*}
+
+  if [[ $http_status == 404 ]]; then
+    echo "  • $attempt_url -> 404 (not found), trying next option..."
+    continue
+  fi
+
+  REGISTER_URL=$attempt_url
+  break
+done
+
+if [[ -z "$REGISTER_URL" ]]; then
+  echo "Error: Could not find a working registration endpoint." >&2
+  echo "Tried the following paths:" >&2
+  printf '  - %s\n' "${candidate_paths[@]}" >&2
+  exit 1
+fi
+
+echo "Using Docmost instance: $REGISTER_URL"
+
+if [[ $http_status != 200 ]]; then
+  echo "Error creating API key (status $http_status)" >&2
+  echo "Response: $response" >&2
+  echo "Please verify the APP_SECRET, API prefix, instance URL, and identifiers." >&2
+  exit 1
+fi
 
 # Extract the API key from the response
 API_KEY=$(echo $response | grep -o '"key":"[^"]*"' | cut -d'"' -f4)
