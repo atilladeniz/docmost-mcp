@@ -75,11 +75,63 @@ Docmost integrates with AI assistants through the [Model Context Protocol](https
 
 This integration enables seamless AI-assisted workflows within your documentation and knowledge base.
 
-#### Using with Cursor
+#### How to Install This MCP Server
 
-The MCP bridge allows AI assistants like Claude in Cursor to interact directly with your Docmost instance:
+Before wiring any client, make sure your Docmost instance is reachable (default `http://localhost:3000`) and generate an API key for the bridge:
 
-1. Configure your Cursor settings to use the MCP bridge:
+```sh
+./register-mcp-api-key.sh "Docmost MCP Bridge"
+```
+
+The script returns an `MCP_API_KEY` you should paste into the configurations below. Optional environment variables include `MCP_USER_ID`, `MCP_WORKSPACE_ID`, and `MCP_USER_EMAIL` if you want to scope calls to a specific user/workspace.
+
+##### For Claude Code
+
+To add the bridge to Claude Code, run the following command (replace `/absolute/path/to/docmost-mcp` with the cloned repository path and substitute your API key):
+
+```sh
+claude mcp add-json "docmost" '{"command":"npx","args":["tsx","/absolute/path/to/docmost-mcp/packages/mcp-bridge/src/index.ts"],"env":{"MCP_SERVER_URL":"http://localhost:3000","MCP_API_KEY":"paste_api_key_here","MCP_DEBUG":"true"}}'
+```
+
+See the official [Claude Code MCP documentation](https://modelcontextprotocol.io/clients/claude-code) for advanced options such as per-workspace overrides.
+
+##### For Cursor
+
+Cursor supports global and project-scoped MCP servers. The configuration JSON is the same in both cases:
+
+```json
+{
+  "mcpServers": {
+    "docmost": {
+      "command": "npx",
+      "args": [
+        "tsx",
+        "/absolute/path/to/docmost-mcp/packages/mcp-bridge/src/index.ts"
+      ],
+      "env": {
+        "MCP_DEBUG": "true",
+        "MCP_SERVER_URL": "http://localhost:3000",
+        "MCP_API_KEY": "paste_api_key_here"
+      }
+    }
+  }
+}
+```
+
+- **Global install**: Cursor Settings → Tools & Integrations → *New MCP Server* opens `~/.cursor/mcp.json`; insert the snippet above.
+- **Project install**: Add the snippet to `.cursor/mcp.json` in your project root.
+
+After saving, revisit Settings → MCP and click the refresh icon so Cursor re-reads the configuration.
+
+##### For Claude Desktop
+
+Add the same configuration block to your Claude Desktop settings file and restart the app:
+
+1. Locate the config file
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+   - Linux: `~/.config/Claude/claude_desktop_config.json`
+2. Add or merge the following JSON:
    ```json
    {
      "mcpServers": {
@@ -87,27 +139,20 @@ The MCP bridge allows AI assistants like Claude in Cursor to interact directly w
          "command": "npx",
          "args": [
            "tsx",
-           "./packages/mcp-bridge/src/index.ts"
+           "/absolute/path/to/docmost-mcp/packages/mcp-bridge/src/index.ts"
          ],
          "env": {
-           "MCP_DEBUG": "true",
            "MCP_SERVER_URL": "http://localhost:3000",
-           "MCP_API_KEY": "your_api_key_here",
-           "NODE_ENV": "development"
+           "MCP_API_KEY": "paste_api_key_here",
+           "MCP_DEBUG": "true"
          }
        }
      }
    }
    ```
+3. Restart Claude Desktop to load the server.
 
-2. Create an API key for your Docmost server:
-   ```sh
-   ./register-mcp-api-key.sh "Cursor MCP Bridge"
-   ```
-
-3. Use the generated API key in your Cursor configuration.
-
-4. Start using tools directly from Cursor to interact with your Docmost content!
+Once the server is registered, you can prompt your assistant to use Docmost tools explicitly (for example, “use `page_create` to draft a new onboarding doc”), or allow it to invoke tools automatically when additional context is required.
 
 #### Available MCP Tools
 
