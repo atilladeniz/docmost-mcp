@@ -7,11 +7,21 @@ if [ -f .env.mcp ]; then
   echo "Loaded environment variables from .env.mcp"
 fi
 
-# First, get the APP_SECRET from .env
-APP_SECRET=$(grep APP_SECRET .env | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+# Determine APP_SECRET source (env, .env, or prompt)
+if [ -z "${APP_SECRET:-}" ]; then
+  if [ -f .env ]; then
+    APP_SECRET=$(grep APP_SECRET .env | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+  fi
+fi
+
+if [ -z "${APP_SECRET:-}" ]; then
+  read -r -s -p "Enter APP_SECRET: " APP_SECRET_INPUT
+  echo ""
+  APP_SECRET=$APP_SECRET_INPUT
+fi
 
 if [ -z "$APP_SECRET" ]; then
-  echo "Error: APP_SECRET not found in .env file"
+  echo "Error: APP_SECRET is required"
   exit 1
 fi
 
@@ -36,9 +46,13 @@ else
   echo "Using API key name: $KEY_NAME"
 fi
 
+# Determine which Docmost instance to talk to (default localhost)
+DOCMOST_URL=${DOCMOST_URL:-http://localhost:3000}
+echo "Using Docmost instance: $DOCMOST_URL"
+
 # Make the request to register an API key
 echo "Registering API key..."
-response=$(curl -s -X POST http://localhost:3000/api/api-keys/register \
+response=$(curl -s -X POST "$DOCMOST_URL/api/api-keys/register" \
   -H "Content-Type: application/json" \
   -H "x-registration-token: $APP_SECRET" \
   -d "{

@@ -77,20 +77,36 @@ This integration enables seamless AI-assisted workflows within your documentatio
 
 #### How to Install This MCP Server
 
-Before wiring any client, make sure your Docmost instance is reachable (default `http://localhost:3000`) and generate an API key for the bridge:
+Before wiring any client, make sure your Docmost instance is reachable (for example `https://docmost.nevuro.com`) and generate an API key for the bridge.
 
 ```sh
-./register-mcp-api-key.sh "Docmost MCP Bridge"
+make claude-setup
 ```
 
-The script returns an `MCP_API_KEY` you should paste into the configurations below. Optional environment variables include `MCP_USER_ID`, `MCP_WORKSPACE_ID`, and `MCP_USER_EMAIL` if you want to scope calls to a specific user/workspace.
+The helper walks you through collecting the `APP_SECRET`, user ID, workspace ID, and remote base URL, then provisions the API key and registers the bridge with Claude Code automatically.
+
+If you prefer the original manual flow, export your target instance before running the script:
+
+```sh
+DOCMOST_URL="https://your-docmost.example" ./register-mcp-api-key.sh "Docmost MCP Bridge"
+```
+
+The script returns an `MCP_API_KEY` you can reuse below. Optional environment variables include `MCP_USER_ID`, `MCP_WORKSPACE_ID`, and `MCP_USER_EMAIL` if you want to scope calls to a specific user/workspace.
 
 ##### For Claude Code
 
-To add the bridge to Claude Code, run the following command (replace `/absolute/path/to/docmost-mcp` with the cloned repository path and substitute your API key):
+If you skipped the interactive helper, add the bridge manually (replace `/absolute/path/to/docmost-mcp` with the cloned repository path, set `MCP_SERVER_URL` to your instance, and paste the API key):
 
 ```sh
-claude mcp add-json "docmost" '{"command":"npx","args":["tsx","/absolute/path/to/docmost-mcp/packages/mcp-bridge/src/index.ts"],"env":{"MCP_SERVER_URL":"http://localhost:3000","MCP_API_KEY":"paste_api_key_here","MCP_DEBUG":"true"}}'
+claude mcp add-json "docmost" '{
+  "command": "npx",
+  "args": ["tsx", "/absolute/path/to/docmost-mcp/packages/mcp-bridge/src/index.ts"],
+  "env": {
+    "MCP_SERVER_URL": "https://your-docmost.example",
+    "MCP_API_KEY": "paste_api_key_here",
+    "MCP_DEBUG": "true"
+  }
+}'
 ```
 
 See the official [Claude Code MCP documentation](https://modelcontextprotocol.io/clients/claude-code) for advanced options such as per-workspace overrides.
@@ -110,7 +126,7 @@ Cursor supports global and project-scoped MCP servers. The configuration JSON is
       ],
       "env": {
         "MCP_DEBUG": "true",
-        "MCP_SERVER_URL": "http://localhost:3000",
+        "MCP_SERVER_URL": "https://your-docmost.example",
         "MCP_API_KEY": "paste_api_key_here"
       }
     }
@@ -137,16 +153,16 @@ Add the same configuration block to your Claude Desktop settings file and restar
      "mcpServers": {
        "docmost": {
          "command": "npx",
-         "args": [
-           "tsx",
-           "/absolute/path/to/docmost-mcp/packages/mcp-bridge/src/index.ts"
-         ],
-         "env": {
-           "MCP_SERVER_URL": "http://localhost:3000",
-           "MCP_API_KEY": "paste_api_key_here",
-           "MCP_DEBUG": "true"
-         }
-       }
+        "args": [
+          "tsx",
+          "/absolute/path/to/docmost-mcp/packages/mcp-bridge/src/index.ts"
+        ],
+        "env": {
+          "MCP_SERVER_URL": "https://your-docmost.example",
+          "MCP_API_KEY": "paste_api_key_here",
+          "MCP_DEBUG": "true"
+        }
+      }
      }
    }
    ```
